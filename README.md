@@ -110,6 +110,7 @@ The v0.2 annotation-first context workflow is still available explicitly with `-
 - [Comparative analysis and report interpretation](docs/COMPARATIVE_ANALYSIS.md)
 - [Search methods, options and file reference](docs/METHODS.md)
 - [Tests and validation](docs/VALIDATION.md)
+- [Measured Tiberius CPU runtime, RAM and model sizes](docs/TIBERIUS_CPU_BENCHMARK.md)
 - [Five-assembly protein/CDS pilot](docs/FULL_GENOME_PILOT.md)
 
 This standalone project grew out of [HIST_Cluster_Finder](https://github.com/rljech13/HIST_Cluster_Finder).

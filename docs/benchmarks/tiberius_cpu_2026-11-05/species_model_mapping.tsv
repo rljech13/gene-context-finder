@@ -1,0 +1,19 @@
+species	accession	model	note
+Lethenteron camtschaticum	GCA_018977245.1	vertebrates	Distant lineage: model applicability requires validation
+Scyliorhinus canicula	GCF_902713615.2	vertebrates	Clade-based model assignment; not an accuracy guarantee
+Lepisosteus oculatus	GCF_040954835.1	vertebrates	Clade-based model assignment; not an accuracy guarantee
+Danio rerio	GCF_052040795.2	vertebrates	Clade-based model assignment; not an accuracy guarantee
+Protopterus annectens	GCF_019279795.1	vertebrates	Distant lineage: model applicability requires validation
+Ambystoma mexicanum	GCF_040938575.1	vertebrates	Distant lineage: model applicability requires validation
+Monodelphis domestica	GCF_027887165.2	mammalia_nosofttmasking_v2	Clade-based model assignment; not an accuracy guarantee
+Homo sapiens	GCF_000001405.40	mammalia_nosofttmasking_v2	Clade-based model assignment; not an accuracy guarantee
+Anolis carolinensis	GCF_035594765.1	vertebrates	Clade-based model assignment; not an accuracy guarantee
+Chelonia mydas	GCF_015237465.2	vertebrates	Clade-based model assignment; not an accuracy guarantee
+Alligator mississippiensis	GCF_030867095.1	vertebrates	Clade-based model assignment; not an accuracy guarantee
+Gallus gallus	GCF_016699485.2	vertebrates	Clade-based model assignment; not an accuracy guarantee
+Dromaius novaehollandiae	GCF_036370855.1	vertebrates	Clade-based model assignment; not an accuracy guarantee
+Anas platyrhynchos	GCF_047663525.1	vertebrates	Clade-based model assignment; not an accuracy guarantee
+Coturnix japonica	GCF_054131305.1	vertebrates	Clade-based model assignment; not an accuracy guarantee
+Meleagris gallopavo	GCF_905368555.1	vertebrates	Clade-based model assignment; not an accuracy guarantee
+Pavo cristatus	GCA_045791835.1	vertebrates	Clade-based model assignment; not an accuracy guarantee
+Taeniopygia guttata	GCF_048771995.1	vertebrates	Clade-based model assignment; not an accuracy guarantee

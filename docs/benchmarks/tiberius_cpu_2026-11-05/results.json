@@ -1,0 +1,243 @@
+{
+  "status": "passed",
+  "machine": {
+    "date": "2026-11-05T11:01:17.443491+00:00",
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "cpu": "Apple M3 Pro",
+    "ram_bytes": 38654705664,
+    "physical_cores": 12,
+    "tiberius_commit": "b3ea48f263a075260dbf1e91a412e82ccdc96d3c",
+    "cpu_threads": 4,
+    "preparation_driver_python": "3.14.2",
+    "benchmark_python": "Python 3.12.9"
+  },
+  "models": [
+    {
+      "name": "vertebrates",
+      "url": "https://bioinf.uni-greifswald.de/bioinf/tiberius/models/vertebrates_weights.tar.gz",
+      "compressed_bytes": 36368198,
+      "sha256": "cffe4571ba515adbfe8d68b9fec58d2682320011836c4f167466cba5917c0149",
+      "download_seconds": 220.5850894167088,
+      "headers": {
+        "Date": "Thu, 05 Nov 2026 11:00:18 GMT",
+        "Server": "Apache",
+        "Last-Modified": "Fri, 02 Jan 2026 10:22:10 GMT",
+        "ETag": "\"22aef46-64765150e7798\"",
+        "Accept-Ranges": "bytes",
+        "Content-Length": "36368198",
+        "Connection": "close",
+        "Content-Type": "application/x-gzip"
+      },
+      "extracted_bytes": 39211722,
+      "files": [
+        {
+          "path": "models/vertebrates/extracted/vertebrates_weights/model_layers.json",
+          "bytes": 7904,
+          "sha256": "e2a7035266f47803f2a196a63377b53f3e73f1f3d06ebfd6536259ef67dbf8fe"
+        },
+        {
+          "path": "models/vertebrates/extracted/vertebrates_weights/weights.h5",
+          "bytes": 39203472,
+          "sha256": "f80833ebc615c534e897a45a824dca1e148c4834b48720cada7001225c1a1545"
+        },
+        {
+          "path": "models/vertebrates/extracted/vertebrates_weights/model_config.json",
+          "bytes": 346,
+          "sha256": "01cfb23a6c086b695ea9e32f0599393600ef6724dfe3968156243c9476e8657b"
+        }
+      ]
+    },
+    {
+      "name": "mammalia",
+      "url": "https://bioinf.uni-greifswald.de/bioinf/tiberius/models/tiberius_nosm_weights_v2.tar.gz",
+      "compressed_bytes": 29805917,
+      "sha256": "f57551eb5d6ee04a011d7b5c828e6283ded1e04d26135048185c9b27b1948053",
+      "download_seconds": 180.38290208391845,
+      "headers": {
+        "Date": "Thu, 05 Nov 2026 11:00:18 GMT",
+        "Server": "Apache",
+        "Last-Modified": "Fri, 24 Oct 2025 17:16:14 GMT",
+        "ETag": "\"1c6cd5d-641eab4fdd7fe\"",
+        "Accept-Ranges": "bytes",
+        "Content-Length": "29805917",
+        "Connection": "close",
+        "Content-Type": "application/x-gzip"
+      },
+      "extracted_bytes": 32224440,
+      "files": [
+        {
+          "path": "models/mammalia/extracted/tiberius_nosm_weights_v2/model_layers.json",
+          "bytes": 7949,
+          "sha256": "fcdb621baaa6364021e5fb3d239e66908d627299428e50ddd4e95854ad6885b2"
+        },
+        {
+          "path": "models/mammalia/extracted/tiberius_nosm_weights_v2/weights.h5",
+          "bytes": 32216128,
+          "sha256": "974c18dc5e9e5ec053670f44b57e60290760d4fff97305dcc26a8f08775985bd"
+        },
+        {
+          "path": "models/mammalia/extracted/tiberius_nosm_weights_v2/model_config.json",
+          "bytes": 363,
+          "sha256": "c11be795ddc4c9fd9b87636e6ff483b52cbbeec917d2093a43e1c6aba97cdea4"
+        }
+      ]
+    }
+  ],
+  "storage": {
+    "venv": {
+      "logical_file_bytes": 1369667390,
+      "files": 21502
+    },
+    "uv_cache": {
+      "logical_file_bytes": 1350151490,
+      "files": 18872
+    },
+    "Tiberius_source": {
+      "logical_file_bytes": 175614673,
+      "files": 119
+    },
+    "models": {
+      "logical_file_bytes": 137612764,
+      "files": 10
+    },
+    "inputs": {
+      "logical_file_bytes": 3211041,
+      "files": 11
+    },
+    "runs": {
+      "logical_file_bytes": 52910,
+      "files": 22
+    },
+    "runtime_without_installer_cache_bytes": 1682894827
+  },
+  "runs": [
+    {
+      "name": "mammalia_2",
+      "model": "mammalia",
+      "input_sequences": 2,
+      "input_bases": 216734,
+      "sequence_lengths": [
+        108367,
+        108367
+      ],
+      "wall_seconds": 58.71032204199582,
+      "sampled_peak_single_process_rss_bytes": 1476263936,
+      "sampled_peak_tree_rss_bytes": 1477476352,
+      "system_max_swap_used_bytes": 1116471296,
+      "returncode": 0,
+      "finished_utc": "2026-11-05T11:11:01.879351+00:00",
+      "model_archive_sha256": "f57551eb5d6ee04a011d7b5c828e6283ded1e04d26135048185c9b27b1948053",
+      "gene_count": 8,
+      "time_peak_rss_bytes": 1476476928,
+      "time_user_seconds": 89.8,
+      "time_system_seconds": 10.1,
+      "mac_peak_memory_footprint_bytes": 619776040,
+      "audit": {
+        "status": "passed",
+        "cds_roundtrips": 8,
+        "protein_translations": 8,
+        "multi_exon_models": 6,
+        "cpu_only": true
+      }
+    },
+    {
+      "name": "mammalia_one",
+      "model": "mammalia",
+      "input_sequences": 1,
+      "input_bases": 108367,
+      "sequence_lengths": [
+        108367
+      ],
+      "wall_seconds": 29.428389959037304,
+      "sampled_peak_single_process_rss_bytes": 1381367808,
+      "sampled_peak_tree_rss_bytes": 1382580224,
+      "system_max_swap_used_bytes": 1116471296,
+      "returncode": 0,
+      "finished_utc": "2026-11-05T11:04:06.408624+00:00",
+      "model_archive_sha256": "f57551eb5d6ee04a011d7b5c828e6283ded1e04d26135048185c9b27b1948053",
+      "gene_count": 4,
+      "time_peak_rss_bytes": 1384398848,
+      "time_user_seconds": 44.02,
+      "time_system_seconds": 4.62,
+      "mac_peak_memory_footprint_bytes": 533530352,
+      "audit": {
+        "status": "passed",
+        "cds_roundtrips": 4,
+        "protein_translations": 4,
+        "multi_exon_models": 3,
+        "cpu_only": true
+      }
+    },
+    {
+      "name": "vertebrates_16",
+      "model": "vertebrates",
+      "input_sequences": 16,
+      "input_bases": 1580609,
+      "sequence_lengths": [
+        110928,
+        104234,
+        65610,
+        103265,
+        100922,
+        113327,
+        110928,
+        104234,
+        65610,
+        103265,
+        100922,
+        113327,
+        110928,
+        104234,
+        65610,
+        103265
+      ],
+      "wall_seconds": 234.0057536251843,
+      "sampled_peak_single_process_rss_bytes": 1649704960,
+      "sampled_peak_tree_rss_bytes": 1650229248,
+      "system_max_swap_used_bytes": 1116471296,
+      "returncode": 0,
+      "finished_utc": "2026-11-05T11:09:54.196618+00:00",
+      "model_archive_sha256": "cffe4571ba515adbfe8d68b9fec58d2682320011836c4f167466cba5917c0149",
+      "gene_count": 55,
+      "time_peak_rss_bytes": 1653080064,
+      "time_user_seconds": 428.11,
+      "time_system_seconds": 37.93,
+      "mac_peak_memory_footprint_bytes": 749979928,
+      "audit": {
+        "status": "passed",
+        "cds_roundtrips": 55,
+        "protein_translations": 55,
+        "multi_exon_models": 48,
+        "cpu_only": true
+      }
+    },
+    {
+      "name": "vertebrates_one",
+      "model": "vertebrates",
+      "input_sequences": 1,
+      "input_bases": 110928,
+      "sequence_lengths": [
+        110928
+      ],
+      "wall_seconds": 26.23861737502739,
+      "sampled_peak_single_process_rss_bytes": 1500758016,
+      "sampled_peak_tree_rss_bytes": 1501970432,
+      "system_max_swap_used_bytes": 1116471296,
+      "returncode": 0,
+      "finished_utc": "2026-11-05T11:05:16.149800+00:00",
+      "model_archive_sha256": "cffe4571ba515adbfe8d68b9fec58d2682320011836c4f167466cba5917c0149",
+      "gene_count": 3,
+      "time_peak_rss_bytes": 1505804288,
+      "time_user_seconds": 46.94,
+      "time_system_seconds": 3.74,
+      "mac_peak_memory_footprint_bytes": 508642720,
+      "audit": {
+        "status": "passed",
+        "cds_roundtrips": 3,
+        "protein_translations": 3,
+        "multi_exon_models": 3,
+        "cpu_only": true
+      }
+    }
+  ]
+}
