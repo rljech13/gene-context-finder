@@ -31,6 +31,10 @@ def load_genomes(args):
                 for key in ("fasta", "gff3"):
                     value = row.get(key, "") or ""
                     row[key] = str((manifest.parent / value).resolve()) if value else ""
+                if row.get("tiberius_model"):
+                    from .tiberius_backend import MODELS, model_name
+                    value = model_name(row["tiberius_model"].strip())
+                    row["tiberius_model"] = value if value in MODELS else str((manifest.parent / Path(value).expanduser()).resolve())
                 rows.append(row)
     else:
         for path in sorted(Path(args.genome_dir).resolve().rglob("*")):

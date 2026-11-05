@@ -38,7 +38,7 @@ def annotate_missing(args, root, selected, context, proteins, metadata, windows,
     if args.context_reference == "swissprot" or (args.context_reference == "auto" and not proteins):
         receipt.update(source="automatic_swissprot", status="preparing_swissprot")
         receipt_path.write_text(json.dumps(receipt, indent=2) + "\n")
-        reference_path, provenance = swissprot(args.reference_cache)
+        reference_path, provenance = swissprot(args.reference_cache, allow_download=not args.offline)
         receipt["swissprot"] = dict(provenance, **add_references(
             reference_path, proteins, metadata, "swissprot_reference", skip_invalid=True))
     receipt.update(status="ready" if proteins else "no_reference_evidence", screening_proteins=len(proteins))

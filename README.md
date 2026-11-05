@@ -23,7 +23,7 @@ Your query FASTA + genome FASTAs + optional matching GFF3 annotations
 - **Query FASTA:** one or more proteins, CDS sequences or DNA regions. Use one sequence type per file. Gene names alone are not sequence input.
 - **Genome FASTA:** one file per assembly; `.fa`, `.fna`, `.fasta` and gzip files are accepted.
 - **GFF3 annotation, if available:** it must match the exact genome assembly. Gzip is accepted.
-- **AUGUSTUS model:** choose a trained model for each genome; `augustus --species=help` lists installed models.
+- **Prediction model:** the shared Tiberius `vertebrates` model is the default; select `mammalia` for mammals. These are two shared models, not one download per species. For other clades, provide a suitable unmasked Tiberius model or use the optional AUGUSTUS backend.
 
 Use already downloaded files directly, with their original filenames.
 
@@ -34,22 +34,25 @@ git clone https://github.com/rljech13/gene-context-finder.git
 cd gene-context-finder
 conda env create -f environment.yml
 conda activate gene-context
+gene-context setup-predictor --with-reference
 gene-context doctor
 ```
+
+Setup creates an isolated CPU runtime and downloads both shared models (66.2 MB compressed in total), plus Swiss-Prot for protein identification. No GPU is required. Allow about 2 GB for the predictor installation, in addition to genomes and results. See [setup](docs/SETUP_AND_DOWNLOAD.md) for cache locations and offline use.
 
 ## 1. List your local genomes
 
 Create `genomes.tsv` with **tab-separated** columns. Replace the example paths with your actual filenames:
 
 ```tsv
-genome_id	fasta	gff3	augustus_species
-chicken	data/chicken/genome.fna.gz	data/chicken/annotation.gff.gz	chicken
-human	data/human/genome.fna.gz		human
+genome_id	fasta	gff3	tiberius_model
+chicken	data/chicken/genome.fna.gz	data/chicken/annotation.gff.gz	vertebrates
+human	data/human/genome.fna.gz		mammalia
 ```
 
 Add one row per assembly. Paths are relative to `genomes.tsv`, or absolute. Leave `gff3` empty when annotation is unavailable. Gzip inputs need no manual decompression.
 
-`augustus_species` selects predictor parameters, not the assembly's taxonomic label. Use an available suitable model, or your own trained model. There is no automatic universal model choice. For one shared model, omit this column and pass `--augustus-species MODEL`.
+`tiberius_model` is optional: omitted entries use `--tiberius-model vertebrates`. Select `mammalia` explicitly for mammals. A separate `--prediction-models models.tsv` table can override models, including for saved searches; the [18-species example](examples/vertebrates18.models.tsv) matches the download manifest. No taxonomy is inferred from filenames.
 
 ## 2. Analyze your genes
 
@@ -62,9 +65,11 @@ gene-context analyze --query targets.faa --query-type protein \
   --genomes genomes.tsv --out results/analysis --threads 8
 ```
 
-This searches every query in every genome, checks target coding models, and extracts each selected locus with **50 kb on either side**. It then predicts genes from each window's DNA with AUGUSTUS, identifies their proteins, compares neighbours, and compares genomic DNA and target proteins. The prediction step runs for **every genome**, including genomes with GFF3. Use `--window` to change the context size. Add `--include-partial` to include clean incomplete target proteins; disrupted target models stay excluded.
+This searches every query in every genome, checks target coding models, and extracts each selected locus with **50 kb on either side**. It then predicts genes from each window's DNA with Tiberius on CPU, identifies their proteins, compares neighbours, and compares genomic DNA and target proteins. The prediction step runs for **every genome**, including genomes with GFF3. Use `--window` to change the context size. Add `--include-partial` to include clean incomplete target proteins; disrupted target models stay excluded.
 
-**Without GFF3:** the same window-prediction step still runs. Predicted genes remain on the diagram even if their proteins cannot be identified. Naming uses proteins from provided annotations or `--context-proteins reference.faa`; if neither provides a usable library, Swiss-Prot is downloaded automatically once, checked against its official checksum, and pinned in a reusable cache. `--context-reference swissprot` adds Swiss-Prot explicitly; `--context-reference none` disables automatic downloads. Unnamed predictions can still be matched across genomes by their protein sequences. GFF3 supplies a separate comparison/reference track and no hints to AUGUSTUS. See [window prediction](docs/WINDOW_PREDICTION.md).
+**Without GFF3:** the same DNA-only prediction step runs. Genes remain on the diagram even if their proteins cannot be identified. BLASTP names predicted proteins against Swiss-Prot (default), supplied `--context-proteins reference.faa`, and any usable proteins from the provided annotations. GFF3 supplies an independent comparison/reference track, without constraining prediction. Unnamed predictions can still match across genomes by their protein sequences. See [window prediction](docs/WINDOW_PREDICTION.md).
+
+After setup, add `--offline` to require cached models/references and prevent downloads during analysis. Use `--context-reference none` to identify only against your local proteins; prediction still runs.
 
 For spliced coding DNA without introns or UTRs, use `--query-type cds`. For genomic/noncoding DNA, use `--query-type dna`; these matches can remain DNA regions when coding evidence is unavailable.
 
@@ -97,7 +102,7 @@ Build the comparative report without searching the genomes again:
 
 ```bash
 gene-context compare --results results/search --out results/comparison --threads 8 \
-  --augustus-species YOUR_MODEL
+  --prediction-models examples/vertebrates18.models.tsv
 ```
 
 `analyze` combines search and comparison. The existing `run` and `align` commands remain available for search/extraction or ordinary multiple alignments. See [comparative analysis](docs/COMPARATIVE_ANALYSIS.md) for grouping, manual locus selection, DNA engines and interpretation.
@@ -110,6 +115,7 @@ The v0.2 annotation-first context workflow is still available explicitly with `-
 - [Comparative analysis and report interpretation](docs/COMPARATIVE_ANALYSIS.md)
 - [Search methods, options and file reference](docs/METHODS.md)
 - [Tests and validation](docs/VALIDATION.md)
+- [Tiberius integration and end-to-end validation](docs/TIBERIUS_INTEGRATION_VALIDATION.md)
 - [Measured Tiberius CPU runtime, RAM and model sizes](docs/TIBERIUS_CPU_BENCHMARK.md)
 - [Five-assembly protein/CDS pilot](docs/FULL_GENOME_PILOT.md)
 

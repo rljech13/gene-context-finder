@@ -38,7 +38,7 @@ The input comprises **seven real extracted windows from five species**: anole, g
 
 The two workload runs returned 55 + 8 coding models, including repeat observations by design. A separate Biopython audit, importing neither Tiberius nor genecontext, checked the GFF3 coordinates against each exact input, CDS exon phases, CDS FASTA roundtrips and protein translations. All **63 workload models** passed. Including the two single-window controls, all 70 exported models passed. The audit also checked CPU-only execution and downloaded model fingerprints. It does not validate biological gene accuracy.
 
-These measurements cover **window gene prediction and its CDS/protein exports**. They exclude target discovery in complete genomes, BLAST identification, DNA/protein comparisons, repeat masking, gene-prediction accuracy evaluation and model training. The main pipeline still uses AUGUSTUS by default; this was a separate feasibility benchmark for a future Tiberius backend.
+These measurements cover **window gene prediction and its CDS/protein exports**. They exclude target discovery in complete genomes, BLAST identification, DNA/protein comparisons, repeat masking, gene-prediction accuracy evaluation and model training. At benchmark time, the main pipeline used AUGUSTUS. Tiberius is now integrated as the default CPU backend in v0.4; see [integration validation](TIBERIUS_INTEGRATION_VALIDATION.md). The timings above remain measurements of the separate benchmark, not total pipeline runtimes.
 
 ## Practical interpretation
 

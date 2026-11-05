@@ -2,7 +2,7 @@
 
 `analyze` accepts your sequences and your genome table. Gene names, species and reference assemblies are not built into the algorithm. Protein/CDS inputs use the standard nuclear genetic code; arbitrary DNA can also be compared as matched regions.
 
-Since v0.3 the default context workflow predicts genes from the DNA of **every window**, then identifies the predicted proteins. See [window prediction](WINDOW_PREDICTION.md) for model selection, database preparation and outputs. The genome TSV must include `augustus_species`, or supply a global `--augustus-species MODEL`. The legacy v0.2 context workflow is explicitly selected with `--context-mode annotation`.
+The default context workflow predicts genes from the DNA of **every window**, then identifies the predicted proteins. See [window prediction](WINDOW_PREDICTION.md) for model selection, database preparation and outputs. Since v0.4, Tiberius on CPU is the default predictor. Use optional `tiberius_model` values (`vertebrates` or `mammalia`) or `--prediction-models models.tsv`; omitted values use `vertebrates`. The legacy v0.2 context workflow is explicitly selected with `--context-mode annotation`.
 
 ## One command
 
@@ -49,7 +49,7 @@ Use exact values from the output; the group can be its label or internal ID. Omi
 
 ## Neighbouring genes and local synteny
 
-By default, AUGUSTUS predicts protein-coding gene structures from each window's DNA, with no protein or GFF3 hints. Predicted CDS and proteins are extracted, then BLASTP identifies the proteins against local/supplied references, or an automatically prepared Swiss-Prot library when no usable local reference proteins exist. Unnamed genes remain visible and can form homology groups across genomes. Provided GFF3 neighbours are saved separately for comparison and can supply naming reference proteins. Predictor model choice is explicit per genome or through `--augustus-species`.
+By default, Tiberius on CPU predicts protein-coding gene structures from every window's DNA, with no protein or GFF3 hints. Windows sharing one model are processed together. Predicted CDS and proteins are extracted, then BLASTP identifies proteins against Swiss-Prot (default), local annotation proteins and any supplied references. Unnamed genes remain visible and can form homology groups across genomes. Provided GFF3 neighbours are saved separately for comparison and can supply naming reference proteins. Predictions use unmasked DNA; the original masked window DNA is preserved for nucleotide comparisons. Model choice can be overridden per genome. AUGUSTUS remains available with `--predictor augustus --augustus-species MODEL`.
 
 With `--context-mode annotation` only, supplied GFF3 gene envelopes provide the primary neighbours. For windows lacking GFF3, BLASTX screens reference proteins, then miniprot reconstructs protein-supported coding models. This legacy route can use the same optional Swiss-Prot fallback, or `--context-reference none` for local inputs only.
 
@@ -82,7 +82,7 @@ The page shows pairwise amino-acid identity/coverage and a position profile. Que
 ```bash
 gene-context compare --results results/previous_search \
   --out results/new_comparison --threads 8 --window 50000 \
-  --augustus-species YOUR_MODEL
+  --prediction-models examples/vertebrates18.models.tsv --offline
 ```
 
 Original searches and their manifests remain unchanged. The source genomes (or saved working FASTA caches) and supplied GFF3 files must remain accessible on the machine running comparison. Target sequence roundtrips and GFF3 hashes are checked, and each newly extracted window is fingerprinted. Copying only the original HTML report is not enough to recompute context.

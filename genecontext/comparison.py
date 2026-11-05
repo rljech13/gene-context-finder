@@ -303,7 +303,7 @@ def compare(args):
                     source_run_errors=original.get("errors", []), parameters=vars(args), tools=versions,
                     groups=groups, source_code_sha256={p.name: sha256(p) for p in Path(__file__).parent.glob('*.py')},
                     extra_inputs_sha256={k: sha256(v) for k, v in vars(args).items()
-                                         if k in {"context_proteins", "query_groups", "select_loci"} and v})
+                                         if k in {"context_proteins", "query_groups", "select_loci", "prediction_models"} and v})
     manifest["tools"].update(tool_versions(["blastx", "miniprot", "augustus"]))
     try:
         context, proteins, metadata, windows = collect_windows(args, source, root, original, selected, runner, errors)
@@ -311,7 +311,7 @@ def compare(args):
         try:
             if args.context_mode == "predict":
                 from .context_predict import predict_contexts
-                predict_contexts(args, root, original["genomes"], valid, context, proteins, metadata, runner, errors)
+                predict_contexts(args, root, original["genomes"], valid, context, proteins, metadata, windows, runner, errors)
             else:
                 annotate_missing(args, root, valid, context, proteins, metadata, windows, runner, errors)
         except (OSError, ValueError, RuntimeError) as error:
@@ -331,6 +331,9 @@ def compare(args):
             manifest["context_reference"] = json.loads((root / "context_reference.json").read_text())
         if (root / "context_prediction.json").exists():
             manifest["context_prediction"] = json.loads((root / "context_prediction.json").read_text())
+            if manifest["context_prediction"].get("runtime"):
+                info = manifest["context_prediction"]["runtime"]
+                manifest["tools"]["tiberius"] = dict(path=info["executable"], version=info["packages"]["tiberius"])
         try:
             families, matches = homology_groups(args, root, context, proteins, metadata, runner)
         except (OSError, ValueError, RuntimeError) as error:
@@ -351,7 +354,7 @@ def compare(args):
                                    coverage=chosen.get("coverage", ""), identity=chosen.get("identity", ""))
         write_tsv(root / "summary.tsv", observations, columns)
         write_tsv(root / "candidates.tsv", candidates, ["group", "genome_id", "locus_rank", "model_id", "representative", "selected", "contig", "start", "end", "strand", "status", "source", "source_gene", "source_model", "query", "coverage", "identity"])
-        write_tsv(root / "loci.tsv", selected, ["locus_id", "group", "genome_id", "model_id", "selection_status", "candidate_loci", "target_name", "source", "source_gene", "source_model", "coverage", "identity", "protein_aa", "contig", "strand", "status", "window_start", "window_end", "target_start", "target_end", "anchor_kind", "left_clipped", "right_clipped", "window_bp", "softmasked_bases", "window_fasta", "window_sha256", "annotation_status", "context_status", "context_predictor_model", "comparison_error"])
+        write_tsv(root / "loci.tsv", selected, ["locus_id", "group", "genome_id", "model_id", "selection_status", "candidate_loci", "target_name", "source", "source_gene", "source_model", "coverage", "identity", "protein_aa", "contig", "strand", "status", "window_start", "window_end", "target_start", "target_end", "anchor_kind", "left_clipped", "right_clipped", "window_bp", "softmasked_bases", "window_fasta", "window_sha256", "annotation_status", "context_status", "context_predictor", "context_predictor_model", "comparison_error"])
         write_tsv(root / "neighbors.tsv", context, ["locus_id", "group", "genome_id", "gene_id", "name", "contig", "start", "end", "strand", "relative_start", "relative_end", "relative_strand", "protein_id", "homology_group", "evidence", "clipped", "reference_protein", "reference_identity", "reference_coverage", "prediction_coverage", "coding_status", "identification_status", "provided_gff_overlap"])
         write_tsv(root / "neighbor_proteins.tsv", [dict(protein_id=pid, **item,
                   protein_aa=len(proteins.get(pid, "")), protein_sha256=hashlib.sha256(proteins[pid].encode()).hexdigest() if pid in proteins else "")

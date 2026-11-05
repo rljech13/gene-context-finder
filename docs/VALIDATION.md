@@ -3,6 +3,8 @@
 Validation below covers the `genecontext` package and its defined controls.
 It is not an exhaustive genome-wide sensitivity/specificity study.
 
+The v0.4 default uses Tiberius on CPU; see [integration validation](TIBERIUS_INTEGRATION_VALIDATION.md) for current tests and measured runs.
+
 The default context method changed in v0.3 to DNA-only window prediction followed by protein identification. See [window-prediction validation](WINDOW_PREDICTION_VALIDATION.md). The v0.1/v0.2 evidence below describes the earlier search/extraction and annotation-first comparison methods.
 
 ## Executables used locally

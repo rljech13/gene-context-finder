@@ -220,9 +220,9 @@ def write_comparison_reports(root, groups, original, selected, observations, con
              '<p class="note">Ranked loci are candidates. Multiple loci, isoforms and reference-supported predictions are retained in the tables. '
              'Local protein matches and conserved gene order support a comparison but do not establish individual-copy orthology. '
              'Missing annotation or alignment is not evidence of gene absence or regulatory activity.</p>',
-             ('<p class="note">Every context window was submitted to AUGUSTUS for DNA-only gene prediction, followed by protein identification. '
+             (f'<p class="note">Context windows use {"Tiberius on CPU" if args.predictor == "tiberius" else "AUGUSTUS"} for DNA-only gene prediction, followed by protein identification. Short-window skips and failures are shown in the locus status. '
               'Unidentified predictions remain in the context. Supplied GFF3 is a separate comparison/reference track.</p>'
-              '<p><a href="context_predictions.tsv">All window predictions</a> · '
+              '<p><a href="context_predictions.tsv">All window predictions</a> · <a href="context_prediction.json">Predictor models and CPU provenance</a> · '
               '<a href="context_prediction_cds.fna">Predicted CDS</a> · '
               '<a href="context_prediction_proteins.faa">Predicted proteins</a> · '
               '<a href="provided_neighbors.tsv">Provided annotation neighbours</a></p>' if args.context_mode == "predict" else ''),
@@ -255,9 +255,9 @@ def write_comparison_reports(root, groups, original, selected, observations, con
                 'Gene boundaries use GFF3 where the selected annotation supplies them; otherwise coding-model/DNA-hit boundaries are used. '
                 'Windows are clipped at contig ends. Distances and coordinates are available in loci.tsv.</p>',
                 '<h2>Local synteny</h2><img src="synteny.svg" alt="Gene order and orientation across input genomes">',
-                html_table(loci, ["genome_id", "annotation_status", "context_status", "context_predictor_model"]),
+                html_table(loci, ["genome_id", "annotation_status", "context_status", "context_predictor", "context_predictor_model"]),
                 html_table([r for r in context if r["group"] == group["id"]],
-                           ["genome_id", "name", "gene_id", "homology_group", "start", "end", "strand", "evidence", "reference_identity", "reference_coverage"]),
+                           ["genome_id", "name", "gene_id", "homology_group", "start", "end", "strand", "evidence", "identification_status", "reference_identity", "reference_coverage"]),
                 '<p>Neighbour families use reciprocal best protein matches within the collected context/reference catalog. '
                 'They are provisional homology groups. At least two unique anchors are required to compare order; repeated families are excluded from that order score. '
                 'Unannotated windows can contain additional unpredicted genes. Inferred names are borrowed from supporting proteins, '

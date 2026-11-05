@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 
 from . import __version__
@@ -10,6 +11,7 @@ from .alignment import realign
 from .pipeline import run
 from .tools import tool_versions
 from .context_reference import DEFAULT_CACHE
+from .tiberius_backend import DEFAULT_PREDICTOR_CACHE, MODELS
 
 
 def fraction(value):
@@ -37,14 +39,16 @@ def comparison_options(command):
     command.add_argument("--context-mode", choices=["predict", "annotation"], default="predict",
                          help="predict: predict genes in every window, then identify proteins; annotation: legacy GFF3/reference-supported contexts")
     command.add_argument("--augustus-species", help="AUGUSTUS trained species model; genome TSV augustus_species values override this default")
+    predictor_options(command)
+    command.add_argument("--offline", action="store_true", help="Require local model/reference caches; do not download missing files")
     command.add_argument("--include-partial", action="store_true",
                          help="Also compare clean partial coding models; disrupted models stay excluded")
     command.add_argument("--window", type=nonnegative, default=50000,
                          help="Context DNA on each side of the gene/model (bp)")
     command.add_argument("--dna-engine", choices=["blastn", "lastz"], default="blastn")
-    command.add_argument("--context-proteins", help="Optional reference proteins for unannotated context windows")
-    command.add_argument("--context-reference", choices=["auto", "swissprot", "none"], default="auto",
-                         help="auto: use Swiss-Prot if no local context proteins exist; swissprot: always add it; none: offline inputs only")
+    command.add_argument("--context-proteins", help="Optional naming reference proteins for predicted context genes")
+    command.add_argument("--context-reference", choices=["auto", "swissprot", "none"], default="swissprot",
+                         help="auto: use Swiss-Prot if no local context proteins exist; swissprot: always add it; none: only local naming references")
     command.add_argument("--reference-cache", default=DEFAULT_CACHE,
                          help="Reusable Swiss-Prot cache; an existing release is pinned and reused offline")
     command.add_argument("--query-groups", help="Optional TSV: query, group; combine references of one target")
@@ -55,6 +59,18 @@ def comparison_options(command):
     command.add_argument("--dna-min-block", type=positive, default=50)
     command.add_argument("--dna-min-identity", type=fraction, default=0.6)
     command.add_argument("--max-window-bases", type=positive, default=2000000)
+
+
+def predictor_options(command):
+    command.add_argument("--predictor", choices=["tiberius", "augustus"], default="tiberius",
+                         help="DNA-only window predictor (default: Tiberius on CPU)")
+    command.add_argument("--tiberius-model", default="vertebrates",
+                         help="vertebrates, mammalia, or an unmasked local model directory; TSV tiberius_model overrides this")
+    command.add_argument("--prediction-models", help="Optional TSV: genome_id, model; overrides models for new or saved searches")
+    command.add_argument("--predictor-cache", default=DEFAULT_PREDICTOR_CACHE)
+    command.add_argument("--tiberius-python", help="Optional Python executable of an existing Tiberius 2.0.9 CPU environment")
+    command.add_argument("--tiberius-batch-size", type=positive, default=1,
+                         help="Neural inference batch size; 1 limits CPU memory")
 
 
 def search_options(command, comparative=False):
@@ -99,7 +115,15 @@ def parser():
     parser = argparse.ArgumentParser(description="Find genes and their surroundings from DNA or protein sequences")
     parser.add_argument("--version", action="version", version=__version__)
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("doctor", help="Show external executable paths and versions")
+    doctor = commands.add_parser("doctor", help="Check sequence tools and the selected predictor")
+    predictor_options(doctor)
+    setup = commands.add_parser("setup-predictor", help="Install the pinned Tiberius CPU runtime and prepare shared model weights")
+    setup.add_argument("--predictor-cache", default=DEFAULT_PREDICTOR_CACHE)
+    setup.add_argument("--python", help="Python 3.12/3.13 used to create the isolated runtime")
+    setup.add_argument("--models", nargs="+", choices=sorted(MODELS), default=["vertebrates", "mammalia"])
+    setup.add_argument("--models-only", action="store_true", help="Prepare weights without installing Python packages")
+    setup.add_argument("--with-reference", action="store_true", help="Also prepare Swiss-Prot for subsequent offline identification")
+    setup.add_argument("--reference-cache", default=DEFAULT_CACHE)
     reference = commands.add_parser("prepare-context", help="Download and checksum-pin Swiss-Prot for offline context annotation")
     reference.add_argument("--reference-cache", default=DEFAULT_CACHE)
     download = commands.add_parser("download", help="Download genome/GFF3 inputs and verify official MD5 checksums")
@@ -133,9 +157,23 @@ def parser():
 def main(argv=None):
     args = parser().parse_args(argv)
     if args.command == "doctor":
-        versions = tool_versions(["samtools", "miniprot", "blastn", "blastp", "blastx", "makeblastdb", "mafft", "augustus"])
+        versions = tool_versions(["samtools", "miniprot", "blastn", "blastp", "blastx", "makeblastdb", "mafft"] + (["augustus"] if args.predictor == "augustus" else []))
+        if args.predictor == "tiberius":
+            from .tiberius_backend import runtime_info, runtime_python, ensure_model
+            python = runtime_python(args)
+            try:
+                versions["tiberius"] = dict(path=python, **runtime_info(python), model=ensure_model(args.tiberius_model, args.predictor_cache, offline=True))
+            except (ValueError, OSError, RuntimeError) as error:
+                versions["tiberius"] = dict(path=None, error=str(error))
         print(json.dumps(versions, indent=2))
         return 1 if any(not value["path"] for value in versions.values()) else 0
+    if args.command == "setup-predictor":
+        from .tiberius_backend import setup_predictor
+        try:
+            return setup_predictor(args)
+        except (ValueError, OSError, RuntimeError, subprocess.SubprocessError) as error:
+            print(f"ERROR: {error}", file=sys.stderr)
+            return 2
     if args.command == "download":
         try:
             return run_download(args)

@@ -16,7 +16,7 @@ SWISSPROT_BASE = "https://ftp.uniprot.org/pub/databases/uniprot/current_release/
 DEFAULT_CACHE = str(Path.home() / ".cache" / "gene-context" / "references")
 
 
-def swissprot(cache, base_url=SWISSPROT_BASE):
+def swissprot(cache, base_url=SWISSPROT_BASE, allow_download=True):
     """Reuse the pinned local release offline; fetch only when the cache is empty.
 
     base_url is injectable for local HTTP integration tests, not a CLI option.
@@ -34,6 +34,8 @@ def swissprot(cache, base_url=SWISSPROT_BASE):
                 md5(path) != info["md5"] or sha256(path) != info["sha256"]):
             raise ValueError(f"Swiss-Prot cache fails verification; preserved unchanged: {root}. Use a new --reference-cache.")
         return path, dict(info, cache_status="reused_verified", path=str(path))
+    if not allow_download:
+        raise ValueError("Swiss-Prot is not cached. Run prepare-context or setup-predictor --with-reference before --offline, or use --context-reference none.")
     # Prevent simultaneous first downloads from writing the same .part file.
     lock = root / "download.lock"
     try:

@@ -22,7 +22,7 @@ def table(path):
 
 class PredictionUnits(unittest.TestCase):
     def test_model_override_and_native_mapping(self):
-        args = argparse.Namespace(augustus_species='human')
+        args = parser().parse_args(['compare', '--results', 'unused', '--out', 'unused', '--predictor', 'augustus', '--augustus-species', 'human'])
         self.assertEqual(prediction_model(args, dict(augustus_species='chicken')), 'chicken')
         self.assertEqual(prediction_model(args, {}), 'human')
         self.assertEqual(native_interval(dict(strand='-', window_start=100, window_end=1000), 20, 70), (930, 980))
@@ -50,7 +50,7 @@ class PredictionIntegration(unittest.TestCase):
         query = self.root / 'query.fna'; write_fasta(query, [('noncoding_seed', self.sequence[:400])])
         output = self.root / 'analysis'
         command = [sys.executable, '-m', 'genecontext', 'analyze', '--query', str(query), '--query-type', 'dna',
-                   '--genomes', str(inputs), '--out', str(output), '--threads', '1', '--window', '50000', '--context-reference', 'none']
+                   '--genomes', str(inputs), '--out', str(output), '--threads', '1', '--window', '50000', '--context-reference', 'none', '--predictor', 'augustus']
         run = subprocess.run(command, capture_output=True, text=True)
         self.assertEqual(run.returncode, 0, run.stdout+run.stderr)
         root = output / 'comparison'

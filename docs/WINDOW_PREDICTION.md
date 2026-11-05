@@ -1,70 +1,83 @@
-# Window gene prediction (v0.3)
-
-The default workflow is:
+# Window gene prediction (v0.4)
 
 ```text
-query → target search in every genome → target ±50 kb
-      → predict genes from each window's DNA
+query → find target in every genome → whole target ±50 kb
+      → predict genes from the DNA of every window
       → extract predicted CDS and proteins
       → identify predicted proteins
       → compare neighbour families, order and orientation
 ```
 
-Gene prediction and gene identification are separate operations. An unknown protein match does **not** delete a predicted gene. The window DNA and target CDS/protein comparisons are also retained independently of neighbour identification.
+Prediction and identification are separate. A protein without a confident name stays visible as `uncharacterized` and can still match unnamed predictions in other genomes. Window DNA comparisons and target CDS/protein comparisons remain independent of neighbour naming.
 
-## Predictor
+## Default: Tiberius on CPU
 
-AUGUSTUS predicts splice-aware protein-coding gene structures from the DNA of **every** selected window, regardless of GFF3 availability. The same settings are used across windows, with an explicitly selected trained species model for each genome. Predictions use both strands, allow partial models at window boundaries, preserve lowercase softmasking and disable UTR prediction and alternative sampling. No annotation, reference protein or synteny hints are supplied to AUGUSTUS.
+Prepare the isolated runtime, two shared models and naming database once:
 
-List installed models with `augustus --species=help`. Select a model using `--augustus-species MODEL`, or override it per genome in the input TSV:
-
-```tsv
-genome_id	fasta	gff3	augustus_species
-bird	bird.fna.gz	bird.gff3.gz	chicken
-human	human.fna.gz		human
+```bash
+gene-context setup-predictor --with-reference
+gene-context doctor
 ```
 
-These are predictor model identifiers, not a universal assignment rule for all birds or mammals. For a species without a trained model, choose and validate a suitable related model or supply a trained model through AUGUSTUS configuration. A gene-prediction model is required; the pipeline does not silently assume that one model fits all input organisms. AUGUSTUS targets eukaryotic gene structures. Input generality does not guarantee prediction accuracy at every evolutionary distance.
+The backend runs pinned Tiberius 2.0.9 on CPU, with GPUs hidden explicitly. Both strands are predicted without GFF3, protein or synteny hints. It uses unmasked DNA (`--no_softmasking`), the tested 400,050-base inference length, and neural batch size 1 to limit memory. Original window FASTAs retain their original letter case for DNA comparison. No model training or RNA-seq is required.
 
-The window contains the whole selected target envelope plus 50 kb at each side, clipped at contig ends. A gene crossing that boundary can be partial or missed. Lowercase input is treated as softmasking; an entirely lowercase genome can suppress prediction. Increasing the window or checking input masking can help investigate such cases. The window does not force a fixed number of genes to be predicted.
+A separate Python process handles all windows sharing one model, amortizing TensorFlow/model startup. Different model groups run sequentially. `--threads` limits the TensorFlow intra-operation pool; the inter-operation pool is 1. `--tiberius-batch-size` can be increased at the cost of memory. Provenance records visible devices, package versions, source-file hashes and weight checksums.
+
+Model choices:
+
+| Value | Use |
+|---|---|
+| `vertebrates` | Default shared vertebrate model |
+| `mammalia` | Shared mammalian unmasked model |
+| Local directory | Compatible custom unmasked ab initio model |
+
+There is no model download per species. The two built-in archives total 66.2 MB; extracted files total 71.4 MB. The isolated Python runtime is much larger; allow about 2 GB for setup, excluding genomes and results. See [measured CPU benchmark](TIBERIUS_CPU_BENCHMARK.md) and [setup](SETUP_AND_DOWNLOAD.md).
+
+Use an optional manifest column:
+
+```tsv
+genome_id	fasta	gff3	tiberius_model
+bird	bird.fna.gz	bird.gff3.gz	vertebrates
+mammal	mammal.fna.gz		mammalia
+```
+
+Omitted values use `--tiberius-model vertebrates`. No taxonomy is inferred. Alternatively, `--prediction-models models.tsv` overrides by `genome_id`, using columns `genome_id` and `model`; custom paths are relative to that table. This also works with saved searches. Extra rows in a model map can describe genomes outside the selected subset. The [18-species map](../examples/vertebrates18.models.tsv) matches the example downloader IDs.
+
+The interface accepts arbitrary supplied genomes, but built-in model accuracy is not universal across all organisms. For nonvertebrates, select and validate a suitable custom model or an AUGUSTUS model. The Tiberius adapter rejects models requiring softmasking, ClaMSA or embedded HMM inputs rather than silently running them incorrectly.
+
+The window includes the whole selected target envelope plus the requested flanks, clipped at contig ends. Boundary genes can be partial or missed. Windows shorter than 1,000 bp are explicitly marked `prediction_window_too_short`; no prediction there does not mean biological absence. A window has no fixed number of expected genes.
 
 ## Identification after prediction
 
-Predicted neighbour proteins are searched with BLASTP against proteins extracted from provided neighbouring annotations and any supplied `--context-proteins` FASTA. With `--context-reference auto` (default), a lack of usable local reference proteins triggers Swiss-Prot preparation. Use `--context-reference swissprot` to add that database even when local references exist, or `--context-reference none` to use only local inputs.
+BLASTP searches predicted neighbour proteins against Swiss-Prot by default, plus proteins extracted from provided neighbouring annotations and any `--context-proteins reference.faa`. `--context-reference auto` adds Swiss-Prot only when usable local references are absent; `--context-reference none` uses only local naming references. These switches do not disable gene prediction.
 
-Swiss-Prot comes from the [official UniProt release directory](https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/complete/). The downloader reads `RELEASE.metalink`, verifies its MD5 and expected file size, and records the release, source URL and SHA-256. The cached release is pinned: later runs verify and reuse it without contacting UniProt. Choose a new `--reference-cache` directory to obtain a newer release. The default cache is `~/.cache/gene-context/references`. Short (<30-aa) or nonstandard reference proteins are skipped with counts in the receipt; supplied reference files are validated strictly. Swiss-Prot attribution: UniProt Consortium, [CC BY 4.0](https://www.uniprot.org/help/license).
+Swiss-Prot comes from the [official UniProt release directory](https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/complete/). Its download uses `RELEASE.metalink`, verifies the official MD5 and expected byte count, and records the release, URL and SHA-256. An existing cache is verified and reused without contacting UniProt; use a new `--reference-cache` to obtain a newer release. Add `--offline` to analysis to prohibit downloads and require local caches. Short (<30-aa) or nonstandard Swiss-Prot proteins are skipped with counts; supplied reference proteins are validated strictly. Attribution: UniProt Consortium, [CC BY 4.0](https://www.uniprot.org/help/license).
 
-Prepare the database on an internet-connected machine before an offline analysis:
+Naming requires at least 30% identity and 50% coverage of both predicted and reference proteins by default. Non-overlapping HSPs contribute once. Highest summed bitscore selects the match. At exactly tied bitscores, curated Swiss-Prot references take priority over supplied references, then annotation-derived references. Conflicting names among equally preferred top matches stay `uncharacterized` with `ambiguous_best_matches`; all tied IDs remain recorded. Names are tentative protein-homology assignments, not confirmed species-specific gene symbols or functions. Raw BLASTP evidence remains available.
 
-```bash
-gene-context prepare-context --reference-cache /data/gene-context-references
-# Copy that entire cache to the analysis machine if necessary.
-gene-context analyze --query targets.faa --query-type protein \
-  --genomes genomes.tsv --out results/analysis \
-  --reference-cache /data/gene-context-references --threads 8
-```
+Unusable or disrupted predictions stay displayed without a protein anchor. A prediction or identification error is reported separately from a no-hit/no-prediction result. If identification fails, already predicted genes, sequence exports and DNA/protein comparisons remain available, and the command exits with an error status.
 
-Naming requires ≥30% identity and ≥50% coverage of both predicted and reference proteins by default. Non-overlapping HSPs contribute once. The highest summed bitscore selects the supporting match; tied top scores with different names are marked ambiguous and retain the label `uncharacterized`. Names from UniProt `GN=` headers or reference identifiers are tentative homology-based assignments, not confirmed species-specific gene symbols or functions. All raw BLASTP matches remain available.
+## Independent annotation track and outputs
 
-A predicted gene lacking a passing match remains `uncharacterized`. Its usable protein can still form a local homology group with unnamed predictions in other genomes, so lack of a name alone does not prevent synteny comparisons. Unusable/disrupted predictions remain displayed without a protein anchor. Prediction or identification failure is reported separately from gene absence.
+GFF3 is optional and never constrains window predictions. `provided_neighbors.tsv` preserves its independent neighbours. `provided_gff_overlap` records same-strand overlap with predicted neighbours; overlap alone does not validate exact exon structures.
 
-## Annotation comparison and outputs
+| Output within `comparison/` | Meaning |
+|---|---|
+| `context_prediction/tiberius_*/` | Batched oriented-window FASTA, raw GFF3/CDS/protein exports and logs |
+| `context_predictions/<genome>.gff3` | Predictions in native input-genome coordinates, with unique IDs and CDS phases |
+| `context_predictions.tsv` | All coding predictions, integrity and identification evidence |
+| `context_prediction_cds.fna`, `context_prediction_proteins.faa` | CDS/proteins extracted from predicted coding models |
+| `neighbors.tsv` | Predicted neighbours, including unnamed genes, strands, clipping and homology groups |
+| `context_identification/` | Exact naming library, predicted query proteins and BLASTP matches |
+| `context_reference.json` | Naming source, database release/checksums and identification outcome |
+| `context_prediction.json` | Predictor, per-genome models, CPU proof, runtime and weight fingerprints |
 
-Provided annotations are retained as a separate track in `provided_neighbors.tsv`. `provided_gff_overlap` records same-strand overlap with a predicted neighbour; overlap alone is not validation of its exact exon structure. Provided annotations can supply naming reference proteins but do not constrain predictions.
+Predictions strongly overlapping the original target CDS are retained and flagged `target_overlap=true`, but excluded from neighbour anchors. Target DNA-only regions without a coding model have no target CDS overlap test; inspect overlapping predictions there. Target amino-acid/codon comparisons use the original sequence-supported target models; the pipeline does not replace them silently with ab initio predictions. Only references supporting naming assignments join the smaller synteny catalogue; the full Swiss-Prot library is used only for identification.
 
-- `context_prediction/<locus>/augustus.gff3`: original predictor output in oriented-window coordinates, including parameters and the tool's configuration location.
-- `context_predictions/<genome>.gff3`: predictions converted back to native genome coordinates, with unique IDs, CDS phases and stops. The files include target-overlapping predictions, flagged `target_overlap=true`; these are excluded from neighbouring-gene anchors.
-- `context_predictions.tsv`: all coding predictions, integrity and identification evidence. Target-overlapping predictions are flagged and do not receive neighbour names.
-- `context_prediction_cds.fna`, `context_prediction_proteins.faa`: sequence extraction from all coding predictions.
-- `neighbors.tsv`: predicted neighbours, including unidentified genes, strands, clipping, protein support, homology groups and overlap with supplied annotation.
-- `context_identification/`: the exact search library, predicted queries and raw BLASTP evidence.
-- `context_reference.json`: reference provenance, database release/checksums and identification outcome.
-- `context_prediction.json`: per-genome predictor models and SHA-256 of model configuration files when the configuration directory is reported by AUGUSTUS.
+## Optional AUGUSTUS and legacy mode
 
-The complete search library is used only for naming. Only references supporting assignments enter the much smaller local synteny catalogue. Genomic DNA comparisons still compare the actual windows; target amino-acid/CDS comparisons use the original target search models. Ab initio predictions can split, merge or miss genes, so these reports are exploratory local comparisons rather than a complete validated genome annotation.
+Install AUGUSTUS separately, then use `--predictor augustus --augustus-species MODEL` or per-genome `augustus_species` entries. List installed models with `augustus --species=help`. This backend predicts both strands with partial models allowed, preserves lowercase softmasking, disables UTR prediction and alternative sampling, and supplies no external hints. Raw output is `context_prediction/<locus>/augustus.gff3`; model configuration hashes are saved when the configuration location is reported. See the [official prediction tutorial](https://github.com/Gaius-Augustus/Augustus/blob/master/docs/tutorial/prediction.html).
 
-## Previous behaviour
+`--context-mode annotation` preserves the v0.2 route: provided GFF3 neighbours, or BLASTX screening followed by miniprot reconstruction for missing annotations. This is a separate method from predicting genes from DNA before identifying them.
 
-`--context-mode annotation` preserves the v0.2 route: use supplied GFF3 neighbours, and infer missing annotations by BLASTX screening followed by miniprot protein-supported reconstruction. That is a different method from the new default of predicting genes from DNA before identifying them.
-
-Method: [official AUGUSTUS prediction tutorial](https://github.com/Gaius-Augustus/Augustus/blob/master/docs/tutorial/prediction.html).
+Ab initio models can split, merge or miss genes. These are exploratory local comparisons, not a complete validated genome annotation or proof of orthology, expression or regulatory activity.

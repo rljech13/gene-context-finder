@@ -1,5 +1,6 @@
 """Predict every window from DNA first; identify the recovered proteins second."""
 from collections import defaultdict
+import csv
 import json
 from pathlib import Path
 import re
@@ -12,10 +13,37 @@ from .tools import Genome, tool_versions
 
 
 def prediction_model(args, entry):
-    return entry.get("augustus_species") or args.augustus_species
+    if args.prediction_models:
+        path = Path(args.prediction_models).resolve()
+        with open(path) as handle:
+            reader = csv.DictReader(handle, delimiter="\t")
+            if not {"genome_id", "model"}.issubset(reader.fieldnames or []):
+                raise ValueError("Prediction model TSV requires genome_id and model")
+            mapping = {}
+            for item in reader:
+                gid, value = item["genome_id"].strip(), item["model"].strip()
+                if not gid or not value or gid in mapping:
+                    raise ValueError("Empty or duplicate prediction model assignment")
+                if args.predictor == "tiberius":
+                    from .tiberius_backend import MODELS, model_name
+                    value = model_name(value)
+                    value = value if value in MODELS else str((path.parent / Path(value).expanduser()).resolve())
+                mapping[gid] = value
+        if entry["genome_id"] in mapping:
+            return mapping[entry["genome_id"]]
+    if args.predictor == "augustus":
+        return entry.get("augustus_species") or args.augustus_species
+    from .tiberius_backend import model_name
+    return model_name(entry.get("tiberius_model") or args.tiberius_model)
 
 
 def validate_prediction_inputs(args, genomes):
+    if args.predictor == "tiberius":
+        from .tiberius_backend import runtime_info, runtime_python, ensure_model
+        runtime_info(runtime_python(args))
+        for name in sorted({prediction_model(args, g) for g in genomes}):
+            ensure_model(name, args.predictor_cache, args.offline)
+        return
     if not tool_versions(["augustus"])["augustus"]["path"]:
         raise ValueError("Window gene prediction requires AUGUSTUS. Install the updated environment, or use --context-mode annotation for the legacy workflow.")
     missing = [g["genome_id"] for g in genomes if not prediction_model(args, g)]
@@ -50,7 +78,7 @@ def identify_proteins(args, root, predicted, references, metadata, runner):
     if args.context_reference == "swissprot" or (args.context_reference == "auto" and not references):
         provenance.update(source="automatic_swissprot", status="preparing_swissprot")
         receipt.write_text(json.dumps(provenance, indent=2) + "\n")
-        path, info = swissprot(args.reference_cache)
+        path, info = swissprot(args.reference_cache, allow_download=not args.offline)
         provenance["swissprot"] = dict(info, **add_references(path, references, metadata, "swissprot_reference", skip_invalid=True))
     provenance.update(status="ready" if references else "no_reference_evidence", screening_proteins=len(references))
     receipt.write_text(json.dumps(provenance, indent=2) + "\n")
@@ -89,7 +117,11 @@ def identify_proteins(args, root, predicted, references, metadata, runner):
         options.sort(key=lambda r: (-r["bitscore"], -r["reference_identity"], r["reference_protein"]))
         best = options[0]
         ties = [r for r in options if abs(r["bitscore"] - best["bitscore"]) <= 1e-6]
-        ambiguous = len({r["name"] for r in ties}) > 1
+        priority = {"swissprot_reference": 0, "supplied_reference": 1}
+        preferred = min(priority.get(metadata[r["reference_protein"]]["evidence"], 2) for r in ties)
+        preferred_ties = [r for r in ties if priority.get(metadata[r["reference_protein"]]["evidence"], 2) == preferred]
+        best = preferred_ties[0]
+        ambiguous = len({r["name"] for r in preferred_ties}) > 1
         assignments[pid] = dict(best, identification_status="ambiguous_best_matches" if ambiguous else "homology_assignment",
                                 name="uncharacterized" if ambiguous else best["name"],
                                 tied_references=",".join(r["reference_protein"] for r in ties))
@@ -98,7 +130,7 @@ def identify_proteins(args, root, predicted, references, metadata, runner):
     return assignments, references
 
 
-def predict_contexts(args, root, inputs, rows, context, proteins, metadata, runner, errors):
+def predict_contexts(args, root, inputs, rows, context, proteins, metadata, windows, runner, errors):
     # GFF3 is an independent comparison/reference track, never prediction hints.
     provided = list(context)
     write_tsv(root / "provided_neighbors.tsv", provided,
@@ -115,29 +147,40 @@ def predict_contexts(args, root, inputs, rows, context, proteins, metadata, runn
     configurations = {}
     native = defaultdict(list)
     for row in rows:
-        genome = None
         row["context_status"] = "prediction_pending"
+        row["context_predictor"] = args.predictor
         row["context_predictor_model"] = prediction_model(args, entries[row["genome_id"]])
+    batch_models, provenance = {}, dict(predictor="augustus", method="DNA-only prediction before protein identification; no annotation/protein hints")
+    if args.predictor == "tiberius":
+        from .tiberius_backend import predict_batches
+        batch_models, provenance = predict_batches(args, root, rows, windows, runner, errors)
+    for row in rows:
+        genome = None
+        if row["context_status"] in {"context_inference_error", "prediction_window_too_short"}:
+            continue
         try:
             folder = work / row["locus_id"]
             folder.mkdir()
-            gff = folder / "augustus.gff3"
-            runner.run(["augustus", "--species=" + row["context_predictor_model"], "--gff3=on",
+            if args.predictor == "augustus":
+                gff = folder / "augustus.gff3"
+                runner.run(["augustus", "--species=" + row["context_predictor_model"], "--gff3=on",
                         "--strand=both", "--genemodel=partial", "--alternatives-from-sampling=false",
                         "--softmasking=on", "--UTR=off", root / row["window_fasta"]], gff)
-            config_match = re.search(r"config directory (.+?)/?\s*\.\.\.", gff.read_text())
-            if config_match:
-                config = Path(config_match.group(1).strip())
-                species = config / "species" / row["context_predictor_model"]
-                key = str(species)
-                if key not in configurations:
-                    configurations[key] = {str(p.relative_to(config)): sha256(p)
+                config_match = re.search(r"config directory (.+?)/?\s*\.\.\.", gff.read_text())
+                if config_match:
+                    config = Path(config_match.group(1).strip())
+                    species = config / "species" / row["context_predictor_model"]
+                    key = str(species)
+                    if key not in configurations:
+                        configurations[key] = {str(p.relative_to(config)): sha256(p)
                                            for p in sorted(species.rglob("*")) if p.is_file()}
-            models, _ = read_gff(gff, source="augustus")
+                models, _ = read_gff(gff, source="augustus")
+            else:
+                models = batch_models.get(row["locus_id"], [])
             genome = Genome(root / row["window_fasta"], folder / "cache", runner)
             for model in models:
                 if model.contig != row["locus_id"] or not 0 <= model.start < model.end <= row["window_bp"]:
-                    raise ValueError("AUGUSTUS returned a model outside its window")
+                    raise ValueError("Predictor returned a model outside its window")
                 pid = row["locus_id"] + "." + model.id
                 dna, protein, status, issues = coding_sequence(model, genome)
                 model_start = min([model.start] + [a for a, _ in model.stops])
@@ -151,7 +194,7 @@ def predict_contexts(args, root, inputs, rows, context, proteins, metadata, runn
                 record = dict(protein_id=pid, locus_id=row["locus_id"], genome_id=row["genome_id"],
                               contig=row["contig"], start=native_start, end=native_end, strand=strand,
                               coding_status=status, issues=",".join(issues), target_overlap=target_overlap,
-                              prediction_model=row["context_predictor_model"])
+                              predictor=args.predictor, prediction_model=row["context_predictor_model"])
                 raw_records.append(record)
                 cds_records.append((pid, dna)); protein_records.append((pid, protein))
                 native[row["genome_id"]].append((row, model, record))
@@ -183,7 +226,7 @@ def predict_contexts(args, root, inputs, rows, context, proteins, metadata, runn
     write_fasta(root / "context_prediction_cds.fna", cds_records)
     write_fasta(root / "context_prediction_proteins.faa", protein_records)
     (root / "context_prediction.json").write_text(json.dumps(dict(
-        method="AUGUSTUS ab initio; prediction before identification; no annotation/protein hints",
+        **provenance,
         models={r["genome_id"]: r["context_predictor_model"] for r in rows},
         configuration_files_sha256=configurations), indent=2) + "\n")
     # Save predictions before any network lookup; identification failure must
@@ -216,7 +259,7 @@ def predict_contexts(args, root, inputs, rows, context, proteins, metadata, runn
         if rid in references and rid not in supporting:
             metadata.pop(rid)
             proteins.pop(rid, None)
-    columns = ["protein_id", "locus_id", "genome_id", "contig", "start", "end", "strand", "prediction_model", "coding_status", "issues", "target_overlap",
+    columns = ["protein_id", "locus_id", "genome_id", "contig", "start", "end", "strand", "predictor", "prediction_model", "coding_status", "issues", "target_overlap",
                "name", "identification_status", "reference_protein", "reference_identity", "reference_coverage", "prediction_coverage", "bitscore", "tied_references"]
     write_tsv(root / "context_predictions.tsv", raw_records, columns)
     for gid, records in native.items():
@@ -224,7 +267,7 @@ def predict_contexts(args, root, inputs, rows, context, proteins, metadata, runn
             handle.write("##gff-version 3\n")
             for row, model, record in records:
                 pid = record["protein_id"]
-                common = f'{row["contig"]}\tAUGUSTUS\t'
+                common = f'{row["contig"]}\t{args.predictor.upper() if args.predictor == "augustus" else "Tiberius"}\t'
                 attrs = f'ID={pid};Name={quote(record.get("name", "uncharacterized"), safe="")};coding_status={record["coding_status"]};target_overlap={str(record["target_overlap"]).lower()}'
                 handle.write(f'{common}gene\t{record["start"]+1}\t{record["end"]}\t.\t{record["strand"]}\t.\t{attrs}\n')
                 handle.write(f'{common}mRNA\t{record["start"]+1}\t{record["end"]}\t.\t{record["strand"]}\t.\tID={pid}.t1;Parent={pid}\n')

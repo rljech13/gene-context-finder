@@ -1,0 +1,17 @@
+{
+  "status": "passed",
+  "comparison": "/Users/dmitrij/.codex/.chatgpt-projects/g-p-6ab9cc0f21008191afa026bb6897a3a5/outputs/gene_context_v040_2026-11-05/release_analysis/comparison",
+  "counts": {
+    "windows_native_roundtrip": 7,
+    "raw_models_roundtrip": 22,
+    "native_models_roundtrip": 22,
+    "codon_alignments_roundtrip": 4,
+    "html_links": 39,
+    "html_pages": 3,
+    "svg_documents": 6,
+    "source_modules": 17,
+    "cpu_batches": 2
+  },
+  "errors": [],
+  "limits": "Operation and sequence roundtrips, not gene-prediction accuracy or confirmed orthology."
+}
