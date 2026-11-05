@@ -1,0 +1,17 @@
+{
+  "status": "passed",
+  "comparison": "/mnt/data/i.rubinshteyn/genomes/gene_context_pipeline_validation_2026-11-05/tiberius_v040/comparison",
+  "counts": {
+    "windows_native_roundtrip": 7,
+    "raw_models_roundtrip": 24,
+    "native_models_roundtrip": 24,
+    "codon_alignments_roundtrip": 4,
+    "html_links": 39,
+    "html_pages": 3,
+    "svg_documents": 6,
+    "source_modules": 17,
+    "cpu_batches": 2
+  },
+  "errors": [],
+  "limits": "Operation and sequence roundtrips, not gene-prediction accuracy or confirmed orthology."
+}

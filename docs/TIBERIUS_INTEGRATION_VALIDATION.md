@@ -49,7 +49,28 @@ This deliberately exercises annotation-free operation. It cannot measure discove
 
 Four unnamed neighbours comprise three without a passing identification and one with conflicting top names. They remain in the context output. Three of the ten input genome/target combinations had no detected coding candidate with this query/search configuration; this is not evidence of biological gene absence. Only clean complete/partial target models enter the requested amino-acid/codon comparisons; disrupted target candidates remain visible and excluded from those alignments.
 
-Independent checks use BioPython without importing `genecontext`: raw input DNA → oriented window → native predicted CDS → translated protein, phase continuity, codon-alignment backtranslation, HTML link resolution, SVG XML parsing and exact source-module fingerprints. The report's SVGs were rendered and visually inspected. All 7 windows, 22 raw models, 22 native-coordinate models, 4 codon-alignment sequences, 39 report links, 6 SVGs and 17 exact source-module fingerprints passed. The final run took 0.47 s for fragment search and 149.95 s for comparison; setup, downloads and the earlier full-genome searches are excluded, and other local tests ran concurrently.
+Independent checks use BioPython without importing `genecontext`: raw input DNA → oriented window → native predicted CDS → translated protein, phase continuity, codon-alignment backtranslation, HTML link resolution, SVG XML parsing and exact source-module fingerprints. The report's SVGs were rendered and visually inspected. The [independent audit script](benchmarks/audit_tiberius_integration.py) and [recorded result](benchmarks/tiberius_integration_2026-11-05.json) are included. All 7 windows, 22 raw models, 22 native-coordinate models, 4 codon-alignment sequences, 39 report links, 6 SVGs and 17 exact source-module fingerprints passed. The final run took 0.47 s for fragment search and 149.95 s for comparison; setup, downloads and the earlier full-genome searches are excluded, and other local tests ran concurrently.
+
+## Linux host1 check against full-assembly search results
+
+The same managed setup succeeded on Linux x86_64 with Python 3.12.14 and the same dependency lock. The server has AMD EPYC 7763 processors; inference was limited to four threads and CPU-only visibility. The installed runtime occupied 2,286,232,070 bytes on disk, excluding models/references/genomes, versus about 1.4 GB on the tested Mac. Installation guidance therefore allows about 3 GB on Linux.
+
+`compare` reused the original five-whole-assembly protein-search results; target discovery was **not rerun**. It extracted the selected loci from the original full genome FASTAs, retained the supplied GFF3 as an independent reference track, ran both CPU model groups, identified proteins against Swiss-Prot plus the provided annotations, and generated all comparisons offline. It used the example model map and `--include-partial`.
+
+The comparison ran from 12:01:45.995 to 12:08:07.620 UTC: **381.63 seconds (6 min 22 s)**, including full-assembly indexing/annotation parsing, inference, identification and report generation. The full CLI invocation, including preflight checks, took **386.86 seconds (6 min 27 s)** according to GNU time and exited zero. Setup and the earlier discovery pass are excluded.
+
+| Server result | Observed |
+|---|---:|
+| Selected windows | 7 |
+| Predicted coding models | 24 (4 mammalian, 20 vertebrate) |
+| Neighbours after target-overlap filtering | 17 |
+| Tentatively identified neighbours | 15 |
+| Unnamed neighbours retained | 2 |
+| DNA window pairs | 11 |
+| Pairs with insufficient unique synteny anchors | 10 |
+| Pipeline errors | 0 |
+
+The independent audit passed all 7 window roundtrips, 24 raw model roundtrips, 24 native-coordinate model roundtrips, 4 codon-alignment sequences, 39 report links, 6 SVGs, 17 source-module hashes and both CPU batches. See [server run summary](benchmarks/tiberius_host1_2026-11-05.json) and [server audit](benchmarks/tiberius_host1_2026-11-05.audit.json). Differences from the annotation-free fragment pilot reflect its different target models/window boundaries and reference inputs; the two counts are not a controlled accuracy comparison.
 
 ## Limits
 

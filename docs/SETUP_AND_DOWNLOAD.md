@@ -21,7 +21,7 @@ With existing tools, use Python >=3.10 and install the package with `python -m p
 
 ## Predictor and naming caches
 
-The default predictor cache is `~/.cache/gene-context/tiberius`: `runtime/` contains Python packages; `models/vertebrates/` and `models/mammalia/` contain verified weights and archives. Both model archives total 66,174,115 bytes; extracted model files total 71,436,162 bytes. Allow about 2 GB for the runtime and models (platform-dependent), excluding genomes/results. These two models are shared across species. Setup writes `setup.log` and a runtime receipt, and checks the model archives and extracted files against pinned hashes.
+The default predictor cache is `~/.cache/gene-context/tiberius`: `runtime/` contains Python packages; `models/vertebrates/` and `models/mammalia/` contain verified weights and archives. Both model archives total 66,174,115 bytes; extracted model files total 71,436,162 bytes. Allow about 2 GB on macOS or 3 GB on Linux for the runtime and models, excluding genomes/results. These two models are shared across species. Setup writes `setup.log` and a runtime receipt, and checks the model archives and extracted files against pinned hashes.
 
 Python 3.12 or 3.13 and Git are required for setup. If the driver uses another Python, pass `setup-predictor --python /path/to/python3.12`. The main package itself remains Python >=3.10 with no Python dependencies. The predictor is pinned to upstream commit `b3ea48f263a075260dbf1e91a412e82ccdc96d3c`; its independent dependency lock is shipped with the package. Install a new release in a fresh `--predictor-cache` directory if its runtime requirements change.
 

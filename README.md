@@ -38,7 +38,7 @@ gene-context setup-predictor --with-reference
 gene-context doctor
 ```
 
-Setup creates an isolated CPU runtime and downloads both shared models (66.2 MB compressed in total), plus Swiss-Prot for protein identification. No GPU is required. Allow about 2 GB for the predictor installation, in addition to genomes and results. See [setup](docs/SETUP_AND_DOWNLOAD.md) for cache locations and offline use.
+Setup creates an isolated CPU runtime and downloads both shared models (66.2 MB compressed in total), plus Swiss-Prot for protein identification. No GPU is required. Allow about 2 GB on macOS or 3 GB on Linux for the predictor installation, in addition to genomes and results. See [setup](docs/SETUP_AND_DOWNLOAD.md) for cache locations and offline use.
 
 ## 1. List your local genomes
 

@@ -31,7 +31,7 @@ Model choices:
 | `mammalia` | Shared mammalian unmasked model |
 | Local directory | Compatible custom unmasked ab initio model |
 
-There is no model download per species. The two built-in archives total 66.2 MB; extracted files total 71.4 MB. The isolated Python runtime is much larger; allow about 2 GB for setup, excluding genomes and results. See [measured CPU benchmark](TIBERIUS_CPU_BENCHMARK.md) and [setup](SETUP_AND_DOWNLOAD.md).
+There is no model download per species. The two built-in archives total 66.2 MB; extracted files total 71.4 MB. The isolated Python runtime is much larger; allow about 2 GB on macOS or 3 GB on Linux for setup, excluding genomes and results. See [measured CPU benchmark](TIBERIUS_CPU_BENCHMARK.md) and [setup](SETUP_AND_DOWNLOAD.md).
 
 Use an optional manifest column:
 

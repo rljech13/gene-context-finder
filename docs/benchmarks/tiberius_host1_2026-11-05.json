@@ -1,0 +1,36 @@
+{
+  "status": "completed",
+  "started": "2026-11-05T12:01:45.994943+00:00",
+  "finished": "2026-11-05T12:08:07.620481+00:00",
+  "errors": [],
+  "genomes": 5,
+  "windows": 7,
+  "predicted_models": 24,
+  "neighbors": 17,
+  "identification": {
+    "homology_assignment": 15,
+    "no_passing_match": 2
+  },
+  "synteny": {
+    "insufficient_unique_anchors": 10,
+    "different_local_order_or_orientation": 1
+  },
+  "dna_pairs": 11,
+  "batches": [
+    {
+      "model": "mammalia",
+      "windows": 1,
+      "coding_models": 4
+    },
+    {
+      "model": "vertebrates",
+      "windows": 6,
+      "coding_models": 20
+    }
+  ],
+  "command_wall_seconds": 386.86,
+  "gnu_time_max_rss_kib": 3757084,
+  "maximum_rss_note": "GNU time maximum process RSS, not the simultaneous sum of parent and child RSS",
+  "runtime_disk_bytes": 2286232070,
+  "inference_threads": 4
+}
