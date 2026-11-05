@@ -15,6 +15,7 @@ from .report import write_report
 from .sequence import (Intervals, coding_sequence, read_fasta, read_gff,
                        sha256, translate, union_length, write_fasta, write_tsv)
 from .tools import Genome, Runner, tool_versions
+from .protein_discovery import SCORE_FIELDS, translated_search, score_candidates
 
 
 def load_genomes(args):
@@ -181,8 +182,9 @@ def nucleotide_search(args, runner, work, genome, queries, annotations):
     database = work / "blast_genome"
     # Do not parse/rename user contig IDs or impose BLAST's 50-character local-ID
     # limit. sseqid preserves the original FASTA first token in this database.
-    runner.run(["makeblastdb", "-in", genome.path, "-dbtype", "nucl",
-                "-out", database], work / "makeblastdb.stdout")
+    if not Path(str(database)+".nin").exists():
+        runner.run(["makeblastdb", "-in", genome.path, "-dbtype", "nucl",
+                    "-out", database], work / "makeblastdb.stdout")
     hits = work / "blastn.tsv"
     # Increase subject cap to include every contig, not BLAST's default top 500.
     runner.run(["blastn", "-task", "blastn", "-query", fasta, "-db", database,
@@ -270,6 +272,7 @@ def extract_model(args, genome, model, mid, qid, gid, evidence):
                downstream_end=down[1], upstream_complete=up[1]-up[0] == args.flank,
                downstream_complete=down[1]-down[0] == args.flank,
                locus_start=low, locus_end=high)
+    row.update({key: evidence.get(key, "") for key in SCORE_FIELDS})
     sequences = dict(cds=cds, protein=protein,
                      locus=genome.fetch(model.contig, low, high, model.strand),
                      upstream=genome.fetch(model.contig, *up, model.strand),
@@ -323,7 +326,7 @@ MODEL_COLUMNS = ["model_id", "genome_id", "query", "source", "source_model", "so
                  "start", "end", "strand", "status", "issues", "coverage", "identity", "evidence",
                  "evidence_json", "cds_bp", "protein_aa", "cds_exons", "locus_start", "locus_end",
                  "upstream_start", "upstream_end", "downstream_start", "downstream_end",
-                 "upstream_complete", "downstream_complete", "context_start", "context_end"]
+                 "upstream_complete", "downstream_complete", "context_start", "context_end", *SCORE_FIELDS]
 
 
 def run(args):
@@ -331,6 +334,8 @@ def run(args):
     required = {"samtools"}
     if any(q["protein"] for q in queries):
         required.update({"miniprot", "blastp"})
+        if args.protein_search == "tblastn":
+            required.update({"tblastn", "makeblastdb"})
     if args.query_type != "protein":
         required.update({"blastn", "makeblastdb"})
     if not args.skip_alignments:
@@ -371,10 +376,17 @@ def run(args):
             genome = Genome(entry["fasta"], work / "cache", runner)
             annotations, features = read_gff(entry["gff3"]) if entry["gff3"] else ([], [])
             validate_annotations(annotations, features, genome)
-            candidates = protein_search(args, runner, work, genome, queries, annotations)
+            if args.protein_search == "tblastn":
+                candidates, seed_regions = translated_search(args, runner, work, genome, queries, annotations)
+            else:
+                candidates = protein_search(args, runner, work, genome, queries, annotations)
+                seed_regions = []
             dna_candidates, hsps = nucleotide_search(args, runner, work, genome, queries, annotations)
             candidates.extend(dna_candidates)
-            local_regions = merge_dna_regions(hsps, args.dna_merge_distance)
+            candidates = score_candidates(args, runner, work, genome, queries, candidates)
+            local_regions = merge_dna_regions(hsps, args.dna_merge_distance) + seed_regions
+            for region in local_regions:
+                region.setdefault("source", "blastn")
             raw_sequences = []
             for i, region in enumerate(local_regions, 1):
                 region.update(genome_id=gid, region_id=f"{gid}.r{i:06d}")
@@ -436,7 +448,7 @@ def run(args):
             for query in queries:
                 found = [r for r in local_rows if r["query"] == query["id"]]
                 raw = [r for r in local_regions if r["query"] == query["id"]]
-                status = ("models_found" if found else "dna_hits_no_cds_model" if raw else "no_hit")
+                status = ("models_found" if found else "protein_seeds_no_cds_model" if any(r.get("source") == "tblastn" for r in raw) else "dna_hits_no_cds_model" if raw else "no_hit")
                 genome_summary.append(dict(genome_id=gid, query=query["id"], query_name=query["name"],
                     status=status, models=len(found), complete=sum(r["status"] == "complete_predicted" for r in found),
                     partial=sum(r["status"] == "partial" for r in found),
@@ -457,7 +469,8 @@ def run(args):
               ["genome_id", "query", "query_name", "status", "models", "complete", "partial", "disrupted", "dna_regions", "error"])
     write_tsv(root / "dna_regions.tsv", regions,
               ["region_id", "genome_id", "query", "contig", "start", "end", "strand", "hsp_count", "locus_start", "locus_end",
-               "upstream_start", "upstream_end", "downstream_start", "downstream_end", "upstream_complete", "downstream_complete"])
+               "upstream_start", "upstream_end", "downstream_start", "downstream_end", "upstream_complete", "downstream_complete",
+               "source", "seed_bitscore", "seed_query_coverage", "seed_identity", "ranking_score", "homology_support"])
     write_tsv(root / "neighbors.tsv", context_rows,
               ["model_id", "genome_id", "id", "name", "contig", "start", "end", "strand"])
     for qid, kinds in sequences.items():

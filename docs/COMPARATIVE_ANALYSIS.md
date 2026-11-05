@@ -32,11 +32,11 @@ Values in `query` must exactly match FASTA identifiers, or the recorded `q0001` 
 
 Within each genome/target group, annotated isoforms of the same gene are grouped. Other models on the same strand sharing at least 80% of the smaller coding span are treated as alternative models of one candidate locus. Different annotated gene IDs remain distinct. The displayed representative is ranked by:
 
-1. Query coverage multiplied by identity.
+1. For new coding searches, BLASTP bitscore normalized to the query self score. Older saved searches without `ranking_score` retain coverage × identity ranking.
 2. Complete coding model before partial or disrupted models when the sequence score ties; then coverage and protein length.
 3. Model identifier for deterministic ties.
 
-This is a sequence-based display choice, not a confirmed orthology assignment. `candidates.tsv` retains every alternative with its rank, query and selected flag. The overview explicitly reports multiple candidate loci. DNA-only fallback regions have no coding-model identity score and are ordered deterministically; inspect alternative regions before interpretation.
+Local alignments may cover only a conserved domain; `homology_support` and `alignment_query_coverage` are shown separately from coding completeness. This is a sequence-based display choice, not a confirmed orthology assignment. `candidates.tsv` retains every alternative with its rank, query and selected flag. The overview explicitly reports multiple candidate loci. DNA-only fallback regions have no coding-model identity score and are ordered deterministically; inspect alternative regions before interpretation.
 
 To override a display choice, use `--select-loci selection.tsv`:
 

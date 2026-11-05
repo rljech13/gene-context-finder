@@ -1,5 +1,7 @@
 # Validation of the generic sequence workflow
 
+The v0.4.1 NANOG correction changes protein discovery to independent TBLASTn followed by local coding reconstruction; see [diagnosis and regression validation](NANOG_SEARCH_VALIDATION.md). The earlier v0.4.0 resource/integration checks remain historical measurements of their own source version.
+
 Validation below covers the `genecontext` package and its defined controls.
 It is not an exhaustive genome-wide sensitivity/specificity study.
 

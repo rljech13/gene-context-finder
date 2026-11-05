@@ -200,7 +200,10 @@ class ComparativeIntegration(unittest.TestCase):
         self.assertEqual(len(loci),1)
         self.assertEqual(loci[0]['context_status'],'no_annotation_evidence')
         self.assertEqual(table(output/'comparison/summary.tsv')[0]['candidate_loci'],'1')
-        self.assertEqual(len(table(output/'comparison/candidates.tsv')),2)
+        candidates=table(output/'comparison/candidates.tsv')
+        self.assertEqual({r['query'] for r in candidates},{'q0001','q0002'})
+        self.assertTrue(all(r['locus_rank']=='1' for r in candidates))
+        self.assertEqual(sum(r['selected']=='True' for r in candidates),1)
         self.assertIn('MY_GENE',(output/'comparison/report.html').read_text())
 
     def test_noncoding_query_remains_dna_and_compare_preserves_source(self):

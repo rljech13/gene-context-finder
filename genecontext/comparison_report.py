@@ -249,8 +249,8 @@ def write_comparison_reports(root, groups, original, selected, observations, con
                 f'<title>{escape(group["name"])}</title>', STYLE, f'<h1>{escape(group["name"])}</h1>',
                 '<p><a href="../../report.html">All targets</a> · <a href="../../candidates.tsv">All candidate loci</a></p>',
                 '<h2>Loci and evidence</h2>', html_table([r for r in observations if r["group"] == group["id"]],
-                    ["genome_id", "status", "candidate_loci", "target_name", "model_status", "coverage", "identity", "model_id", "error"]),
-                '<p class="note">One representative is shown per genome. It is chosen by query coverage × identity, then coding integrity. '
+                    ["genome_id", "status", "candidate_loci", "target_name", "model_status", "coverage", "identity", "homology_support", "alignment_query_coverage", "ranking_score", "model_id", "error"]),
+                '<p class="note">One representative is shown per genome. New searches rank by normalized BLASTP bitscore, then coding integrity. Saved searches without that score use query coverage × identity. Local-alignment candidates can represent only a shared domain. '
                 'Ranked alternatives remain in candidates.tsv. This ranking is not an orthology assignment. '
                 'Gene boundaries use GFF3 where the selected annotation supplies them; otherwise coding-model/DNA-hit boundaries are used. '
                 'Windows are clipped at contig ends. Distances and coordinates are available in loci.tsv.</p>',

@@ -15,7 +15,7 @@ gene-context setup-predictor --with-reference
 gene-context doctor
 ```
 
-Create the environment from the repository root so `pip: -e .` resolves correctly. Mamba can replace conda. The environment provides Python 3.12, Git, samtools, miniprot, BLAST+ and MAFFT. `setup-predictor` installs the pinned Tiberius 2.0.9 CPU runtime in a separate virtual environment and prepares the two shared models. It avoids TensorFlow CUDA extras; no GPU is required. Existing installations can use `conda env update -f environment.yml` and then run setup.
+Create the environment from the repository root so `pip: -e .` resolves correctly. Mamba can replace conda. The environment provides Python 3.12, Git, samtools, miniprot, BLAST+ (including TBLASTn) and MAFFT. `setup-predictor` installs the pinned Tiberius 2.0.9 CPU runtime in a separate virtual environment and prepares the two shared models. It avoids TensorFlow CUDA extras; no GPU is required. Existing installations can use `conda env update -f environment.yml` and then run setup.
 
 With existing tools, use Python >=3.10 and install the package with `python -m pip install -e .`. Alternatively, run `python -m genecontext` from this checkout. External tools must be on PATH. Linux/macOS are supported where tool builds are available; use Linux under WSL on Windows. Miniprot needs x86_64 or ARM hardware. See [validation](VALIDATION.md) for tested environments.
 
@@ -58,6 +58,8 @@ Use unique genome IDs. Paths are relative to this TSV, or absolute. Empty `gff3`
 `tiberius_model` selects shared model weights, not a species-specific download. Omitted values use `vertebrates`; choose `mammalia` for mammals. You can instead pass `--prediction-models models.tsv` (`genome_id`, `model`). For custom unmasked Tiberius models, use a directory path relative to the TSV. Every selected window is predicted from DNA before its proteins are identified.
 
 The search reads this local-path table and does not download genome files. Run on the machine that has these paths: files on a colleague's computer must first be copied there or made accessible. Inputs are read-only; working FASTA and indexes are created under the output directory. Default protein naming uses cached Swiss-Prot, downloaded once if missing. `--offline` prevents downloads; `--context-reference none` uses only local naming inputs while retaining predicted unnamed genes.
+
+The default protein/CDS discovery uses TBLASTn, then annotation-supported CDS extraction or dense local miniprot reconstruction. It builds a nucleotide BLAST database under each search output as well as FASTA indexes; allow extra disk space beyond the genomes. No naming reference or network request is needed for target discovery. `--protein-search miniprot` selects the previous fast mapper for closer comparisons.
 
 ## Prepare the query FASTA
 

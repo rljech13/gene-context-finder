@@ -14,7 +14,7 @@ def write_report(root, queries, summary, models, regions, errors):
                 f'<p>{len(summary)} genome/query observations · {len(models)} candidate transcript models · '
                 f'{len(regions)} DNA regions · {len(errors)} errors</p>',
                 '<p class="note">Candidates are sequence-supported models. Transcript counts include isoforms. '
-                'No-hit is not a biological absence call; sequence similarity does not establish orthology or expression. '
+                'Local alignments can cover only a conserved domain and require family/orthology review. No-hit is not a biological absence call; sequence similarity does not establish orthology or expression. '
                 'Coordinates are native, zero-based and half-open. Blue context arrows mark recovered models.</p>',
                 '<p><a href="manifest.json">Run provenance</a> · <a href="models.tsv">Model table</a> · '
                 '<a href="genome_query_summary.tsv">Genome summary</a> · '
@@ -38,13 +38,13 @@ def write_report(root, queries, summary, models, regions, errors):
                         f'<a href="sequences/{qid}/dna_regions.fna">DNA hits</a></li>')
     document.append('</ul><h2>Recovered coding models</h2><table><thead><tr><th>Model / context</th>'
                     '<th>Query</th><th>Location</th><th>Strand</th><th>Integrity</th><th>Source</th>'
-                    '<th>Protein aa</th><th>Query coverage</th></tr></thead><tbody>')
+                    '<th>Protein aa</th><th>Query coverage</th><th>Homology support</th></tr></thead><tbody>')
     for row in models:
         mid, gid = row["model_id"], row["genome_id"]
         link = f'<a href="genomes/{gid}/{mid}.context.svg">{escape(mid)}</a>'
         values = [names[row["query"]], f'{row["contig"]}:{row["start"]}-{row["end"]}', row["strand"],
                   row["status"] + (": " + row["issues"] if row["issues"] else ""), row["source"],
-                  row["protein_aa"], f'{row["coverage"]:.1%}']
+                  row["protein_aa"], f'{row["coverage"]:.1%}', row.get("homology_support", "")]
         document.append('<tr class="data"><td>' + link + '</td>' + ''.join(
             f'<td>{escape(str(v))}</td>' for v in values) + '</tr>')
     document.append('</tbody></table>')

@@ -14,6 +14,7 @@ import sys
 from .sequence import (coding_sequence, read_fasta, read_gff, sha256, union_length,
                        write_fasta, write_tsv)
 from .tools import Genome, Runner, tool_versions
+from .protein_discovery import SCORE_FIELDS
 
 
 def table(path):
@@ -65,7 +66,9 @@ def same_locus(a, b):
 
 def rank_key(row):
     status = {"complete_predicted": 0, "partial": 1, "disrupted": 2, "dna_region": 3}
-    return (-float(row.get("coverage") or 0) * float(row.get("identity") or 0),
+    score = (float(row["ranking_score"]) if row.get("ranking_score") not in (None, "") else
+             float(row.get("coverage") or 0) * float(row.get("identity") or 0))
+    return (-score,
             status.get(row["status"], 4),
             -float(row.get("coverage") or 0), -int(row.get("protein_aa") or 0), row["model_id"])
 
@@ -92,8 +95,8 @@ def select_candidates(groups, genomes, models, regions, overrides=None):
             rows = [dict(r) for r in models if r["query"] in group["queries"] and r["genome_id"] == gid]
             # DNA regions are fallback observations, never fabricated coding models.
             if not rows:
-                rows = [dict(r, model_id=r["region_id"], status="dna_region", source="blastn",
-                             source_gene="", source_model=r["region_id"], coverage=0, identity=0,
+                rows = [dict(r, model_id=r["region_id"], status="dna_region", source=r.get("source") or "blastn",
+                             source_gene="", source_model=r["region_id"], coverage=r.get("seed_query_coverage") or 0, identity=r.get("seed_identity") or 0,
                              protein_aa=0, cds_exons="[]") for r in regions
                         if r["query"] in group["queries"] and r["genome_id"] == gid]
             clusters = []
@@ -128,7 +131,7 @@ def select_candidates(groups, genomes, models, regions, overrides=None):
                                            source=row.get("source", ""), source_gene=row.get("source_gene", ""),
                                            source_model=row.get("source_model", ""),
                                            query=row["query"], coverage=row.get("coverage", ""),
-                                           identity=row.get("identity", "")))
+                                           identity=row.get("identity", ""), **{key:row.get(key, "") for key in SCORE_FIELDS}))
             if choice:
                 selected.append(dict(choice, group=group_id, selection_status=status,
                                      locus_id=f"L{len(selected)+1:06d}", candidate_loci=len(clusters)))
@@ -189,8 +192,8 @@ def collect_windows(args, source, root, original, selected, runner, errors):
                     if high-low > args.max_window_bases:
                         raise ValueError(f"Window exceeds --max-window-bases ({high-low} bp)")
                     row.update(window_start=low, window_end=high, target_start=start, target_end=end,
-                               anchor_kind="annotated_gene" if gene else "dna_region" if row["status"] == "dna_region" else "coding_model",
-                               target_name=gene["name"] if gene else "DNA hit" if row["status"] == "dna_region" else "predicted coding model",
+                               anchor_kind="annotated_gene" if gene else "translated_protein_seed" if row.get("source") == "tblastn" else "dna_region" if row["status"] == "dna_region" else "coding_model",
+                               target_name=gene["name"] if gene else "Protein-supported DNA region" if row.get("source") == "tblastn" else "DNA hit" if row["status"] == "dna_region" else "predicted coding model",
                                left_clipped=low > start-args.window, right_clipped=high < end+args.window,
                                annotation_status="provided_gff3" if gff else "unannotated",
                                relative_cds=[], context_status="provided_gff3" if gff else "no_annotation_evidence")
@@ -344,17 +347,17 @@ def compare(args):
         synteny = synteny_pairs(valid, context)
         dna, blocks, categories = compare_dna(args, root, valid, windows, runner, errors)
         protein = protein_comparison(args, source, root, groups, original["queries"], valid, runner, errors)
-        columns = ["group", "group_name", "genome_id", "status", "candidate_loci", "model_id", "target_name", "model_status", "coverage", "identity", "error"]
+        columns = ["group", "group_name", "genome_id", "status", "candidate_loci", "model_id", "target_name", "model_status", "coverage", "identity", *SCORE_FIELDS, "error"]
         for observation in observations:
             chosen = next((r for r in selected if r["group"] == observation["group"] and r["genome_id"] == observation["genome_id"]), None)
             if chosen and chosen.get("comparison_error"):
                 observation.update(error=chosen["comparison_error"], status="comparison_error")
             if chosen:
                 observation.update(target_name=chosen.get("target_name", ""), model_status=chosen["status"],
-                                   coverage=chosen.get("coverage", ""), identity=chosen.get("identity", ""))
+                                   coverage=chosen.get("coverage", ""), identity=chosen.get("identity", ""), **{key:chosen.get(key, "") for key in SCORE_FIELDS})
         write_tsv(root / "summary.tsv", observations, columns)
-        write_tsv(root / "candidates.tsv", candidates, ["group", "genome_id", "locus_rank", "model_id", "representative", "selected", "contig", "start", "end", "strand", "status", "source", "source_gene", "source_model", "query", "coverage", "identity"])
-        write_tsv(root / "loci.tsv", selected, ["locus_id", "group", "genome_id", "model_id", "selection_status", "candidate_loci", "target_name", "source", "source_gene", "source_model", "coverage", "identity", "protein_aa", "contig", "strand", "status", "window_start", "window_end", "target_start", "target_end", "anchor_kind", "left_clipped", "right_clipped", "window_bp", "softmasked_bases", "window_fasta", "window_sha256", "annotation_status", "context_status", "context_predictor", "context_predictor_model", "comparison_error"])
+        write_tsv(root / "candidates.tsv", candidates, ["group", "genome_id", "locus_rank", "model_id", "representative", "selected", "contig", "start", "end", "strand", "status", "source", "source_gene", "source_model", "query", "coverage", "identity", *SCORE_FIELDS])
+        write_tsv(root / "loci.tsv", selected, ["locus_id", "group", "genome_id", "model_id", "selection_status", "candidate_loci", "target_name", "source", "source_gene", "source_model", "coverage", "identity", "protein_aa", "contig", "strand", "status", "window_start", "window_end", "target_start", "target_end", "anchor_kind", "left_clipped", "right_clipped", "window_bp", "softmasked_bases", "window_fasta", "window_sha256", "annotation_status", "context_status", "context_predictor", "context_predictor_model", *SCORE_FIELDS, "comparison_error"])
         write_tsv(root / "neighbors.tsv", context, ["locus_id", "group", "genome_id", "gene_id", "name", "contig", "start", "end", "strand", "relative_start", "relative_end", "relative_strand", "protein_id", "homology_group", "evidence", "clipped", "reference_protein", "reference_identity", "reference_coverage", "prediction_coverage", "coding_status", "identification_status", "provided_gff_overlap"])
         write_tsv(root / "neighbor_proteins.tsv", [dict(protein_id=pid, **item,
                   protein_aa=len(proteins.get(pid, "")), protein_sha256=hashlib.sha256(proteins[pid].encode()).hexdigest() if pid in proteins else "")

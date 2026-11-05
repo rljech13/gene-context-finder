@@ -5,7 +5,7 @@ Find candidate genes and their surroundings in a set of genomes using DNA or pro
 ```text
 Your query FASTA + genome FASTAs + optional matching GFF3 annotations
                               ↓
-              Search every query in every genome
+              TBLASTn discovery for protein/CDS; BLASTN for DNA
                               ↓
          Extract candidate loci and ±50 kb gene contexts
                               ↓
@@ -65,7 +65,9 @@ gene-context analyze --query targets.faa --query-type protein \
   --genomes genomes.tsv --out results/analysis --threads 8
 ```
 
-This searches every query in every genome, checks target coding models, and extracts each selected locus with **50 kb on either side**. It then predicts genes from each window's DNA with Tiberius on CPU, identifies their proteins, compares neighbours, and compares genomic DNA and target proteins. The prediction step runs for **every genome**, including genomes with GFF3. Use `--window` to change the context size. Add `--include-partial` to include clean incomplete target proteins; disrupted target models stay excluded.
+This searches every protein/CDS query with TBLASTn against all contigs, obtains matching coding models from GFF3 or dense local miniprot reconstruction, checks their integrity, and extracts each selected locus with **50 kb on either side**. It then predicts genes from each window's DNA with Tiberius on CPU, identifies their proteins, compares neighbours, and compares genomic DNA and target proteins. The prediction step runs for **every genome**, including genomes with GFF3. Use `--window` to change the context size. Add `--include-partial` to include clean incomplete target proteins; disrupted target models stay excluded.
+
+**Finding divergent genes:** local protein matches can cover only one conserved domain. These candidates are retained and marked `local_alignment`, rather than rejected by the old 50%-coverage mapping gate. New searches rank coding candidates by BLASTP bitscore normalized to the query self score; this is a display ranking, not an orthology assignment. `--protein-search miniprot` restores the faster whole-genome mapping route. See the [NANOG missed-hit diagnosis and correction](docs/NANOG_SEARCH_VALIDATION.md).
 
 **Without GFF3:** the same DNA-only prediction step runs. Genes remain on the diagram even if their proteins cannot be identified. BLASTP names predicted proteins against Swiss-Prot (default), supplied `--context-proteins reference.faa`, and any usable proteins from the provided annotations. GFF3 supplies an independent comparison/reference track, without constraining prediction. Unnamed predictions can still match across genomes by their protein sequences. See [window prediction](docs/WINDOW_PREDICTION.md).
 

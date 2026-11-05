@@ -32,7 +32,7 @@ def tool_versions(names):
         if not resolved:
             versions[name] = dict(path=None, version="missing")
             continue
-        flag = "-version" if name in {"blastn", "blastp", "blastx", "makeblastdb"} else "--version"
+        flag = "-version" if name in {"blastn", "blastp", "blastx", "tblastn", "makeblastdb"} else "--version"
         result = subprocess.run([resolved, flag], capture_output=True, text=True,
                                 errors="replace")
         lines = (result.stdout + result.stderr).splitlines()

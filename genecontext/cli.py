@@ -84,8 +84,17 @@ def search_options(command, comparative=False):
     command.add_argument("--max-intron", type=positive, default=200000)
     command.add_argument("--max-hits", type=positive, default=1000, help="Miniprot alignment cap per query/genome")
     command.add_argument("--secondary-ratio", type=fraction, default=0.1)
-    command.add_argument("--min-coverage", type=fraction, default=0.5, help="Minimum aligned query fraction")
+    command.add_argument("--min-coverage", type=fraction, default=0.5, help="Fast-route minimum aligned query fraction; local discovery has its own lower gate")
     command.add_argument("--min-identity", type=fraction, default=0.3, help="Protein identity fraction")
+    command.add_argument("--protein-search", choices=["tblastn", "miniprot"], default="tblastn",
+                         help="tblastn: sensitive genome discovery then local coding reconstruction; miniprot: fast whole-genome mapping")
+    command.add_argument("--candidate-min-coverage", dest="rescue_min_coverage", type=fraction, default=0.15,
+                         help="Minimum BLASTP query fraction for a coding candidate; not a per-exon seed cutoff")
+    command.add_argument("--seed-min-aa", dest="rescue_min_aa", type=positive, default=30)
+    command.add_argument("--refine-flank", dest="rescue_flank", type=positive, default=50000,
+                         help="DNA on either side of a translated seed for dense local coding reconstruction")
+    command.add_argument("--max-refine-regions", dest="rescue_max_regions", type=positive, default=20,
+                         help="Maximum unannotated seed regions refined per query/genome; all passing seeds are retained")
     command.add_argument("--protein-evalue", type=float, default=1e-5)
     command.add_argument("--dna-identity", type=fraction, default=0.7)
     command.add_argument("--min-dna-coverage", type=fraction, default=0.1,
@@ -157,7 +166,7 @@ def parser():
 def main(argv=None):
     args = parser().parse_args(argv)
     if args.command == "doctor":
-        versions = tool_versions(["samtools", "miniprot", "blastn", "blastp", "blastx", "makeblastdb", "mafft"] + (["augustus"] if args.predictor == "augustus" else []))
+        versions = tool_versions(["samtools", "miniprot", "blastn", "blastp", "blastx", "tblastn", "makeblastdb", "mafft"] + (["augustus"] if args.predictor == "augustus" else []))
         if args.predictor == "tiberius":
             from .tiberius_backend import runtime_info, runtime_python, ensure_model
             python = runtime_python(args)
