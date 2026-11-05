@@ -1,6 +1,10 @@
-# Setup, genome downloads, and first run
+# Setup and input preparation
 
-## 1. Get this implementation and create the environment
+The [README](../README.md) shows the usual search workflow. Start with files you or a colleague have already downloaded. The downloader below is optional.
+
+## Install
+
+Run from a terminal on the machine where you want the analysis to run:
 
 ```bash
 git clone https://github.com/rljech13/gene-context-finder.git
@@ -10,89 +14,31 @@ conda activate gene-context
 gene-context doctor
 ```
 
-Run environment creation from the repository root so the editable Python package
-(`pip: -e .`) resolves correctly. `mamba env create -f environment.yml` is an
-alternative when mamba is installed. The environment contains Python, samtools,
-miniprot, BLAST+ and MAFFT; the application itself has no Python dependencies.
-Use `conda run -n gene-context gene-context ...` in batch jobs if activation is
-inconvenient. The supported platforms are Linux/macOS with available tool builds;
-miniprot needs x86_64 or ARM hardware. Windows users can use Linux under WSL.
+Create the environment from the repository root so `pip: -e .` resolves correctly. Mamba can replace conda. The environment provides Python, samtools, miniprot, BLAST+ and MAFFT.
 
-A Linux-64 dependency solve was checked for this environment file. The exact
-packages used in a real run are recorded in `manifest.json`; version constraints
-are not a fully locked environment. When using existing system tools, Python
->=3.10 and all executables listed by `gene-context doctor` must be available on
-PATH. No activation script or global environment is modified by the pipeline.
+With existing tools, use Python >=3.10 and install the package with `python -m pip install -e .`. Alternatively, run `python -m genecontext` from this checkout. External tools must be on PATH. Linux/macOS are supported where tool builds are available; use Linux under WSL on Windows. Miniprot needs x86_64 or ARM hardware. See [validation](VALIDATION.md) for tested environments.
 
-## 2. Download a small subset first
+## Use files downloaded by a colleague
 
-The supplied [18-species manifest](../examples/vertebrates18.download.tsv) lists
-exact assembly versions and their HTTPS genome/annotation/reference URLs. It is
-an optional example panel; the pipeline accepts your own genomes and sequences.
-The panel was frozen on 2026-11-05. It contains 15 Chromosome assemblies, two
-Complete Genome assemblies and one Scaffold assembly. The two deliberately
-unannotated exceptions are *Lethenteron camtschaticum* and *Pavo cristatus*.
-No GFF3 from a different assembly is silently substituted for these species.
+For each assembly, collect its genome FASTA, its matching GFF3 if available, and the assembly accession/version. Keep each assembly in its own folder; original filenames can be retained. `.gz` files are accepted directly. Convert GTF to GFF3 before using it.
 
-Preview chicken without downloading anything:
+Create `genomes.tsv` with tab-separated columns:
 
-```bash
-gene-context download --manifest examples/vertebrates18.download.tsv \
-  --out data/vertebrates18 --only GCF_016699485.2 --dry-run
+```tsv
+genome_id	fasta	gff3
+assembly_1	data/assembly_1/genome.fna.gz	data/assembly_1/genomic.gff.gz
+assembly_2	data/assembly_2/genome.fna.gz
 ```
 
-Download and verify chicken genome + matching GFF3:
+Use unique genome IDs. Paths are relative to this TSV, or absolute. Empty `gff3` means no annotation. The GFF3 must match the exact assembly and FASTA contig IDs. A `.fai` index does not replace its FASTA. A chromosome or locus excerpt is processed as the supplied sequence, not as a whole genome.
 
-```bash
-gene-context download --manifest examples/vertebrates18.download.tsv \
-  --out data/vertebrates18 --only GCF_016699485.2
-```
+The search uses this local-path table through `--genomes genomes.tsv`. It does not download files during a search. Run on the machine that has these paths: files on a colleague's computer must first be copied to that machine or made accessible there. Inputs are read-only; working FASTA and indexes are created under the output directory.
 
-Select more than one assembly using `--only ACCESSION1 ACCESSION2`. Download all
-18 by omitting `--only`. Add `--include-reference` if you also want the listed
-complete reference CDS and protein FASTA files; they are not needed for the main
-protein-to-genome search.
+## Prepare the query FASTA
 
-```bash
-gene-context download --manifest examples/vertebrates18.download.tsv \
-  --out data/vertebrates18 --include-reference
-```
+Use your real protein sequences, CDS sequences or genomic DNA regions. A file can contain multiple records of one type. Give each record a unique FASTA identifier. The pipeline searches each record independently in every genome.
 
-The complete panel has approximately 30.1 GB of compressed genome data and
-98.4 Gb of genomic sequence, before adding annotations, decompressed working
-FASTA, miniprot/BLAST indices and results. The lungfish and axolotl account for
-much of this. Start with a subset rather than downloading the full panel onto a
-small disk. The main search processes assemblies sequentially with configurable
-threads; index memory and maximum intron length matter for giant genomes.
-
-The downloader:
-
-- retrieves official `md5checksums.txt` for each file's source directory;
-- downloads to `.part`, resumes when HTTP Range is supported, and publishes a
-  final filename only after MD5 agreement;
-- reuses existing files only after rechecking their MD5;
-- preserves an existing file that disagrees with its source checksum and reports
-  an error instead of overwriting it;
-- writes `download_receipt.json` with source URLs, checksums, byte counts and
-  outcomes, plus `genomes.tsv` containing only fully verified selected entries;
-- records failures and continues with the other selected assemblies.
-
-Re-running a subset regenerates `genomes.tsv` for that invocation's selected,
-verified genomes. It does not automatically add every older cached download.
-The downloaded genomes and reference files are excluded from Git by `.gitignore`.
-Genome records are version-pinned; the recorded MD5 also captures the annotation
-bytes actually obtained if NCBI updates annotation on the same assembly later.
-
-For your own download panel, create a tab-separated file with `genome_id` and
-`genome_url`; optional columns are `accession`, `gff_url`, `protein_url`, `cds_url`
-and `md5_url`. The default checksum URL is `md5checksums.txt` beside each source
-file. A custom source needs a compatible checksum file. An empty GFF URL means
-annotation is unavailable, not an unsuccessful download.
-
-## 3. Supply query sequences
-
-Use a FASTA you already have, or download known reference sequences. For example,
-these chicken NANOG and Pou5f3 RefSeq proteins are suitable demonstration queries:
+To obtain the chicken NANOG and Pou5f3 example proteins:
 
 ```bash
 mkdir -p queries
@@ -100,87 +46,74 @@ curl -fL 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=protein&i
   -o queries/chicken_targets.faa
 ```
 
-The records correspond to [NANOG, Gene 100272166](https://www.ncbi.nlm.nih.gov/gene/100272166)
-and [Pou5f3, Gene 427781](https://www.ncbi.nlm.nih.gov/gene/427781).
-For known spliced coding DNA, obtain their transcript CDS:
+These are [NANOG](https://www.ncbi.nlm.nih.gov/gene/100272166) and [Pou5f3](https://www.ncbi.nlm.nih.gov/gene/427781). Known reference sequences are search examples; a single reference may miss divergent homologs. For their coding DNA:
 
 ```bash
 curl -fL 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=NM_001146142.2,NM_001309372.2&rettype=fasta_cds_na&retmode=text' \
   -o queries/chicken_targets.cds.fna
 ```
 
-Check sequence identifiers and that CDS translation agrees with the intended
-protein. `--query-type cds` expects intron-free coding DNA in coding orientation,
-not an entire mRNA containing UTRs. Use `--query-type dna` for genomic or noncoding
-queries. Arbitrary genomic DNA without a coding annotation is retained as matched
-regions and flanks; it does not establish a uniquely defined coding model.
+Check identifiers and CDS/protein agreement. `--query-type cds` expects spliced coding DNA without UTRs, not the entire mRNA. Protein/CDS queries must encode at least 30 amino acids. For genomic or noncoding queries, use `--query-type dna`.
 
-## 4. Run on downloaded or already available genomes
+Run with the local genome table:
 
 ```bash
 gene-context run --query queries/chicken_targets.faa --query-type protein \
-  --genomes data/vertebrates18/genomes.tsv --out results/protein_run --threads 8
-
-gene-context run --query queries/chicken_targets.cds.fna --query-type cds \
-  --genomes data/vertebrates18/genomes.tsv --out results/cds_run --threads 8
+  --genomes genomes.tsv --out results/search --threads 8 --skip-alignments
 ```
 
-If genomes are already available, do not download them again. Write a TSV with
-`genome_id`, `fasta`, and optional `gff3`, using their actual paths on the machine
-where you will run the search. Paths may be absolute or relative to the TSV.
-Keep different assembly versions separate. A `.fai` file is only an index and
-cannot replace its FASTA; a locus/chromosome excerpt is not a complete genome.
+Open `results/search/report.html`. To share the report with its linked sequences and diagrams, copy the full result directory. See the [README](../README.md#optional-align-the-extracted-sequences) for subsequent alignments and [methods](METHODS.md) for exact search rules.
 
-```tsv
-genome_id	fasta	gff3
-my_assembly	/path/to/genome.fna	/path/to/matching_assembly.gff3.gz
-another_assembly	/path/to/another.fna.gz
+## Optional: download through the pipeline
+
+The downloader reads a **different table**, containing source URLs rather than local file paths. The supplied [18-assembly download table](../examples/vertebrates18.download.tsv) already contains exact NCBI URLs.
+
+```text
+URL table → download → local files + genomes.tsv → run
 ```
 
-For entirely unannotated FASTA collections, `--genome-dir /path/to/genomes`
-recursively uses every `.fa`, `.fna`, `.fasta` and gzipped equivalent. Keep query
-FASTA files outside that directory. Prefer the explicit TSV when annotations,
-multiple assembly versions or unusual directory layouts are involved.
-
-Open `results/protein_run/report.html` and inspect `genome_query_summary.tsv`.
-Every input genome/query has an outcome, including no hits and errors. The output
-directory must be new or empty. The original genome/annotation files are not
-modified. Copy the full result directory when sharing the HTML report and SVGs.
-
-## Alternative: NCBI Datasets CLI
-
-The [official install guide](https://www.ncbi.nlm.nih.gov/datasets/docs/v2/command-line-tools/download-and-install/)
-and [genome download guide](https://www.ncbi.nlm.nih.gov/datasets/docs/v2/how-tos/genomes/download-genome/)
-describe the NCBI package downloader. It is an alternative to the built-in
-checksum-verified URL manifest workflow above:
+Preview one assembly without downloading:
 
 ```bash
-conda install -c conda-forge ncbi-datasets-cli
+gene-context download --manifest examples/vertebrates18.download.tsv \
+  --out data/vertebrates18 --only GCF_016699485.2 --dry-run
+```
+
+Download that assembly's genome and available GFF3:
+
+```bash
+gene-context download --manifest examples/vertebrates18.download.tsv \
+  --out data/vertebrates18 --only GCF_016699485.2
+```
+
+Omit `--only` for all 18; add `--include-reference` for available protein and CDS files as well. Those extra files are stored as references; the main search reads genome/GFF3 and the separate query FASTA.
+
+The files land in `data/vertebrates18/` on the machine where the command runs. The downloader checks official MD5 sums, supports partial-download resumption where the server allows it, rechecks cached files, and preserves existing files that fail verification. It writes `download_receipt.json` with URLs, byte counts and errors, plus `genomes.tsv` listing verified entries. It continues past failed assemblies; check the receipt before assuming the panel is complete. Re-running a subset regenerates the local-path table for that invocation's selected, verified entries.
+
+Use the generated table in the search:
+
+```bash
+gene-context run --query queries/chicken_targets.faa --query-type protein \
+  --genomes data/vertebrates18/genomes.tsv --out results/downloaded_search \
+  --threads 8 --skip-alignments
+```
+
+For a custom download table, required columns are `genome_id` and `genome_url`; optional columns are `accession`, `gff_url`, `protein_url`, `cds_url` and `md5_url`. Sources need a compatible official checksum list. Without an explicit checksum URL, the downloader uses `md5checksums.txt` beside each source file.
+
+### The example panel and storage
+
+The panel was frozen on 2026-11-05: 18 assemblies, with 15 Chromosome, two Complete Genome and one Scaffold assembly. The selected *Lethenteron camtschaticum* and *Pavo cristatus* packages lack GFF3, protein and CDS files.
+
+HTTP file-size checks on that date gave **31.029 GB of gzip inputs** for all available genome/GFF3/protein/CDS files: 18 genomes and 16 files of each other type. Genomes alone total 30.128 GB. GB means 10^9 bytes. This excludes decompressed working genomes, indexes and results. The assemblies contain about 98.4 billion genomic bases; lungfish and axolotl dominate the storage and index requirements.
+
+### Alternative: download from NCBI directly
+
+Manual downloads and the [NCBI Datasets CLI](https://www.ncbi.nlm.nih.gov/datasets/docs/v2/how-tos/genomes/download-genome/) produce usable inputs too:
+
+```bash
 datasets download genome accession GCF_016699485.2 \
   --include genome,gff3,cds,protein --filename chicken_dataset.zip
 unzip chicken_dataset.zip -d data/chicken_dataset
 ```
 
-Locate the assembly FASTA and `genomic.gff` in the extracted `ncbi_dataset/data/`
-assembly directory, then add their exact paths to an input TSV. For very large
-packages follow NCBI's dehydrated-download/rehydration guide instead of treating a
-metadata-only package as downloaded sequence data.
-
-## Reuse extraction when changing alignment settings
-
-Long flanks across many candidate isoforms/paralogs can make MAFFT iterative
-refinement expensive. DNA uses progressive FFT-NS-2 by default; request
-`--dna-alignment auto` explicitly when iterative refinement is appropriate.
-Protein alignments use MAFFT auto. Keep identity and aligned coverage together;
-fast alignment does not establish that divergent flanks are orthologous.
-
-```bash
-gene-context align --results results/cds_run --out results/cds_fast_alignment \
-  --threads 8 --dna-alignment fast
-```
-
-The new directory contains `alignments/`, a provenance `manifest.json`, and a
-README referring to the original extraction. It does not repeat searches, alter
-source files, or overwrite the original model tables. Both directories are part
-of the result. An original search error remains an error even if realignment
-succeeds. Use new/empty, separate directories for each alignment attempt.
+The NCBI CLI is a separate installation; see its [installation guide](https://www.ncbi.nlm.nih.gov/datasets/docs/v2/command-line-tools/download-and-install/). Locate the assembly FASTA and GFF3 in the extracted package and list their actual paths in your local `genomes.tsv`.
