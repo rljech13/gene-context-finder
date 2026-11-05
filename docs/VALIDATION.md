@@ -57,4 +57,4 @@ copy orthology, expression and CRE activity require additional evidence.
 
 ## Linux server checks
 
-On 2026-11-05, all 27 tests also passed on a Linux compute host with Python 3.10.12, miniprot 0.18-r281, BLAST+ 2.17.0+, samtools 1.13 (htslib 1.21 development build), and MAFFT 7.526. This validates the existing-tool installation route as well as the source package; the conda file specifies newer minimum samtools for fresh installations. A separate five-assembly protein/CDS pilot uses public chicken NANOG and Pou5f3 reference queries; full-run outcomes are recorded separately when complete.
+On 2026-11-05, all 28 tests in this standalone repository also passed on a Linux compute host with Python 3.10.12, miniprot 0.18-r281, BLAST+ 2.17.0+, samtools 1.13 (htslib 1.21 development build), and MAFFT 7.526. This validates the existing-tool installation route as well as the source package; the conda file specifies newer minimum samtools for fresh installations. A separate five-assembly protein/CDS pilot uses public chicken NANOG and Pou5f3 reference queries. See the full-genome pilot report for measured outcomes and limits of a single reference query.

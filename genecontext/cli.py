@@ -6,6 +6,7 @@ import sys
 
 from . import __version__
 from .download import run_download
+from .alignment import realign
 from .pipeline import run
 from .tools import tool_versions
 
@@ -42,6 +43,14 @@ def parser():
     download.add_argument("--only", nargs="+", help="Select genome IDs or exact assembly accessions")
     download.add_argument("--include-reference", action="store_true", help="Also fetch listed reference CDS/proteomes")
     download.add_argument("--dry-run", action="store_true", help="Print plan without network calls or filesystem changes")
+    align = commands.add_parser("align", help="Re-align saved extraction without repeating genome searches")
+    align.add_argument("--results", required=True, help="Existing run directory with manifest.json, models.tsv and sequences/")
+    align.add_argument("--out", required=True, help="Separate new/empty output directory")
+    align.add_argument("--threads", type=positive, default=4)
+    align.add_argument("--dna-alignment", choices=["fast", "auto"], default="fast")
+    align.add_argument("--include-partial", action="store_true")
+    align.add_argument("--align-locus", action="store_true")
+    align.add_argument("--max-alignment-bases", type=positive, default=2000000)
     run = commands.add_parser("run", help="Search every input genome, extract models/context and align sequences")
     run.add_argument("--query", required=True, help="FASTA with one or more query sequences")
     run.add_argument("--query-type", required=True, choices=["protein", "cds", "dna"])
@@ -70,6 +79,8 @@ def parser():
     run.add_argument("--include-partial", action="store_true",
                      help="Also align clean but incomplete CDS (never disrupted models)")
     run.add_argument("--skip-alignments", action="store_true")
+    run.add_argument("--dna-alignment", choices=["fast", "auto"], default="fast",
+                     help="fast: progressive FFT-NS-2 DNA alignment; auto: allow MAFFT iterative refinement")
     run.add_argument("--align-locus", action="store_true", help="Also align whole gene+flank regions")
     run.add_argument("--max-alignment-bases", type=positive, default=2000000)
     return parser
@@ -84,6 +95,12 @@ def main(argv=None):
     if args.command == "download":
         try:
             return run_download(args)
+        except (ValueError, OSError, RuntimeError) as error:
+            print(f"ERROR: {error}", file=sys.stderr)
+            return 2
+    if args.command == "align":
+        try:
+            return realign(args)
         except (ValueError, OSError, RuntimeError) as error:
             print(f"ERROR: {error}", file=sys.stderr)
             return 2

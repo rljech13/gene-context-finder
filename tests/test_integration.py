@@ -96,6 +96,17 @@ class IntegrationTests(unittest.TestCase):
             self.assertEqual(translate(aligned.replace("-", "")), self.protein)
         self.assertFalse(Path(str(self.genome)+".fai").exists())
         self.assertEqual(len(list((output/"genomes/positive").glob("*.context.svg"))), len(models))
+        original_manifest = (output/"manifest.json").read_bytes()
+        realigned = self.root/"realigned"
+        result = subprocess.run([sys.executable, "-m", "genecontext", "align", "--results", str(output),
+            "--out", str(realigned), "--threads", "1", "--dna-alignment", "fast"], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((output/"manifest.json").read_bytes(), original_manifest)
+        new_manifest = json.loads((realigned/"manifest.json").read_text())
+        self.assertEqual(new_manifest["status"], "completed")
+        self.assertEqual(new_manifest["source_run_status"], "completed")
+        self.assertTrue((realigned/"alignments/q0001/cds.codon.aligned.fna").exists())
+        self.assertTrue(any("--maxiterate" in c["argv"] for c in new_manifest["commands"]))
 
     def test_genomic_dna_recovers_annotation_and_noncoding_stays_dna(self):
         query = self.root / "genomic_query.fna"

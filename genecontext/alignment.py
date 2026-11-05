@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from itertools import combinations
+import sys
 
 from .sequence import read_fasta, translate, write_fasta, write_tsv
 
@@ -86,8 +87,10 @@ def align_sequences(args, runner, root, queries, sequences, usable):
             if len(chosen) == 1:
                 write_fasta(target, chosen.items())
             else:
-                runner.run(["mafft", "--thread", args.threads, "--auto",
-                            "--amino" if kind == "protein" else "--nuc", source], target)
+                options = (["--auto", "--amino"] if kind == "protein" else
+                           ["--auto", "--nuc"] if getattr(args, "dna_alignment", "fast") == "auto" else
+                           ["--retree", "2", "--maxiterate", "0", "--nuc"])
+                runner.run(["mafft", "--thread", args.threads, *options, source], target)
             aligned = read_fasta(target)
             if set(aligned) != set(chosen):
                 raise ValueError(f"MAFFT changed sequence identifiers: {target}")
@@ -108,3 +111,66 @@ def align_sequences(args, runner, root, queries, sequences, usable):
                           ["sequence_a", "sequence_b", "paired_positions", "identical_positions",
                            "identity", "coverage_a", "coverage_b"])
     return summary
+
+
+def realign(args):
+    """Re-use saved extraction; write a new alignment run without editing it."""
+    import csv
+    import json
+    from datetime import datetime, timezone
+    from pathlib import Path
+    from .sequence import sha256
+    from .tools import Runner, tool_versions
+
+    source, root = Path(args.results).resolve(), Path(args.out).resolve()
+    if source == root or source in root.parents or root in source.parents:
+        raise ValueError("Realignment output must be separate from the source result directory")
+    parent = source / "manifest.json"
+    original = json.loads(parent.read_text())
+    with open(source / "models.tsv") as handle:
+        models = list(csv.DictReader(handle, delimiter="\t"))
+    versions = tool_versions(["mafft"])
+    if not versions["mafft"]["path"]:
+        raise ValueError("Missing tool: mafft")
+    if root.exists() and any(root.iterdir()):
+        raise ValueError(f"Output directory must be new or empty: {root}")
+    root.mkdir(parents=True, exist_ok=True)
+    queries = original["queries"]
+    sequences, usable, hashes = {}, {}, {}
+    kinds = ("cds", "protein", "locus", "upstream", "downstream", "dna_regions",
+             "dna_region_upstream", "dna_region_downstream")
+    for query in queries:
+        qid = query["id"]
+        sequences[qid], usable[qid] = {}, set()
+        for kind in kinds:
+            path = source / "sequences" / qid / f"{kind}.{'faa' if kind == 'protein' else 'fna'}"
+            records = read_fasta(path) if path.exists() and path.stat().st_size else {}
+            sequences[qid][kind] = list(records.items())
+            if path.exists():
+                hashes[str(path.relative_to(source))] = sha256(path)
+    for row in models:
+        if row["status"] == "complete_predicted" or (args.include_partial and row["status"] == "partial"):
+            usable[row["query"]].add(row["model_id"])
+    runner = Runner(root)
+    manifest = dict(started=datetime.now(timezone.utc).isoformat(), stage="realignment",
+                    source_results=str(source), source_manifest_sha256=sha256(parent),
+                    source_models_sha256=sha256(source / "models.tsv"), sequence_sha256=hashes,
+                    source_run_status=original.get("status"), parameters=vars(args), tools=versions,
+                    source_run_errors=original.get("errors", []),
+                    source_code_sha256={p.name: sha256(p) for p in sorted(Path(__file__).parent.glob('*.py'))
+                                        if not p.name.startswith('.')})
+    errors = []
+    try:
+        manifest["alignment_summary"] = align_sequences(args, runner, root, queries, sequences, usable)
+    except (OSError, RuntimeError, ValueError) as error:
+        errors.append(str(error))
+        print(f"Alignment error: {error}", file=sys.stderr)
+    manifest.update(finished=datetime.now(timezone.utc).isoformat(), commands=runner.commands,
+                    errors=errors, status="failed" if errors else "completed")
+    (root / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    (root / "README.txt").write_text(
+        "Realignment of saved extraction. Original search/model tables are unchanged.\n"
+        f"Source results: {source}\n"
+        "Consult both manifests; successful realignment does not erase source search errors.\n")
+    print(f"Alignments: {root}; {len(errors)} errors", file=sys.stderr)
+    return 1 if errors else 0

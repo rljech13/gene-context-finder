@@ -95,11 +95,23 @@ DNA defaults: >=70% identity, E <=1e-5, HSP length >=30 bp. CDS associations nee
 
 MAFFT aligns proteins per query across qualifying candidates. CDS alignments are **backtranslated from protein alignments**, with exact codon/protein checks. Protein-only references have no invented reference CDS. Known query CDS supplies both. Terminal stops remain in CDS exports but are excluded from codon alignments.
 
-Upstream/downstream windows are aligned separately in existing gene orientation. Whole gene+flank alignment is opt-in (`--align-locus`) because introns and distant flanks may be long and poorly alignable. Complete predicted models enter alignments by default; `--include-partial` allows clean incomplete models. Disrupted models remain exported and are excluded. Arbitrary DNA queries also get DNA-region and region-flank alignments, even when no CDS model can be recovered. `--skip-alignments` runs search/extraction only.
+Upstream/downstream windows are aligned separately in existing gene orientation. DNA uses progressive FFT-NS-2 by default (`--dna-alignment fast`); `--dna-alignment auto` allows MAFFT to choose potentially expensive iterative refinement. Protein alignment still uses MAFFT auto. Whole gene+flank alignment is opt-in (`--align-locus`) because introns and distant flanks may be long and poorly alignable. Complete predicted models enter alignments by default; `--include-partial` allows clean incomplete models. Disrupted models remain exported and are excluded. Arbitrary DNA queries also get DNA-region and region-flank alignments, even when no CDS model can be recovered. `--skip-alignments` runs search/extraction only.
 
 Pairwise tables report identity and paired-position coverage. Gaps and ambiguous characters are excluded from comparable positions. Flank alignments are exploratory: identity and coverage must be considered together. An alignment does not demonstrate CRE activity, expression, individual-copy orthology or conserved function.
 
 `--max-alignment-bases` bounds each input alignment set (default 2 million residues/bases). Exceeding it produces an explicit recorded error after extraction. Raise the limit or run extraction only; no arbitrary subset is silently selected.
+
+## Repeat alignments without repeating genome searches
+
+```bash
+gene-context align --results results/cds_run --out results/cds_fast_alignment \
+  --threads 8 --dna-alignment fast
+```
+
+This reads saved model/sequence exports, writes alignments to a separate directory,
+and records the parent manifest and input hashes. It works after an alignment-stage
+failure if extraction exports exist. The original result directory is unchanged;
+source search errors remain recorded and are not cleared by successful realignment.
 
 ## Outputs
 

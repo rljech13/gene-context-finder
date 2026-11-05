@@ -165,3 +165,22 @@ Locate the assembly FASTA and `genomic.gff` in the extracted `ncbi_dataset/data/
 assembly directory, then add their exact paths to an input TSV. For very large
 packages follow NCBI's dehydrated-download/rehydration guide instead of treating a
 metadata-only package as downloaded sequence data.
+
+## Reuse extraction when changing alignment settings
+
+Long flanks across many candidate isoforms/paralogs can make MAFFT iterative
+refinement expensive. DNA uses progressive FFT-NS-2 by default; request
+`--dna-alignment auto` explicitly when iterative refinement is appropriate.
+Protein alignments use MAFFT auto. Keep identity and aligned coverage together;
+fast alignment does not establish that divergent flanks are orthologous.
+
+```bash
+gene-context align --results results/cds_run --out results/cds_fast_alignment \
+  --threads 8 --dna-alignment fast
+```
+
+The new directory contains `alignments/`, a provenance `manifest.json`, and a
+README referring to the original extraction. It does not repeat searches, alter
+source files, or overwrite the original model tables. Both directories are part
+of the result. An original search error remains an error even if realignment
+succeeds. Use new/empty, separate directories for each alignment attempt.
