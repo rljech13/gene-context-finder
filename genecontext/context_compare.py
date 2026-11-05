@@ -1,27 +1,49 @@
 """Protein-supported context annotation and exploratory local synteny anchors."""
 from collections import Counter, defaultdict
 from itertools import combinations
+import json
 from urllib.parse import quote
 
-from .sequence import coding_sequence, read_fasta, read_gff, union_length, write_fasta
+from .sequence import coding_sequence, read_gff, union_length, write_fasta
 from .tools import Genome, tool_versions
+from .context_reference import add_references, swissprot
 
 
 def _overlap(a, b):
     return union_length([(max(x, u), min(y, v)) for x, y in a for u, v in b if max(x, u) < min(y, v)])
 
 
+def prune_reference_catalog(proteins, metadata):
+    """Keep observed neighbours and only the external references supporting them."""
+    supporting = {m.get("reference_protein") for m in metadata.values()}
+    unused = [pid for pid, item in metadata.items()
+              if item["genome_id"] == "external_reference" and pid not in supporting]
+    for pid in unused:
+        proteins.pop(pid)
+        metadata.pop(pid)
+    return len(unused)
+
+
 def annotate_missing(args, root, selected, context, proteins, metadata, windows, runner, errors):
-    if args.context_proteins:
-        for name, seq in read_fasta(args.context_proteins).items():
-            seq = seq.removesuffix("*")
-            if len(seq) < 30 or not set(seq) <= set("ACDEFGHIKLMNPQRSTVWYX"):
-                raise ValueError(f"Invalid context reference protein: {name}")
-            pid = f"R{len(metadata)+1:07d}"
-            proteins[pid] = seq
-            metadata[pid] = dict(genome_id="external_reference", gene_id=name, name=name, evidence="supplied_reference")
     missing = [r for r in selected if r["annotation_status"] == "unannotated"]
-    if not missing or not proteins:
+    receipt = dict(mode=args.context_reference, source="local_contexts", local_proteins=len(proteins),
+                   unannotated_windows=len(missing), status="not_needed" if not missing else "preparing")
+    receipt_path = root / "context_reference.json"
+    receipt_path.write_text(json.dumps(receipt, indent=2) + "\n")
+    if not missing:
+        return
+    if args.context_proteins:
+        receipt.update(source="supplied_and_local", supplied=add_references(
+            args.context_proteins, proteins, metadata, "supplied_reference"))
+    if args.context_reference == "swissprot" or (args.context_reference == "auto" and not proteins):
+        receipt.update(source="automatic_swissprot", status="preparing_swissprot")
+        receipt_path.write_text(json.dumps(receipt, indent=2) + "\n")
+        reference_path, provenance = swissprot(args.reference_cache)
+        receipt["swissprot"] = dict(provenance, **add_references(
+            reference_path, proteins, metadata, "swissprot_reference", skip_invalid=True))
+    receipt.update(status="ready" if proteins else "no_reference_evidence", screening_proteins=len(proteins))
+    receipt_path.write_text(json.dumps(receipt, indent=2) + "\n")
+    if not proteins:
         return
     tools = tool_versions(["blastx", "miniprot"])
     if any(not v["path"] for v in tools.values()):
@@ -64,7 +86,14 @@ def annotate_missing(args, root, selected, context, proteins, metadata, windows,
             models, _ = read_gff(predictions, source="miniprot_context")
             genome = Genome(path, folder / "cache", runner)
             accepted = []
-            for model in sorted(models, key=lambda m: (m.start, m.end, m.id)):
+            def score(model):
+                target = model.attrs.get("Target", "").split()
+                if len(target) < 3 or target[0] not in ids:
+                    return 0
+                return float(model.attrs.get("Identity", 0)) * (int(target[2])-int(target[1])+1) / len(proteins[target[0]])
+            # Retain the strongest reference-supported model when many library
+            # proteins map to the same coding locus, not the first protein ID.
+            for model in sorted(models, key=lambda m: (-score(m), m.start, m.end, m.id)):
                 target = model.attrs.get("Target", "").split()
                 if len(target) < 3 or target[0] not in ids:
                     continue
@@ -100,7 +129,9 @@ def annotate_missing(args, root, selected, context, proteins, metadata, windows,
                     ref = metadata[target[0]]
                     metadata[pid] = dict(prediction_key=key, genome_id=row["genome_id"], gene_id=pid,
                                          name=ref["name"], evidence="protein_supported_prediction",
-                                         reference_protein=target[0])
+                                         reference_protein=target[0], coding_status=status,
+                                         reference_identity=float(model.attrs.get("Identity", 0)),
+                                         reference_coverage=coverage)
                     proteins[pid] = protein
                     native_records.append((row["genome_id"], row["contig"], start, end, strand, pid, ref["name"], status, native_cds, native_stops))
                 context.append(dict(locus_id=row["locus_id"], group=row["group"], genome_id=row["genome_id"],
@@ -108,6 +139,8 @@ def annotate_missing(args, root, selected, context, proteins, metadata, windows,
                                     start=start, end=end, strand=strand, relative_start=model_start,
                                     relative_end=model_end, relative_strand=model.strand,
                                     evidence="protein_supported_prediction",
+                                    reference_protein=target[0], reference_identity=float(model.attrs.get("Identity", 0)),
+                                    reference_coverage=coverage, coding_status=status,
                                     clipped=model.start == 0 or model.end == row["window_bp"] or status == "partial"))
             row["context_status"] = "protein_supported_predictions" if accepted else "no_passing_context_predictions"
         except (OSError, ValueError, RuntimeError) as error:
@@ -130,6 +163,12 @@ def annotate_missing(args, root, selected, context, proteins, metadata, windows,
                     handle.write(f"{contig}\tminiprot_context\tCDS\t{a+1}\t{b}\t.\t{strand}\t{phase if phase is not None else '.'}\tParent={pid}.t1\n")
                 for a, b in stops:
                     handle.write(f"{contig}\tminiprot_context\tstop_codon\t{a+1}\t{b}\t.\t{strand}\t0\tParent={pid}.t1\n")
+    # A complete proteome/Swiss-Prot is a search library, not an all-vs-all
+    # synteny catalogue. Only supporting references enter local homology.
+    discarded = prune_reference_catalog(proteins, metadata)
+    receipt.update(status="completed", retained_catalog_proteins=len(proteins),
+                   discarded_unused_references=discarded, inferred_neighbors=len(native_records))
+    receipt_path.write_text(json.dumps(receipt, indent=2) + "\n")
 
 
 def homology_groups(args, root, context, proteins, metadata, runner):

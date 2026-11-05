@@ -3,6 +3,8 @@
 Validation below covers the `genecontext` package and its defined controls.
 It is not an exhaustive genome-wide sensitivity/specificity study.
 
+The default context method changed in v0.3 to DNA-only window prediction followed by protein identification. See [window-prediction validation](WINDOW_PREDICTION_VALIDATION.md). The v0.1/v0.2 evidence below describes the earlier search/extraction and annotation-first comparison methods.
+
 ## Executables used locally
 
 - Python 3.14.2 (standard library only).
@@ -14,7 +16,7 @@ It is not an exhaustive genome-wide sensitivity/specificity study.
 
 The workflow also targets Python >=3.10. The GitHub workflow passed on
 3.10–3.13 for code commit `935de82`; external-tool integration tests skip in CI
-when their required binaries are absent. The original 28-test suite passed locally and on Linux. The v0.2.0 suite now contains 40 tests; see [comparative validation](COMPARATIVE_VALIDATION.md) for the current results.
+when their required binaries are absent. The original 28-test suite passed locally and on Linux. The v0.2.0 suite contains 40 tests; see [comparative validation](COMPARATIVE_VALIDATION.md) for those results.
 A Linux-64 dry-run solve of `environment.yml` succeeded (81 packages). Actual conda environment creation was not required for the local or server runs, which used existing executables.
 
 ## Tests

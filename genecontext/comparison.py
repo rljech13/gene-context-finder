@@ -274,13 +274,16 @@ def collect_windows(args, source, root, original, selected, runner, errors):
 
 def compare(args):
     from . import __version__
-    from .context_compare import annotate_missing, homology_groups, synteny_pairs
+    from .context_compare import annotate_missing, homology_groups, synteny_pairs, prune_reference_catalog
     from .dna_compare import compare_dna
     from .comparison_report import write_comparison_reports, protein_comparison
     source, root = Path(args.results).resolve(), Path(args.out).resolve()
     if source == root or source in root.parents or root in source.parents:
         raise ValueError("Comparison output must be separate from source search results")
     original = json.loads((source / "manifest.json").read_text())
+    if args.context_mode == "predict":
+        from .context_predict import validate_prediction_inputs
+        validate_prediction_inputs(args, original["genomes"])
     groups = make_groups(original["queries"], args.query_groups)
     if args.reference_genome and args.reference_genome not in {g["genome_id"] for g in original["genomes"]}:
         raise ValueError("Unknown --reference-genome")
@@ -301,17 +304,33 @@ def compare(args):
                     groups=groups, source_code_sha256={p.name: sha256(p) for p in Path(__file__).parent.glob('*.py')},
                     extra_inputs_sha256={k: sha256(v) for k, v in vars(args).items()
                                          if k in {"context_proteins", "query_groups", "select_loci"} and v})
-    manifest["tools"].update(tool_versions(["blastx", "miniprot"]))
+    manifest["tools"].update(tool_versions(["blastx", "miniprot", "augustus"]))
     try:
         context, proteins, metadata, windows = collect_windows(args, source, root, original, selected, runner, errors)
         valid = [r for r in selected if not r.get("comparison_error")]
         try:
-            annotate_missing(args, root, valid, context, proteins, metadata, windows, runner, errors)
+            if args.context_mode == "predict":
+                from .context_predict import predict_contexts
+                predict_contexts(args, root, original["genomes"], valid, context, proteins, metadata, runner, errors)
+            else:
+                annotate_missing(args, root, valid, context, proteins, metadata, windows, runner, errors)
         except (OSError, ValueError, RuntimeError) as error:
             errors.append(dict(stage="context_inference", error=str(error)))
             for row in valid:
-                if row["annotation_status"] == "unannotated":
+                if args.context_mode == "predict" or row["annotation_status"] == "unannotated":
                     row["context_status"] = "context_inference_error"
+            reference_receipt = root / "context_reference.json"
+            if reference_receipt.exists():
+                info = json.loads(reference_receipt.read_text())
+                info.update(status="error", error=str(error))
+                reference_receipt.write_text(json.dumps(info, indent=2) + "\n")
+        finally:
+            # Never send an entire failed/unused search library to all-vs-all BLASTP.
+            prune_reference_catalog(proteins, metadata)
+        if (root / "context_reference.json").exists():
+            manifest["context_reference"] = json.loads((root / "context_reference.json").read_text())
+        if (root / "context_prediction.json").exists():
+            manifest["context_prediction"] = json.loads((root / "context_prediction.json").read_text())
         try:
             families, matches = homology_groups(args, root, context, proteins, metadata, runner)
         except (OSError, ValueError, RuntimeError) as error:
@@ -332,18 +351,18 @@ def compare(args):
                                    coverage=chosen.get("coverage", ""), identity=chosen.get("identity", ""))
         write_tsv(root / "summary.tsv", observations, columns)
         write_tsv(root / "candidates.tsv", candidates, ["group", "genome_id", "locus_rank", "model_id", "representative", "selected", "contig", "start", "end", "strand", "status", "source", "source_gene", "source_model", "query", "coverage", "identity"])
-        write_tsv(root / "loci.tsv", selected, ["locus_id", "group", "genome_id", "model_id", "selection_status", "candidate_loci", "target_name", "source", "source_gene", "source_model", "coverage", "identity", "protein_aa", "contig", "strand", "status", "window_start", "window_end", "target_start", "target_end", "anchor_kind", "left_clipped", "right_clipped", "window_bp", "softmasked_bases", "window_fasta", "window_sha256", "annotation_status", "context_status", "comparison_error"])
-        write_tsv(root / "neighbors.tsv", context, ["locus_id", "group", "genome_id", "gene_id", "name", "contig", "start", "end", "strand", "relative_start", "relative_end", "relative_strand", "protein_id", "homology_group", "evidence", "clipped"])
+        write_tsv(root / "loci.tsv", selected, ["locus_id", "group", "genome_id", "model_id", "selection_status", "candidate_loci", "target_name", "source", "source_gene", "source_model", "coverage", "identity", "protein_aa", "contig", "strand", "status", "window_start", "window_end", "target_start", "target_end", "anchor_kind", "left_clipped", "right_clipped", "window_bp", "softmasked_bases", "window_fasta", "window_sha256", "annotation_status", "context_status", "context_predictor_model", "comparison_error"])
+        write_tsv(root / "neighbors.tsv", context, ["locus_id", "group", "genome_id", "gene_id", "name", "contig", "start", "end", "strand", "relative_start", "relative_end", "relative_strand", "protein_id", "homology_group", "evidence", "clipped", "reference_protein", "reference_identity", "reference_coverage", "prediction_coverage", "coding_status", "identification_status", "provided_gff_overlap"])
         write_tsv(root / "neighbor_proteins.tsv", [dict(protein_id=pid, **item,
                   protein_aa=len(proteins.get(pid, "")), protein_sha256=hashlib.sha256(proteins[pid].encode()).hexdigest() if pid in proteins else "")
                   for pid, item in sorted(metadata.items())],
-                  ["protein_id", "genome_id", "gene_id", "name", "transcript_id", "coding_status", "evidence", "reference_protein", "protein_aa", "protein_sha256"])
+                  ["protein_id", "genome_id", "gene_id", "name", "transcript_id", "coding_status", "evidence", "reference_protein", "reference_identity", "reference_coverage", "description", "protein_aa", "protein_sha256"])
         write_tsv(root / "neighbor_matches.tsv", matches, ["protein_a", "protein_b", "identity", "coverage_a", "coverage_b", "bitscore", "reciprocal_best_in_local_catalog"])
         write_tsv(root / "synteny.tsv", synteny, ["group", "locus_a", "locus_b", "shared_groups", "unique_anchors", "order_concordance", "relative_orientation_concordance", "status"])
         write_comparison_reports(root, groups, original, selected, observations, context, synteny, dna, blocks, protein, errors, args)
         manifest.update(context_reference_proteins=len(proteins), context_evidence=dict(
             provided=sum(r["evidence"] == "provided_gff3" for r in context),
-            inferred=sum(r["evidence"] == "protein_supported_prediction" for r in context)))
+            inferred=sum(r["evidence"] in {"protein_supported_prediction", "ab_initio_prediction"} for r in context)))
     except (OSError, ValueError, RuntimeError) as error:
         errors.append(dict(stage="comparison", error=str(error)))
         print(f"Comparison error: {error}", file=sys.stderr)
@@ -360,6 +379,10 @@ def compare(args):
 
 def analyze(args):
     from .pipeline import run
+    if args.context_mode == "predict":
+        from .pipeline import load_genomes
+        from .context_predict import validate_prediction_inputs
+        validate_prediction_inputs(args, load_genomes(args))
     if args.word_size < 4 or args.protein_evalue <= 0 or args.dna_evalue <= 0:
         raise ValueError("Word size must be >=4 and E-values must be positive")
     missing = [name for name, info in tool_versions(["samtools", "blastp", "makeblastdb", "mafft", args.dna_engine]).items() if not info["path"]]

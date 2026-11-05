@@ -142,6 +142,9 @@ class ComparativeIntegration(unittest.TestCase):
     def tearDown(self):self.temp.cleanup()
 
     def execute(self,command,expected=0):
+        # Preserve v0.2 annotation-first regression controls explicitly.
+        if command[0] in {'analyze', 'compare'} and '--context-mode' not in command:
+            command = [*command, '--context-mode', 'annotation', '--context-reference', 'none']
         run=subprocess.run([sys.executable,'-m','genecontext',*map(str,command)],capture_output=True,text=True)
         self.assertEqual(run.returncode,expected,run.stdout+run.stderr)
         return run

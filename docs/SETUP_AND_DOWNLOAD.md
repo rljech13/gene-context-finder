@@ -14,7 +14,7 @@ conda activate gene-context
 gene-context doctor
 ```
 
-Create the environment from the repository root so `pip: -e .` resolves correctly. Mamba can replace conda. The environment provides Python, samtools, miniprot, BLAST+ and MAFFT.
+Create the environment from the repository root so `pip: -e .` resolves correctly. Mamba can replace conda. The environment provides Python, samtools, miniprot, BLAST+, MAFFT and AUGUSTUS. Existing installations can use `conda env update -f environment.yml` to add the new predictor.
 
 With existing tools, use Python >=3.10 and install the package with `python -m pip install -e .`. Alternatively, run `python -m genecontext` from this checkout. External tools must be on PATH. Linux/macOS are supported where tool builds are available; use Linux under WSL on Windows. Miniprot needs x86_64 or ARM hardware. See [validation](VALIDATION.md) for tested environments.
 
@@ -25,14 +25,16 @@ For each assembly, collect its genome FASTA, its matching GFF3 if available, and
 Create `genomes.tsv` with tab-separated columns:
 
 ```tsv
-genome_id	fasta	gff3
-assembly_1	data/assembly_1/genome.fna.gz	data/assembly_1/genomic.gff.gz
-assembly_2	data/assembly_2/genome.fna.gz
+genome_id	fasta	gff3	augustus_species
+chicken	data/chicken/genome.fna.gz	data/chicken/genomic.gff.gz	chicken
+human	data/human/genome.fna.gz		human
 ```
 
 Use unique genome IDs. Paths are relative to this TSV, or absolute. Empty `gff3` means no annotation. The GFF3 must match the exact assembly and FASTA contig IDs. A `.fai` index does not replace its FASTA. A chromosome or locus excerpt is processed as the supplied sequence, not as a whole genome.
 
-The search uses this local-path table through `--genomes genomes.tsv`. It does not download files during a search. Run on the machine that has these paths: files on a colleague's computer must first be copied to that machine or made accessible there. Inputs are read-only; working FASTA and indexes are created under the output directory.
+`augustus_species` selects an installed trained prediction model (`augustus --species=help`). A global `--augustus-species MODEL` can replace this column when using one model. Use suitable models or trained parameters for your organisms; the pipeline does not infer a universal model. Every selected window is predicted from DNA, then its proteins are identified. See [window prediction](WINDOW_PREDICTION.md).
+
+The search uses this local-path table through `--genomes genomes.tsv` and does not download genome files. In comparative analysis, missing naming references can trigger a one-time Swiss-Prot download; `--context-reference none` disables that download while retaining predicted unnamed genes. Run on the machine that has these paths: files on a colleague's computer must first be copied to that machine or made accessible there. Inputs are read-only; working FASTA and indexes are created under the output directory.
 
 ## Prepare the query FASTA
 
@@ -91,6 +93,8 @@ Omit `--only` for all 18; add `--include-reference` for available protein and CD
 The files land in `data/vertebrates18/` on the machine where the command runs. The downloader checks official MD5 sums, supports partial-download resumption where the server allows it, rechecks cached files, and preserves existing files that fail verification. It writes `download_receipt.json` with URLs, byte counts and errors, plus `genomes.tsv` listing verified entries. It continues past failed assemblies; check the receipt before assuming the panel is complete. Re-running a subset regenerates the local-path table for that invocation's selected, verified entries.
 
 Use the generated table in the search:
+
+First add an `augustus_species` column to that table with suitable installed models for the selected organisms. The downloader supplies genome paths, not predictor model choices.
 
 ```bash
 gene-context analyze --query queries/chicken_targets.faa --query-type protein \

@@ -220,9 +220,16 @@ def write_comparison_reports(root, groups, original, selected, observations, con
              '<p class="note">Ranked loci are candidates. Multiple loci, isoforms and reference-supported predictions are retained in the tables. '
              'Local protein matches and conserved gene order support a comparison but do not establish individual-copy orthology. '
              'Missing annotation or alignment is not evidence of gene absence or regulatory activity.</p>',
+             ('<p class="note">Every context window was submitted to AUGUSTUS for DNA-only gene prediction, followed by protein identification. '
+              'Unidentified predictions remain in the context. Supplied GFF3 is a separate comparison/reference track.</p>'
+              '<p><a href="context_predictions.tsv">All window predictions</a> · '
+              '<a href="context_prediction_cds.fna">Predicted CDS</a> · '
+              '<a href="context_prediction_proteins.faa">Predicted proteins</a> · '
+              '<a href="provided_neighbors.tsv">Provided annotation neighbours</a></p>' if args.context_mode == "predict" else ''),
              '<p><a href="summary.tsv">All genomes/targets</a> · <a href="candidates.tsv">All candidates and ranks</a> · '
              '<a href="loci.tsv">Selected windows</a> · <a href="neighbors.tsv">Neighbours</a> · '
              '<a href="neighbor_proteins.tsv">Neighbour protein sources</a> · '
+             '<a href="context_reference.json">Context reference database</a> · '
              '<a href="synteny.tsv">Synteny</a> · <a href="dna_pairs.tsv">DNA comparisons</a> · '
              '<a href="dna_categories.tsv">DNA by region</a> · <a href="manifest.json">Provenance</a></p><ul>']
     loci_by_id = {r["locus_id"]: r for r in selected if not r.get("comparison_error")}
@@ -248,11 +255,14 @@ def write_comparison_reports(root, groups, original, selected, observations, con
                 'Gene boundaries use GFF3 where the selected annotation supplies them; otherwise coding-model/DNA-hit boundaries are used. '
                 'Windows are clipped at contig ends. Distances and coordinates are available in loci.tsv.</p>',
                 '<h2>Local synteny</h2><img src="synteny.svg" alt="Gene order and orientation across input genomes">',
+                html_table(loci, ["genome_id", "annotation_status", "context_status", "context_predictor_model"]),
                 html_table([r for r in context if r["group"] == group["id"]],
-                           ["genome_id", "name", "gene_id", "homology_group", "start", "end", "strand", "evidence"]),
+                           ["genome_id", "name", "gene_id", "homology_group", "start", "end", "strand", "evidence", "reference_identity", "reference_coverage"]),
                 '<p>Neighbour families use reciprocal best protein matches within the collected context/reference catalog. '
                 'They are provisional homology groups. At least two unique anchors are required to compare order; repeated families are excluded from that order score. '
-                'Unannotated windows can contain additional unpredicted genes.</p>',
+                'Unannotated windows can contain additional unpredicted genes. Inferred names are borrowed from supporting proteins, '
+                'not confirmed gene symbols. Automatic Swiss-Prot references are attributed to the UniProt Consortium (CC BY 4.0); '
+                '<a href="../../context_reference.json">release, checksums and reference sources</a>.</p>',
                 html_table(with_genomes([r for r in synteny if r["group"] == group["id"]]),
                            ["genome_a", "genome_b", "unique_anchors", "order_concordance", "relative_orientation_concordance", "status"]),
                 '<h2>Genomic DNA conservation</h2><img src="dna_blocks.svg" alt="Local aligned DNA blocks">',

@@ -9,6 +9,7 @@ from .download import run_download
 from .alignment import realign
 from .pipeline import run
 from .tools import tool_versions
+from .context_reference import DEFAULT_CACHE
 
 
 def fraction(value):
@@ -33,12 +34,19 @@ def nonnegative(value):
 
 
 def comparison_options(command):
+    command.add_argument("--context-mode", choices=["predict", "annotation"], default="predict",
+                         help="predict: predict genes in every window, then identify proteins; annotation: legacy GFF3/reference-supported contexts")
+    command.add_argument("--augustus-species", help="AUGUSTUS trained species model; genome TSV augustus_species values override this default")
     command.add_argument("--include-partial", action="store_true",
                          help="Also compare clean partial coding models; disrupted models stay excluded")
     command.add_argument("--window", type=nonnegative, default=50000,
                          help="Context DNA on each side of the gene/model (bp)")
     command.add_argument("--dna-engine", choices=["blastn", "lastz"], default="blastn")
     command.add_argument("--context-proteins", help="Optional reference proteins for unannotated context windows")
+    command.add_argument("--context-reference", choices=["auto", "swissprot", "none"], default="auto",
+                         help="auto: use Swiss-Prot if no local context proteins exist; swissprot: always add it; none: offline inputs only")
+    command.add_argument("--reference-cache", default=DEFAULT_CACHE,
+                         help="Reusable Swiss-Prot cache; an existing release is pinned and reused offline")
     command.add_argument("--query-groups", help="Optional TSV: query, group; combine references of one target")
     command.add_argument("--select-loci", help="Optional TSV: group, genome_id, model_id; override ranked candidates")
     command.add_argument("--reference-genome", help="Genome ID used for the DNA plot; tables still compare all pairs")
@@ -92,6 +100,8 @@ def parser():
     parser.add_argument("--version", action="version", version=__version__)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("doctor", help="Show external executable paths and versions")
+    reference = commands.add_parser("prepare-context", help="Download and checksum-pin Swiss-Prot for offline context annotation")
+    reference.add_argument("--reference-cache", default=DEFAULT_CACHE)
     download = commands.add_parser("download", help="Download genome/GFF3 inputs and verify official MD5 checksums")
     download.add_argument("--manifest", required=True, help="TSV: genome_id, genome_url, optional gff_url and reference URLs")
     download.add_argument("--out", required=True, help="Managed download directory; produces genomes.tsv")
@@ -123,12 +133,21 @@ def parser():
 def main(argv=None):
     args = parser().parse_args(argv)
     if args.command == "doctor":
-        versions = tool_versions(["samtools", "miniprot", "blastn", "blastp", "blastx", "makeblastdb", "mafft"])
+        versions = tool_versions(["samtools", "miniprot", "blastn", "blastp", "blastx", "makeblastdb", "mafft", "augustus"])
         print(json.dumps(versions, indent=2))
         return 1 if any(not value["path"] for value in versions.values()) else 0
     if args.command == "download":
         try:
             return run_download(args)
+        except (ValueError, OSError, RuntimeError) as error:
+            print(f"ERROR: {error}", file=sys.stderr)
+            return 2
+    if args.command == "prepare-context":
+        from .context_reference import swissprot
+        try:
+            _, receipt = swissprot(args.reference_cache)
+            print(json.dumps(receipt, indent=2))
+            return 0
         except (ValueError, OSError, RuntimeError) as error:
             print(f"ERROR: {error}", file=sys.stderr)
             return 2

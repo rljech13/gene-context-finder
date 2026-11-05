@@ -2,6 +2,8 @@
 
 `analyze` accepts your sequences and your genome table. Gene names, species and reference assemblies are not built into the algorithm. Protein/CDS inputs use the standard nuclear genetic code; arbitrary DNA can also be compared as matched regions.
 
+Since v0.3 the default context workflow predicts genes from the DNA of **every window**, then identifies the predicted proteins. See [window prediction](WINDOW_PREDICTION.md) for model selection, database preparation and outputs. The genome TSV must include `augustus_species`, or supply a global `--augustus-species MODEL`. The legacy v0.2 context workflow is explicitly selected with `--context-mode annotation`.
+
 ## One command
 
 ```bash
@@ -47,9 +49,9 @@ Use exact values from the output; the group can be its label or internal ID. Omi
 
 ## Neighbouring genes and local synteny
 
-With GFF3, all overlapping gene envelopes in the context window are collected. One usable representative protein per neighbouring gene is extracted from the genome. The target's coding models are excluded from neighbour anchors; overlapping unrelated genes remain eligible.
+By default, AUGUSTUS predicts protein-coding gene structures from each window's DNA, with no protein or GFF3 hints. Predicted CDS and proteins are extracted, then BLASTP identifies the proteins against local/supplied references, or an automatically prepared Swiss-Prot library when no usable local reference proteins exist. Unnamed genes remain visible and can form homology groups across genomes. Provided GFF3 neighbours are saved separately for comparison and can supply naming reference proteins. Predictor model choice is explicit per genome or through `--augustus-species`.
 
-Without GFF3, reference proteins are collected from annotated contexts in this run. You can add a wider protein set with `--context-proteins reference.faa`. BLASTX screens the unannotated windows, then miniprot builds splice-aware coding models for passing references. Predicted neighbours are marked as protein-supported predictions, with native-coordinate GFF3 files under `context_predictions/<genome_id>.gff3`. They are not a complete de novo annotation. Without reference evidence, the report says context content is unknown.
+With `--context-mode annotation` only, supplied GFF3 gene envelopes provide the primary neighbours. For windows lacking GFF3, BLASTX screens reference proteins, then miniprot reconstructs protein-supported coding models. This legacy route can use the same optional Swiss-Prot fallback, or `--context-reference none` for local inputs only.
 
 Neighbour proteins are matched by BLASTP, independently of their annotation names. Default minimum identity is 30% and coverage is 50% of both proteins. Reciprocal unique best matches in the collected local/reference catalog form provisional homology groups. Their identity, coverage and reciprocal-match flags are exported. These are not genome-wide orthology calls.
 
@@ -79,7 +81,8 @@ The page shows pairwise amino-acid identity/coverage and a position profile. Que
 
 ```bash
 gene-context compare --results results/previous_search \
-  --out results/new_comparison --threads 8 --window 50000
+  --out results/new_comparison --threads 8 --window 50000 \
+  --augustus-species YOUR_MODEL
 ```
 
 Original searches and their manifests remain unchanged. The source genomes (or saved working FASTA caches) and supplied GFF3 files must remain accessible on the machine running comparison. Target sequence roundtrips and GFF3 hashes are checked, and each newly extracted window is fingerprinted. Copying only the original HTML report is not enough to recompute context.

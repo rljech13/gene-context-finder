@@ -8,6 +8,7 @@ dependencies:
   - miniprot>=0.18
   - blast>=2.15
   - mafft>=7.520
+  - augustus>=3.5
   - pip
   - pip:
       - -e .
