@@ -58,11 +58,11 @@ Check identifiers and CDS/protein agreement. `--query-type cds` expects spliced 
 Run with the local genome table:
 
 ```bash
-gene-context run --query queries/chicken_targets.faa --query-type protein \
-  --genomes genomes.tsv --out results/search --threads 8 --skip-alignments
+gene-context analyze --query queries/chicken_targets.faa --query-type protein \
+  --genomes genomes.tsv --out results/analysis --threads 8
 ```
 
-Open `results/search/report.html`. To share the report with its linked sequences and diagrams, copy the full result directory. See the [README](../README.md#optional-align-the-extracted-sequences) for subsequent alignments and [methods](METHODS.md) for exact search rules.
+Open `results/analysis/report.html`. To share the report with its linked sequences and diagrams, copy the full result directory. See [comparative analysis](COMPARATIVE_ANALYSIS.md) for the synteny/DNA/protein report and [methods](METHODS.md) for the underlying search rules.
 
 ## Optional: download through the pipeline
 
@@ -93,9 +93,9 @@ The files land in `data/vertebrates18/` on the machine where the command runs. T
 Use the generated table in the search:
 
 ```bash
-gene-context run --query queries/chicken_targets.faa --query-type protein \
-  --genomes data/vertebrates18/genomes.tsv --out results/downloaded_search \
-  --threads 8 --skip-alignments
+gene-context analyze --query queries/chicken_targets.faa --query-type protein \
+  --genomes data/vertebrates18/genomes.tsv --out results/downloaded_analysis \
+  --threads 8
 ```
 
 For a custom download table, required columns are `genome_id` and `genome_url`; optional columns are `accession`, `gff_url`, `protein_url`, `cds_url` and `md5_url`. Sources need a compatible official checksum list. Without an explicit checksum URL, the downloader uses `md5checksums.txt` beside each source file.

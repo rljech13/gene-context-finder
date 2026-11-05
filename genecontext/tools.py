@@ -32,7 +32,7 @@ def tool_versions(names):
         if not resolved:
             versions[name] = dict(path=None, version="missing")
             continue
-        flag = "-version" if name in {"blastn", "blastp", "makeblastdb"} else "--version"
+        flag = "-version" if name in {"blastn", "blastp", "blastx", "makeblastdb"} else "--version"
         result = subprocess.run([resolved, flag], capture_output=True, text=True,
                                 errors="replace")
         lines = (result.stdout + result.stderr).splitlines()
@@ -83,7 +83,7 @@ class Genome:
             raise ValueError(f"Contig {contig!r} absent from FASTA (GFF3/FASTA mismatch)")
         return self.index[contig][0]
 
-    def fetch(self, contig, start, end, strand="+"):
+    def fetch(self, contig, start, end, strand="+", preserve_case=False):
         from .sequence import reverse_complement
         length, offset, bases, width = self.index[contig]
         if not (0 <= start <= end <= length):
@@ -93,7 +93,9 @@ class Genome:
         begin_byte = offset + (start // bases) * width + start % bases
         end_byte = offset + ((end-1) // bases) * width + (end-1) % bases + 1
         self.handle.seek(begin_byte)
-        seq = b"".join(self.handle.read(end_byte-begin_byte).split()).decode().upper()
+        seq = b"".join(self.handle.read(end_byte-begin_byte).split()).decode()
+        if not preserve_case:
+            seq = seq.upper()
         if len(seq) != end-start:
             raise ValueError(f"FASTA index/sequence mismatch: {contig}:{start}-{end}")
         return reverse_complement(seq) if strand == "-" else seq

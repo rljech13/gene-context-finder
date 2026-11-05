@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="265" viewBox="0 0 1600 265">
+<rect width="100%" height="100%" fill="white"/>
+<style>text{font-family:system-ui,sans-serif;fill:#172033;font-size:12px}</style>
+<text x="20" y="25" style="font-size:17px">target — local DNA blocks on reference coordinates</text>
+<text x="20" y="77">first</text>
+<rect x="300" y="65" width="1270" height="18" fill="#e2e8f0"/>
+<text x="310" y="79" style="font-size:11px">Reference: L000001</text>
+<text x="20" y="132">rearranged</text>
+<rect x="300" y="120" width="1270" height="18" fill="#e2e8f0"/>
+<rect x="883.50" y="120" width="163.67" height="18" fill="#16a34a" opacity="1.000"><title>identity 1.000; 545 paired bases; relative strand +</title></rect>
+<rect x="540.25" y="120" width="163.07" height="18" fill="#16a34a" opacity="1.000"><title>identity 1.000; 543 paired bases; relative strand +</title></rect>
+<rect x="1226.75" y="120" width="163.07" height="18" fill="#16a34a" opacity="1.000"><title>identity 1.000; 543 paired bases; relative strand +</title></rect>
+<text x="20" y="187">unannotated</text>
+<rect x="300" y="175" width="1270" height="18" fill="#e2e8f0"/>
+<rect x="539.65" y="175" width="163.67" height="18" fill="#16a34a" opacity="1.000"><title>identity 1.000; 545 paired bases; relative strand +</title></rect>
+<rect x="883.50" y="175" width="163.07" height="18" fill="#16a34a" opacity="1.000"><title>identity 1.000; 543 paired bases; relative strand +</title></rect>
+<rect x="1226.75" y="175" width="163.07" height="18" fill="#16a34a" opacity="1.000"><title>identity 1.000; 543 paired bases; relative strand +</title></rect>
+<path d="M883.50 45V200" stroke="#dc2626" stroke-dasharray="3 3" opacity="0.6"/>
+<path d="M1046.56 45V200" stroke="#dc2626" stroke-dasharray="3 3" opacity="0.6"/>
+<text x="883.50" y="43" style="fill:#dc2626;font-size:10px">Target boundaries</text>
+<text x="300.00" y="222" text-anchor="middle" style="font-size:10px">-1.9 kb</text>
+<text x="617.50" y="222" text-anchor="middle" style="font-size:10px">-0.9 kb</text>
+<text x="935.00" y="222" text-anchor="middle" style="font-size:10px">0.2 kb</text>
+<text x="1252.50" y="222" text-anchor="middle" style="font-size:10px">1.2 kb</text>
+<text x="1570.00" y="222" text-anchor="middle" style="font-size:10px">2.3 kb</text>
+<text x="300" y="238" style="font-size:10px">Reference distance from target start; target orientation.</text>
+<text x="20" y="255">Green: accepted forward blocks; purple: reverse blocks; gray: no accepted alignment. Gray does not mean gene loss.</text>
+</svg>

@@ -19,13 +19,13 @@ def open_text(path):
     return gzip.open(path, "rt") if str(path).endswith(".gz") else open(path)
 
 
-def read_fasta(path):
+def read_fasta(path, preserve_case=False):
     records, name, seq = {}, None, []
     with open_text(path) as handle:
         for line in handle:
             if line.startswith(">"):
                 if name is not None:
-                    records[name] = "".join(seq).upper()
+                    records[name] = "".join(seq) if preserve_case else "".join(seq).upper()
                 words = line[1:].split()
                 if not words:
                     raise ValueError(f"Empty FASTA identifier: {path}")
@@ -37,7 +37,7 @@ def read_fasta(path):
                     raise ValueError(f"Sequence before FASTA header: {path}")
                 seq.append("".join(line.split()))
     if name is not None:
-        records[name] = "".join(seq).upper()
+        records[name] = "".join(seq) if preserve_case else "".join(seq).upper()
     if not records or any(not seq for seq in records.values()):
         raise ValueError(f"Empty FASTA or empty sequence: {path}")
     return records
@@ -62,7 +62,8 @@ def sha256(path):
 
 
 def reverse_complement(seq):
-    return seq.translate(str.maketrans("ACGTRYMKSWBDHVN", "TGCAYRKMSWVHDBN"))[::-1]
+    return seq.translate(str.maketrans("ACGTRYMKSWBDHVNacgtrymkswbdhvn",
+                                       "TGCAYRKMSWVHDBNtgcayrkmswvhdbn"))[::-1]
 
 
 _BASES = "TCAG"

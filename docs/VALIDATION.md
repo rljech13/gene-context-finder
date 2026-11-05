@@ -14,14 +14,12 @@ It is not an exhaustive genome-wide sensitivity/specificity study.
 
 The workflow also targets Python >=3.10. The GitHub workflow passed on
 3.10–3.13 for code commit `935de82`; external-tool integration tests skip in CI
-when their required binaries are absent. All 28 tests, including actual-tool
-integration tests, passed locally and on the Linux host.
+when their required binaries are absent. The original 28-test suite passed locally and on Linux. The v0.2.0 suite now contains 40 tests; see [comparative validation](COMPARATIVE_VALIDATION.md) for the current results.
 A Linux-64 dry-run solve of `environment.yml` succeeded (81 packages). Actual conda environment creation was not required for the local or server runs, which used existing executables.
 
 ## Tests
 
-`python -m unittest discover -s tests -v` runs 15 sequence/input unit tests, 7 downloader tests and 6 real-tool
-integration tests when every required binary is on PATH. Missing executables
+`python -m unittest discover -s tests -v` runs 15 sequence/input tests, 7 downloader tests, 6 comparative unit tests and 12 real-tool integration tests (including an optional LASTZ control). Missing executables
 cause explicit integration-test skips, not mocked search results.
 
 Downloader tests use a local HTTP server and cover official-MD5 checking, verified cache reuse, interrupted transfers, checksum failures, preservation of altered files, subset selection and dry-run behaviour. No large remote genome download is needed for those tests. The checksum parser preserves relative paths for nested NCBI entries that share a basename.
@@ -61,4 +59,8 @@ copy orthology, expression and CRE activity require additional evidence.
 
 ## Linux server checks
 
-On 2026-11-05, all 28 tests in this standalone repository also passed on a Linux compute host with Python 3.10.12, miniprot 0.18-r281, BLAST+ 2.17.0+, samtools 1.13 (htslib 1.21 development build), and MAFFT 7.526. This validates the existing-tool installation route as well as the source package; the conda file specifies newer minimum samtools for fresh installations. A separate five-assembly protein/CDS pilot uses public chicken NANOG and Pou5f3 reference queries. See the [full-genome pilot report](FULL_GENOME_PILOT.md) for measured outcomes, independent source-sequence checks, alignment recovery and limits of a single reference query.
+On 2026-11-05, the earlier v0.1.1 suite of 28 tests also passed on a Linux compute host with Python 3.10.12, miniprot 0.18-r281, BLAST+ 2.17.0+, samtools 1.13 (htslib 1.21 development build), and MAFFT 7.526. This validates the existing-tool installation route as well as the source package; the conda file specifies newer minimum samtools for fresh installations. A separate five-assembly protein/CDS pilot uses public chicken NANOG and Pou5f3 reference queries. See the [full-genome pilot report](FULL_GENOME_PILOT.md) for measured outcomes, independent source-sequence checks, alignment recovery and limits of a single reference query.
+
+## Comparative reports (v0.2.0)
+
+The new `analyze` and `compare` commands add grouped query references, context-gene inference, provisional homology anchors, local synteny, pairwise genomic DNA blocks, and protein/codon comparisons. See [comparative methods](COMPARATIVE_ANALYSIS.md) and [comparative validation](COMPARATIVE_VALIDATION.md). The original biological pilot above is retained as evidence for its own source version and parameters.

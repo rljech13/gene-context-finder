@@ -7,9 +7,11 @@ Your query FASTA + genome FASTAs + optional matching GFF3 annotations
                               ↓
               Search every query in every genome
                               ↓
-        Extract candidate CDS, proteins, loci and flanks
+         Extract candidate loci and ±50 kb gene contexts
                               ↓
-             Reports and sequences; optional alignments
+       Compare neighbours, genomic DNA and amino acids
+                              ↓
+                 One comparative report per target
 ```
 
 ## What to prepare
@@ -42,20 +44,20 @@ lamprey	data/lamprey/genome.fna.gz
 
 Add one row per assembly. Paths are relative to `genomes.tsv`, or absolute. Leave `gff3` empty when annotation is unavailable. Gzip inputs need no manual decompression.
 
-## 2. Search using your proteins
-
-Put your real query proteins in `targets.faa`, then run:
+## 2. Analyze your genes
 
 A ready-to-use chicken Pou5f3 query is included: [protein FASTA](examples/queries/chicken_Pou5f3.protein.faa), with [CDS and provenance](examples/queries/README.md).
 
+Put one or more query proteins in `targets.faa`, then run:
+
 ```bash
-gene-context run --query targets.faa --query-type protein \
-  --genomes genomes.tsv --out results/search --threads 8 --skip-alignments
+gene-context analyze --query targets.faa --query-type protein \
+  --genomes genomes.tsv --out results/analysis --threads 8
 ```
 
-This searches every query in every genome, checks the recovered coding models, and extracts CDS, proteins and flanks (5 kb per side by default).
+This searches every query in every genome, checks the coding models, extracts each selected locus with **50 kb on either side**, compares neighbouring genes, and compares genomic DNA and proteins. Use `--window` to change the context size. Add `--include-partial` to include clean incomplete proteins; disrupted models stay excluded.
 
-**Without GFF3:** protein queries still recover predicted coding models through miniprot. Neighbouring genes are reported from GFF3 when available; the current pipeline does not independently annotate all genes in the surrounding DNA. Flanks are measured from coding-model boundaries, not a measured transcription start site.
+**Without GFF3:** the target is predicted from the query protein. Neighbours can be predicted using proteins from annotated input contexts, or your `--context-proteins reference.faa`. Without either source, neighbouring-gene content is reported as unknown. Windows use annotated gene boundaries where available, otherwise coding-model/DNA-hit boundaries.
 
 For spliced coding DNA without introns or UTRs, use `--query-type cds`. For genomic/noncoding DNA, use `--query-type dna`; these matches can remain DNA regions when coding evidence is unavailable.
 
@@ -63,33 +65,35 @@ Use a new or empty output directory for each run. Gzip genomes are decompressed 
 
 ## 3. Open the results
 
-Start with `results/search/report.html`.
+Start with `results/analysis/report.html`, then open a target's page for its **synteny diagram, DNA blocks and protein comparison**.
 
 | File or folder | What it contains |
 |---|---|
-| `genome_query_summary.tsv` | Outcome for every genome/query pair, including no hits and errors |
-| `models.tsv` | Candidate coordinates, evidence and complete/partial/disrupted status |
-| `sequences/q0001/` | CDS, proteins, loci and flanks for the first query across genomes |
-| `genomes/` | Coding models in GFF3 and context diagrams for each genome |
-| `manifest.json` | Query names, input checksums, settings, commands and errors |
+| `search/` | Every search candidate, extracted CDS/proteins/flanks and original evidence |
+| `comparison/summary.tsv` | Outcome for every genome/target group |
+| `comparison/candidates.tsv` | All loci, isoforms, ranks and the displayed representative |
+| `comparison/loci.tsv`, `comparison/windows/` | Selected coordinates and actual context DNA |
+| `comparison/neighbors.tsv`, `comparison/synteny.tsv` | Neighbour homology groups, order and orientation |
+| `comparison/dna_pairs.tsv`, `comparison/dna_categories.tsv` | DNA identity and aligned coverage, including region-specific results |
+| `comparison/queries/` | Target pages, SVG diagrams, protein/codon alignments and comparison tables |
+| `comparison/manifest.json` | Input/window hashes, parameters, versions, commands and errors |
 
-Queries become `q0001`, `q0002`, etc., in FASTA order. **Each query has its own results:** several POU5F3 references can recover the same locus in separate groups. Candidates include possible isoforms and paralogs; review them before counting genes or comparing orthologs.
+Queries become `q0001`, `q0002`, etc., in FASTA order. Use an optional query-group TSV to combine several references of one gene. Multiple candidate loci remain visible; the displayed representative is ranked by sequence evidence, with coding integrity breaking ties. Neighbour families are provisional protein-homology groups, not proven orthology assignments.
 
-## Optional: align the extracted sequences
+## Reuse an existing search
 
-Alignments support sequence-conservation comparisons. To add them after extraction:
+Build the comparative report without searching the genomes again:
 
 ```bash
-gene-context align --results results/search --out results/aligned --threads 8
+gene-context compare --results results/search --out results/comparison --threads 8
 ```
 
-`results/aligned/alignments/` contains per-query protein, codon-CDS and separate upstream/downstream alignments, plus identity/coverage tables. All complete candidates enter by default, so review the candidate set before interpretation.
-
-Omit `--skip-alignments` to search and align in one run. The separate `align` command reuses saved sequences.
+`analyze` combines search and comparison. The existing `run` and `align` commands remain available for search/extraction or ordinary multiple alignments. See [comparative analysis](docs/COMPARATIVE_ANALYSIS.md) for grouping, manual locus selection, DNA engines and interpretation.
 
 ## More detail
 
 - [Setup, local inputs and optional downloads](docs/SETUP_AND_DOWNLOAD.md)
+- [Comparative analysis and report interpretation](docs/COMPARATIVE_ANALYSIS.md)
 - [Search methods, options and file reference](docs/METHODS.md)
 - [Tests and validation](docs/VALIDATION.md)
 - [Five-assembly protein/CDS pilot](docs/FULL_GENOME_PILOT.md)

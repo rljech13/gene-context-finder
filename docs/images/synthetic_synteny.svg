@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="405" viewBox="0 0 1600 405">
+<rect width="100%" height="100%" fill="white"/>
+<style>text{font-family:system-ui,sans-serif;fill:#172033;font-size:12px}</style>
+<text x="20" y="25" style="font-size:17px">target — local gene context</text>
+<text x="20" y="75">first</text>
+<text x="20" y="93" style="font-size:10px">L000001 · single_candidate_locus</text>
+<path d="M300.00 75H1570.00" stroke="#cbd5e1"/>
+<polygon points="540.25,69 696.31,69 703.31,75 696.31,81 540.25,81" fill="#88c73f"><title>first_A | H00001 | provided_gff3 | chr_test:800-1343 (+)</title></polygon>
+<text x="621.78" y="99" text-anchor="middle" style="font-size:9px">first_A</text>
+<polygon points="1226.75,69 1382.82,69 1389.82,75 1382.82,81 1226.75,81" fill="#06b41e"><title>first_B | H00002 | provided_gff3 | chr_test:3086-3629 (+)</title></polygon>
+<text x="1308.28" y="99" text-anchor="middle" style="font-size:9px">first_B</text>
+<rect x="883.50" y="65" width="163.07" height="20" fill="#dc2626"><title>first.q0001.m000001 | annotated_gene</title></rect>
+<text x="965.03" y="59" text-anchor="middle" style="font-size:10px;fill:#b91c1c">first_TARGET</text>
+<text x="300" y="123" style="font-size:10px">chr_test:0-4229 (+); provided_gff3</text>
+<text x="20" y="175">rearranged</text>
+<text x="20" y="193" style="font-size:10px">L000002 · single_candidate_locus</text>
+<path d="M300.00 175H1570.00" stroke="#cbd5e1"/>
+<path d="M1308.28 81L621.78 169" stroke="#06b41e" stroke-width="3" opacity="0.25"/>
+<polygon points="540.25,169 696.31,169 703.31,175 696.31,181 540.25,181" fill="#06b41e"><title>rearranged_B | H00002 | provided_gff3 | chr_test:2886-3429 (-)</title></polygon>
+<text x="621.78" y="199" text-anchor="middle" style="font-size:9px">rearranged_B</text>
+<path d="M621.78 81L1308.28 169" stroke="#88c73f" stroke-width="3" opacity="0.25"/>
+<polygon points="1226.75,169 1382.82,169 1389.82,175 1382.82,181 1226.75,181" fill="#88c73f"><title>rearranged_A | H00001 | provided_gff3 | chr_test:600-1143 (-)</title></polygon>
+<text x="1308.28" y="199" text-anchor="middle" style="font-size:9px">rearranged_A</text>
+<rect x="883.50" y="165" width="163.07" height="20" fill="#dc2626"><title>rearranged.q0001.m000001 | annotated_gene</title></rect>
+<text x="965.03" y="159" text-anchor="middle" style="font-size:10px;fill:#b91c1c">rearranged_TARGET</text>
+<text x="300" y="223" style="font-size:10px">chr_test:0-4229 (-); provided_gff3</text>
+<text x="20" y="275">unannotated</text>
+<text x="20" y="293" style="font-size:10px">L000003 · single_candidate_locus</text>
+<path d="M300.00 275H1570.00" stroke="#cbd5e1"/>
+<path d="M1308.28 181L621.78 269" stroke="#88c73f" stroke-width="3" opacity="0.25"/>
+<polygon points="540.25,269 696.31,269 703.31,275 696.31,281 540.25,281" fill="#88c73f" stroke="#172033" stroke-dasharray="2 2"><title>first_A | H00001 | protein_supported_prediction | chr_test:2886-3429 (-)</title></polygon>
+<text x="621.78" y="299" text-anchor="middle" style="font-size:9px">first_A</text>
+<path d="M621.78 181L1308.28 269" stroke="#06b41e" stroke-width="3" opacity="0.25"/>
+<polygon points="1226.75,269 1382.82,269 1389.82,275 1382.82,281 1226.75,281" fill="#06b41e" stroke="#172033" stroke-dasharray="2 2"><title>first_B | H00002 | protein_supported_prediction | chr_test:600-1143 (-)</title></polygon>
+<text x="1308.28" y="299" text-anchor="middle" style="font-size:9px">first_B</text>
+<rect x="883.50" y="265" width="163.07" height="20" fill="#dc2626"><title>unannotated.q0001.m000001 | coding_model</title></rect>
+<text x="965.03" y="259" text-anchor="middle" style="font-size:10px;fill:#b91c1c">predicted coding model</text>
+<text x="300" y="323" style="font-size:10px">chr_test:0-4229 (-); protein_supported_predictions</text>
+<text x="300.00" y="362" text-anchor="middle" style="font-size:10px">-1.9 kb</text>
+<text x="617.50" y="362" text-anchor="middle" style="font-size:10px">-0.9 kb</text>
+<text x="935.00" y="362" text-anchor="middle" style="font-size:10px">0.2 kb</text>
+<text x="1252.50" y="362" text-anchor="middle" style="font-size:10px">1.2 kb</text>
+<text x="1570.00" y="362" text-anchor="middle" style="font-size:10px">2.3 kb</text>
+<text x="300" y="378" style="font-size:10px">Distance from target start; rows oriented with target. Native coordinates are shown per row.</text>
+<text x="20" y="395">Red: target. Colours: protein homology groups, not proven orthology. Dashed: inferred gene.</text>
+</svg>
