@@ -144,4 +144,6 @@ python -m unittest discover -s tests -v
 
 Unit tests cover exon phases, strand-aware extraction, integrity, codon alignment and inputs. Integration tests use real external tools when installed and are explicitly skipped otherwise.
 
+See [validation details](docs/VALIDATION.md) and the [five-assembly protein/CDS pilot](docs/FULL_GENOME_PILOT.md) for actual runs, independent sequence checks and discovery limits.
+
 Methods: [miniprot](https://github.com/lh3/miniprot), [NCBI BLAST+](https://www.ncbi.nlm.nih.gov/books/NBK279690/), [samtools faidx](https://www.htslib.org/doc/samtools-faidx.html), [MAFFT](https://mafft.cbrc.jp/alignment/software/).

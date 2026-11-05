@@ -12,8 +12,10 @@ It is not an exhaustive genome-wide sensitivity/specificity study.
 - samtools 1.24.
 - MAFFT 7.526.
 
-The workflow also targets Python >=3.10. The GitHub workflow runs unit tests on
-3.10–3.13; those remote CI runs are not asserted to have completed locally.
+The workflow also targets Python >=3.10. The GitHub workflow passed on
+3.10–3.13 for code commit `935de82`; external-tool integration tests skip in CI
+when their required binaries are absent. All 28 tests, including actual-tool
+integration tests, passed locally and on the Linux host.
 A Linux-64 dry-run solve of `environment.yml` succeeded (81 packages). Actual conda environment creation was not required for the local or server runs, which used existing executables.
 
 ## Tests
@@ -34,6 +36,8 @@ a two-exon gene, multiple queries, a gzip-compressed negative genome, genomic
 DNA queries with and without annotation, coding-DNA/protein routes, exact-model
 deduplication, a missing input followed by a valid genome, exact-assembly GFF3
 mismatch, and long/pipe-containing contig IDs. Search executables are not mocked.
+It also exercises the saved-extraction alignment command and its progressive DNA
+preset, including preservation of the original manifest.
 
 ## Biological example
 
@@ -57,4 +61,4 @@ copy orthology, expression and CRE activity require additional evidence.
 
 ## Linux server checks
 
-On 2026-11-05, all 28 tests in this standalone repository also passed on a Linux compute host with Python 3.10.12, miniprot 0.18-r281, BLAST+ 2.17.0+, samtools 1.13 (htslib 1.21 development build), and MAFFT 7.526. This validates the existing-tool installation route as well as the source package; the conda file specifies newer minimum samtools for fresh installations. A separate five-assembly protein/CDS pilot uses public chicken NANOG and Pou5f3 reference queries. See the full-genome pilot report for measured outcomes and limits of a single reference query.
+On 2026-11-05, all 28 tests in this standalone repository also passed on a Linux compute host with Python 3.10.12, miniprot 0.18-r281, BLAST+ 2.17.0+, samtools 1.13 (htslib 1.21 development build), and MAFFT 7.526. This validates the existing-tool installation route as well as the source package; the conda file specifies newer minimum samtools for fresh installations. A separate five-assembly protein/CDS pilot uses public chicken NANOG and Pou5f3 reference queries. See the [full-genome pilot report](FULL_GENOME_PILOT.md) for measured outcomes, independent source-sequence checks, alignment recovery and limits of a single reference query.
