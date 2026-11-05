@@ -1,5 +1,7 @@
 # Tiberius CPU integration validation — v0.4.0
 
+Subsequent correction: v0.4.1 recovered the previously missed NANOG loci using independent TBLASTn discovery with the same chicken query. See [NANOG diagnosis and validation](NANOG_SEARCH_VALIDATION.md). The historical counts below describe the earlier source version.
+
 Date: 2026-11-05. This validates operation, sequence extraction and report generation. It is not a gene-prediction accuracy benchmark, an orthology study, or a run of the complete 18-species panel.
 
 ## Tested installation

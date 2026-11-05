@@ -1,5 +1,7 @@
 # Full-genome pilot — 2026-11-05
 
+Subsequent correction: v0.4.1 recovered the previously missed NANOG loci using independent TBLASTn discovery with the same chicken query. See [NANOG diagnosis and validation](NANOG_SEARCH_VALIDATION.md). The historical counts below describe the earlier source version.
+
 Two chicken references were searched against five whole-assembly FASTA inputs with their matching NCBI GFF3 annotations. Each assembly was processed in both protein-input and coding-DNA-input modes, using the default discovery gates, 16 threads, 5-kb oriented flanks and a 50-kb neighbour radius. These are candidate-model counts, including isoforms and other homologous genes, not ortholog or biological-copy counts.
 
 ## Queries

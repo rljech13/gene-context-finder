@@ -58,4 +58,24 @@ python -m unittest discover -s tests -p test_protein_discovery.py -v
 
 The same two original chicken proteins were searched afresh against all five original whole-assembly FASTAs on host1, using their matching GFF3 annotations. No extra fish/mammalian query or gene-name lookup was supplied to discovery. The top NANOG candidate in every species matched its input annotation. Full search, coding exports and the downstream comparison are rechecked for this release; measured results and independent audits accompany the report.
 
+The observed top annotated NANOG candidates in the final whole-genome search were:
+
+| Species | Previous miniprot-only route | BLASTP query coverage | BLASTP identity | Bitscore |
+|---|---|---:|---:|---:|
+| *Lepisosteus oculatus* | Missed | 48.22% | 34.81% | 84.7 |
+| *Danio rerio* | Missed | 22.01% | 57.35% | 91.3 |
+| *Monodelphis domestica* | Missed | 75.08% | 39.11% | 140.0 |
+| *Anolis carolinensis* | Recovered | 82.20% | 50.18% | 236.0 |
+| *Chelonia mydas* | Recovered | 100.00% | 58.26% | 362.0 |
+
+Coverage is the union of query-aligned positions; BLASTP identity uses aligned HSP columns, including gaps. The gar's second annotated isoform is retained separately. All five top models have structurally complete CDS; the two fish matches remain explicitly labelled local homology. These percentages describe the query-to-candidate protein alignments, not overall cross-species genomic conservation.
+
+The final complete host1 run exited zero: **517 candidate transcript models, 10 selected windows, 35 context predictions, 25 predicted neighbours and 20 DNA window pairs**, with no search or comparison errors. All ten selected target coding models are structurally complete. The broad candidate inventory includes other homeobox/POU families; 517 is not a count of NANOG/Pou5f3 copies. Nineteen synteny pairs had fewer than two unique anchors; one had assessable but different local order/orientation.
+
+Discovery took 403.64 seconds and comparison took 431.00 seconds according to their stage manifests. The full command took **838.37 seconds (13 min 58 s)** including preflight checks, using 16 threads on the AMD EPYC 7763 server. GNU time reported maximum process RSS 7,947,572 KiB (about 7.58 GiB); this is not the simultaneous aggregate of parent/child memory. Setup/downloads are excluded. Full-assembly annotation processing and indexes are part of this measurement; the small isolated TBLASTn timing above must not be substituted for it.
+
+The independent BioPython audit passed **all 517 source CDS/protein roundtrips against native whole-genome DNA, 10 window roundtrips, 35 raw and 35 native-coordinate context-model roundtrips, 10 codon-alignment sequences, 39 HTML links, 6 SVGs and all 18 exact source-module fingerprints**. Both prediction batches confirmed CPU-only execution. SVGs were rendered and inspected. The executed source matches the released package byte-for-byte.
+
+Evidence: [full run summary](benchmarks/nanog_v041_2026-11-05.json), [independent audit result](benchmarks/nanog_v041_2026-11-05.audit.json), [independent audit script](benchmarks/audit_nanog_search.py). The script imports BioPython, not `genecontext`, and requires access to the original genome paths/indexes recorded by the run.
+
 The increased candidate inventory is expected: a shared homeodomain can recover other homeobox families. Gene-family identification and individual-copy orthology still require review of alignment scope, competing hits and genomic context. This correction establishes that the known NANOG loci are recovered; it does not make every local hit a NANOG orthologue or establish HH1–3 expression.

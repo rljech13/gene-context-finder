@@ -1,0 +1,18 @@
+{
+  "status": "passed",
+  "comparison": "/mnt/data/i.rubinshteyn/genomes/gene_context_pipeline_validation_2026-11-05/nanog_fix_v041/release_analysis/comparison",
+  "counts": {
+    "search_models_native_roundtrip": 517,
+    "windows_native_roundtrip": 10,
+    "raw_models_roundtrip": 35,
+    "native_models_roundtrip": 35,
+    "codon_alignments_roundtrip": 10,
+    "html_links": 39,
+    "html_pages": 3,
+    "svg_documents": 6,
+    "source_modules": 18,
+    "cpu_batches": 2
+  },
+  "errors": [],
+  "limits": "Operation and sequence roundtrips, not gene-prediction accuracy or confirmed orthology."
+}
