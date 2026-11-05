@@ -1,5 +1,7 @@
 # Validation of the generic sequence workflow
 
+The [full 18-assembly NANOG/POU5 run](VERTEBRATES18_VALIDATION.md) audits operational completion, DNA-only window predictions and selected-target identity separately. Its automatic selections include other homeobox/POU genes and incomplete models; the resulting alignments are not a confirmed-ortholog conservation dataset.
+
 The v0.4.2 prediction correction isolates each window in its own Tiberius worker and records requested/effective inference lengths. A real-model regression checks that adding a longer unrelated window does not change the existing prediction; see [prediction isolation](PREDICTION_ISOLATION.md). Prediction accuracy is assessed separately from sequence roundtrips and successful program execution.
 
 The v0.4.1 NANOG correction changes protein discovery to independent TBLASTn followed by local coding reconstruction; see [diagnosis and regression validation](NANOG_SEARCH_VALIDATION.md). The earlier v0.4.0 resource/integration checks remain historical measurements of their own source version.

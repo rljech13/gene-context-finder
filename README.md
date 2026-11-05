@@ -71,6 +71,8 @@ Each window is predicted independently, so adding a longer window does not chang
 
 **Finding divergent genes:** local protein matches can cover only one conserved domain. These candidates are retained and marked `local_alignment`, rather than rejected by the old 50%-coverage mapping gate. New searches rank coding candidates by BLASTP bitscore normalized to the query self score; this is a display ranking, not an orthology assignment. `--protein-search miniprot` restores the faster whole-genome mapping route. See the [NANOG missed-hit diagnosis and correction](docs/NANOG_SEARCH_VALIDATION.md).
 
+**Biological validation:** the [full 18-assembly NANOG/POU5 audit](docs/VERTEBRATES18_VALIDATION.md) exposes other-family selections, POU5 naming/paralogy questions and incomplete models. Automatic alignments are diagnostic until target identity and the intended gene copy are reviewed.
+
 **Without GFF3:** the same DNA-only prediction step runs. Genes remain on the diagram even if their proteins cannot be identified. BLASTP names predicted proteins against Swiss-Prot (default), supplied `--context-proteins reference.faa`, and any usable proteins from the provided annotations. GFF3 supplies an independent comparison/reference track, without constraining prediction. Unnamed predictions can still match across genomes by their protein sequences. See [window prediction](docs/WINDOW_PREDICTION.md).
 
 After setup, add `--offline` to require cached models/references and prevent downloads during analysis. Use `--context-reference none` to identify only against your local proteins; prediction still runs.

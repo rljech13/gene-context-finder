@@ -1,0 +1,37 @@
+locus_id	group	genome_id	target	annotation_available	tiberius_status	model	predicted_models	predicted_neighbors	predicted_target_overlap	annotated_genes_in_window	fully_contained_annotated_coding_genes	matched_annotated_genes_80pct	annotation_gene_agreement	target_reference_cds_recall	target_prediction_cds_precision	figure
+L000001	q0001	Lethenteron_camtschaticum_GCA_018977245.1	predicted coding model	False	predicted_genes	vertebrates	3	3	0	0	0	0				L000001.svg
+L000019	q0002	Lethenteron_camtschaticum_GCA_018977245.1	predicted coding model	False	predicted_genes	vertebrates	2	1	1	0	0	0				L000019.svg
+L000002	q0001	Scyliorhinus_canicula_GCF_902713615.2	lbx2	True	predicted_genes	vertebrates	3	2	1	1	1	1	1.0	1.0	1.0	L000002.svg
+L000020	q0002	Scyliorhinus_canicula_GCF_902713615.2	LOC119955858	True	predicted_genes	vertebrates	3	2	1	2	1	1	1.0	1.0	1.0	L000020.svg
+L000003	q0001	Lepisosteus_oculatus_GCF_040954835.1	nanog	True	predicted_genes	vertebrates	5	4	1	6	5	5	1.0	1.0	1.0	L000003.svg
+L000021	q0002	Lepisosteus_oculatus_GCF_040954835.1	LOC138231340	True	predicted_genes	vertebrates	3	2	1	4	4	3	0.75	1.0	1.0	L000021.svg
+L000004	q0001	Danio_rerio_GCF_052040795.2	nanog	True	predicted_genes	vertebrates	4	3	1	5	3	3	1.0	1.0	1.0	L000004.svg
+L000022	q0002	Danio_rerio_GCF_052040795.2	pou5f3	True	predicted_genes	vertebrates	3	2	1	6	5	2	0.4	1.0	0.9978858350951374	L000022.svg
+L000005	q0001	Protopterus_annectens_GCF_019279795.1	LBX1	True	predicted_genes	vertebrates	1	0	1	1	1	1	1.0	1.0	1.0	L000005.svg
+L000023	q0002	Protopterus_annectens_GCF_019279795.1	LOC122790404	True	predicted_genes	vertebrates	2	0	2	1	1	0	0.0	0.5075593952483801	0.9873949579831933	L000023.svg
+L000006	q0001	Ambystoma_mexicanum_GCF_040938575.1	predicted coding model	True	predicted_genes	vertebrates	1	0	1	0	0	0				L000006.svg
+L000024	q0002	Ambystoma_mexicanum_GCF_040938575.1	LOC138473581	True	predicted_genes	vertebrates	1	0	1	1	1	1	1.0	1.0	1.0	L000024.svg
+L000007	q0001	Monodelphis_domestica_GCF_027887165.2	NANOG	True	predicted_genes	mammalia	3	2	1	2	1	0	0.0	0.7935483870967742	1.0	L000007.svg
+L000025	q0002	Monodelphis_domestica_GCF_027887165.2	POU5F3	True	predicted_genes	mammalia	4	3	1	5	4	4	1.0	1.0	1.0	L000025.svg
+L000008	q0001	Homo_sapiens_GCF_000001405.40	NANOG	True	predicted_genes	mammalia	1	0	1	4	2	1	0.5	1.0	1.0	L000008.svg
+L000026	q0002	Homo_sapiens_GCF_000001405.40	POU3F2	True	predicted_genes	mammalia	1	0	1	2	1	1	1.0	1.0	1.0	L000026.svg
+L000009	q0001	Anolis_carolinensis_GCF_035594765.1	LOC100557674	True	predicted_genes	vertebrates	3	2	1	5	3	0	0.0	0.7910447761194029	1.0	L000009.svg
+L000027	q0002	Anolis_carolinensis_GCF_035594765.1	pou5f1	True	predicted_genes	vertebrates	3	2	1	6	5	3	0.6	1.0	0.9976798143851509	L000027.svg
+L000010	q0001	Chelonia_mydas_GCF_015237465.2	LOC102936264	True	predicted_genes	vertebrates	5	4	1	4	3	2	0.6666666666666666	1.0	1.0	L000010.svg
+L000028	q0002	Chelonia_mydas_GCF_015237465.2	LOC102945974	True	predicted_genes	vertebrates	3	2	1	3	2	2	1.0	0.9567610062893082	0.9991789819376026	L000028.svg
+L000011	q0001	Alligator_mississippiensis_GCF_030867095.1	LOC102571803	True	predicted_genes	vertebrates	3	2	1	3	2	2	1.0	1.0	1.0	L000011.svg
+L000029	q0002	Alligator_mississippiensis_GCF_030867095.1	LOC102569083	True	predicted_genes	vertebrates	3	2	1	4	2	2	1.0	1.0	1.0	L000029.svg
+L000012	q0001	Gallus_gallus_GCF_016699485.2	NANOG	True	predicted_genes	vertebrates	3	2	1	4	4	3	0.75	1.0	1.0	L000012.svg
+L000030	q0002	Gallus_gallus_GCF_016699485.2	Pou5f3	True	predicted_genes	vertebrates	11	10	1	11	11	11	1.0	1.0	1.0	L000030.svg
+L000013	q0001	Dromaius_novaehollandiae_GCF_036370855.1	LOC112993832	True	predicted_genes	vertebrates	4	3	1	4	4	4	1.0	1.0	1.0	L000013.svg
+L000031	q0002	Dromaius_novaehollandiae_GCF_036370855.1	LOC112986777	True	predicted_genes	vertebrates	3	2	1	4	3	3	1.0	1.0	1.0	L000031.svg
+L000014	q0001	Anas_platyrhynchos_GCF_047663525.1	LOC101795050	True	predicted_genes	vertebrates	4	3	1	5	4	4	1.0	1.0	0.96	L000014.svg
+L000032	q0002	Anas_platyrhynchos_GCF_047663525.1	LOC106015462	True	predicted_genes	vertebrates	5	4	1	6	5	4	0.8	1.0	1.0	L000032.svg
+L000015	q0001	Coturnix_japonica_GCF_054131305.1	LOC107318297	True	predicted_genes	vertebrates	4	3	1	5	5	4	0.8	1.0	1.0	L000015.svg
+L000033	q0002	Coturnix_japonica_GCF_054131305.1	LOC107321581	True	predicted_genes	vertebrates	14	13	1	13	12	11	0.9166666666666666	1.0	1.0	L000033.svg
+L000016	q0001	Meleagris_gallopavo_GCF_905368555.1	LOC100542155	True	predicted_genes	vertebrates	3	2	1	4	3	2	0.6666666666666666	1.0	1.0	L000016.svg
+L000034	q0002	Meleagris_gallopavo_GCF_905368555.1	LOC100544777	True	predicted_genes	vertebrates	10	9	1	12	10	7	0.7	1.0	1.0	L000034.svg
+L000017	q0001	Pavo_cristatus_GCA_045791835.1	predicted coding model	False	predicted_genes	vertebrates	4	3	1	0	0	0				L000017.svg
+L000035	q0002	Pavo_cristatus_GCA_045791835.1	predicted coding model	False	predicted_genes	vertebrates	10	9	1	0	0	0				L000035.svg
+L000018	q0001	Taeniopygia_guttata_GCF_048771995.1	LOC100230680	True	predicted_genes	vertebrates	5	4	1	4	4	3	0.75	1.0	1.0	L000018.svg
+L000036	q0002	Taeniopygia_guttata_GCF_048771995.1	LOC100228280	True	predicted_genes	vertebrates	9	8	1	10	9	9	1.0	1.0	0.8881118881118881	L000036.svg

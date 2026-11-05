@@ -1,0 +1,37 @@
+species	assembly	assembly_level	query_target	selected_name	closest_swissprot_gene	candidate_protein_coverage	reference_protein_coverage	coding_status	review_status	notes
+Lethenteron camtschaticum	GCA_018977245.1	Scaffold	NANOG	predicted coding model	eng1a	0.564625850340136	0.36363636363636365	partial	different_reference_gene_review	Closest Swiss-Prot gene differs from the query target; target identity remains unconfirmed. No matching input GFF3 is available. The input assembly is below chromosome level in the pinned panel.
+Scyliorhinus canicula	GCF_902713615.2	Chromosome	NANOG	lbx2	lbx2	0.8876404494382022	0.8793774319066148	complete_predicted	different_reference_gene_review	Closest Swiss-Prot gene differs from the query target; target identity remains unconfirmed.
+Lepisosteus oculatus	GCF_040954835.1	Chromosome	NANOG	nanog	NANOG	0.29458917835671344	0.44336569579288027	complete_predicted	local_family_reference_support	Only a local/domain match supports the reference comparison.
+Danio rerio	GCF_052040795.2	Complete Genome	NANOG	nanog	NANOG	0.17708333333333334	0.22006472491909385	complete_predicted	local_family_reference_support	Only a local/domain match supports the reference comparison.
+Protopterus annectens	GCF_019279795.1	Chromosome	NANOG	LBX1	lbx1	0.9818840579710145	0.9962264150943396	complete_predicted	different_reference_gene_review	Closest Swiss-Prot gene differs from the query target; target identity remains unconfirmed.
+Ambystoma mexicanum	GCF_040938575.1	Chromosome	NANOG	predicted coding model	NANOG	1.0	0.3365695792880259	partial	local_family_reference_support	Only a local/domain match supports the reference comparison.
+Monodelphis domestica	GCF_027887165.2	Chromosome	NANOG	NANOG	NANOG	0.7087378640776699	0.8229508196721311	complete_predicted	extended_family_reference_support	
+Homo sapiens	GCF_000001405.40	Chromosome	NANOG	NANOG	NANOG	1.0	1.0	complete_predicted	extended_family_reference_support	
+Anolis carolinensis	GCF_035594765.1	Chromosome	NANOG	LOC100557674	NANOG	0.6483790523690773	0.7896440129449838	complete_predicted	extended_family_reference_support	
+Chelonia mydas	GCF_015237465.2	Chromosome	NANOG	LOC102936264	NANOG	1.0	1.0	complete_predicted	extended_family_reference_support	
+Alligator mississippiensis	GCF_030867095.1	Chromosome	NANOG	LOC102571803	NANOG	1.0	1.0	complete_predicted	extended_family_reference_support	
+Gallus gallus	GCF_016699485.2	Chromosome	NANOG	NANOG	NANOG	1.0	1.0	complete_predicted	extended_family_reference_support	
+Dromaius novaehollandiae	GCF_036370855.1	Chromosome	NANOG	LOC112993832	NANOG	1.0	1.0	complete_predicted	extended_family_reference_support	
+Anas platyrhynchos	GCF_047663525.1	Complete Genome	NANOG	LOC101795050	NANOG	1.0	1.0	complete_predicted	extended_family_reference_support	
+Coturnix japonica	GCF_054131305.1	Chromosome	NANOG	LOC107318297	NANOG	1.0	1.0	complete_predicted	extended_family_reference_support	
+Meleagris gallopavo	GCF_905368555.1	Chromosome	NANOG	LOC100542155	NANOG	1.0	1.0	complete_predicted	extended_family_reference_support	
+Pavo cristatus	GCA_045791835.1	Chromosome	NANOG	predicted coding model	NANOG	1.0	1.0	partial	extended_family_reference_support	No matching input GFF3 is available.
+Taeniopygia guttata	GCF_048771995.1	Chromosome	NANOG	LOC100230680	NANOG	0.8513513513513513	1.0	complete_predicted	extended_family_reference_support	
+Lethenteron camtschaticum	GCA_018977245.1	Scaffold	POU5F3	predicted coding model	pou3f2-b	0.57	0.44415584415584414	partial	different_reference_gene_review	Closest Swiss-Prot gene differs from the query target; target identity remains unconfirmed. No matching input GFF3 is available. The input assembly is below chromosome level in the pinned panel.
+Scyliorhinus canicula	GCF_902713615.2	Chromosome	POU5F3	LOC119955858	pou5f1.1	0.9478458049886621	0.9803921568627451	complete_predicted	POU5_paralog_review	Closest reference has a different POU5 name; inspect phylogeny and synteny before calling POU5F3.
+Lepisosteus oculatus	GCF_040954835.1	Chromosome	POU5F3	LOC138231340	POU5F3	0.6782334384858044	0.5758354755784062	complete_predicted	extended_family_reference_support	
+Danio rerio	GCF_052040795.2	Complete Genome	POU5F3	pou5f3	pou5f3	1.0	1.0	complete_predicted	extended_family_reference_support	
+Protopterus annectens	GCF_019279795.1	Chromosome	POU5F3	LOC122790404	POU5F3	0.5627705627705628	0.6452442159383034	complete_predicted	extended_family_reference_support	
+Ambystoma mexicanum	GCF_040938575.1	Chromosome	POU5F3	LOC138473581	POU5F3	0.5783664459161147	0.6580976863753213	complete_predicted	extended_family_reference_support	
+Monodelphis domestica	GCF_027887165.2	Chromosome	POU5F3	POU5F3	POU5F3	0.4692144373673036	0.5732647814910026	complete_predicted	local_family_reference_support	Only a local/domain match supports the reference comparison.
+Homo sapiens	GCF_000001405.40	Chromosome	POU5F3	POU3F2	POU3F2	1.0	1.0	complete_predicted	different_reference_gene_review	Closest Swiss-Prot gene differs from the query target; target identity remains unconfirmed.
+Anolis carolinensis	GCF_035594765.1	Chromosome	POU5F3	pou5f1	POU5F1	0.5314685314685315	0.6277777777777778	complete_predicted	POU5_paralog_review	Closest reference has a different POU5 name; inspect phylogeny and synteny before calling POU5F3. Input annotation names the candidate POU5F1 or a related copy.
+Chelonia mydas	GCF_015237465.2	Chromosome	POU5F3	LOC102945974	POU5F3	0.6146572104018913	0.6658097686375322	complete_predicted	extended_family_reference_support	
+Alligator mississippiensis	GCF_030867095.1	Chromosome	POU5F3	LOC102569083	POU5F3	0.6649616368286445	0.6658097686375322	complete_predicted	extended_family_reference_support	
+Gallus gallus	GCF_016699485.2	Chromosome	POU5F3	Pou5f3	POU5F3	1.0	1.0	complete_predicted	extended_family_reference_support	
+Dromaius novaehollandiae	GCF_036370855.1	Chromosome	POU5F3	LOC112986777	POU5F3	1.0	1.0	complete_predicted	extended_family_reference_support	
+Anas platyrhynchos	GCF_047663525.1	Complete Genome	POU5F3	LOC106015462	POU5F3	1.0	1.0	complete_predicted	extended_family_reference_support	
+Coturnix japonica	GCF_054131305.1	Chromosome	POU5F3	LOC107321581	POU5F3	1.0	1.0	complete_predicted	extended_family_reference_support	
+Meleagris gallopavo	GCF_905368555.1	Chromosome	POU5F3	LOC100544777	POU5F3	1.0	1.0	complete_predicted	extended_family_reference_support	
+Pavo cristatus	GCA_045791835.1	Chromosome	POU5F3	predicted coding model	POU5F3	1.0	1.0	partial	extended_family_reference_support	No matching input GFF3 is available.
+Taeniopygia guttata	GCF_048771995.1	Chromosome	POU5F3	LOC100228280	POU5F3	1.0	1.0	complete_predicted	extended_family_reference_support	

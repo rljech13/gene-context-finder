@@ -1,0 +1,63 @@
+{
+  "executed_version": "0.4.2",
+  "executed_commit": "3853f9851f1386ccedace253d1f5f91f3ef00617",
+  "pipeline_returncode": 0,
+  "audit_execution": [
+    {
+      "index": 1,
+      "returncode": 0,
+      "initial_returncode": 1,
+      "rerun_returncode": 0,
+      "rerun_reason": "Independent audit corrected to verify the source export convention: every non-ACGT codon is X, including resolvable CCN. The pipeline data and executed source are unchanged.",
+      "rerun_finished": "2026-11-05T16:09:55.723483+00:00"
+    },
+    {
+      "index": 2,
+      "returncode": 0
+    },
+    {
+      "index": 3,
+      "returncode": 0
+    }
+  ],
+  "maximum_rss_kib": 68292492,
+  "started": "2026-11-05T14:18:16.792739+00:00",
+  "finished": "2026-11-05T16:09:55.723504+00:00",
+  "pipeline_wall_seconds": 6552.241106070578,
+  "input_genomes": 18,
+  "queries": 2,
+  "search_candidate_models": 1724,
+  "windows": 36,
+  "cpu_batches": 36,
+  "sequence_roundtrips": {
+    "source_ambiguous_codons_exported_as_X": 3,
+    "source_models_with_ambiguous_codons": 3,
+    "search_models_native_roundtrip": 1724,
+    "windows_native_roundtrip": 36,
+    "raw_models_roundtrip": 149,
+    "native_models_roundtrip": 149,
+    "codon_alignments_roundtrip": 36,
+    "html_links": 113,
+    "html_pages": 3,
+    "svg_documents": 42,
+    "source_modules": 18,
+    "cpu_batches": 36
+  },
+  "prediction_agreement": {
+    "status": "completed",
+    "input_genomes": 18,
+    "requested_genomes": 18,
+    "windows": 36,
+    "prediction_models": 149,
+    "fully_contained_reference_genes": 121,
+    "matching_reference_genes_80pct": 99,
+    "limits": "CDS agreement with supplied annotation; not ground truth, orthology, or gene absence."
+  },
+  "target_reference_review": {
+    "different_reference_gene_review": 5,
+    "local_family_reference_support": 4,
+    "extended_family_reference_support": 25,
+    "POU5_paralog_review": 2
+  },
+  "limits": "Operational and reference-agreement audit; automatic selections contain flagged other genes/paralogs and incomplete models. This is not a confirmed ortholog dataset."
+}
