@@ -1,0 +1,13 @@
+name: gene-context
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.11
+  - samtools>=1.19
+  - miniprot>=0.18
+  - blast>=2.15
+  - mafft>=7.520
+  - pip
+  - pip:
+      - -e .

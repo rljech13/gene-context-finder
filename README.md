@@ -1,0 +1,135 @@
+# Gene Context Finder
+
+Give the pipeline **DNA or protein sequences and a collection of genomes**. It searches every supplied genome, recovers candidate coding models, extracts CDS, proteins, gene regions and strand-oriented flanks, and produces alignments. It has no built-in gene names, species list or histone filters.
+
+This standalone repository grew out of a review of [HIST_Cluster_Finder](https://github.com/rljech13/HIST_Cluster_Finder). It provides a generic sequence-driven workflow for gene models and their genomic surroundings.
+
+## Install
+
+```bash
+git clone https://github.com/rljech13/gene-context-finder.git
+cd gene-context-finder
+```
+
+See [setup, downloads and first-run instructions](docs/SETUP_AND_DOWNLOAD.md) for cloning the repository, verified genome downloads, example query sequences and server commands.
+
+```bash
+conda env create -f environment.yml
+conda activate gene-context
+gene-context doctor
+```
+
+Alternatively, install Python >=3.10 and `samtools`, `miniprot`, NCBI BLAST+ (`blastn`, `blastp`, `makeblastdb`) and `mafft` on PATH, then `python -m pip install -e .`. You can also run `python -m genecontext` directly from this checkout. The Python package uses only the standard library. The environment file constrains compatible versions; it is not a platform-specific lockfile. Exact tool versions and commands are recorded per run.
+
+## Run
+
+Protein input, including target genes with introns:
+
+```bash
+gene-context run --query targets.faa --query-type protein \
+  --genomes genomes.tsv --out results/protein_search --threads 8
+```
+
+Coding DNA input (spliced, intron-free CDS in coding orientation):
+
+```bash
+gene-context run --query targets.cds.fna --query-type cds \
+  --genomes genomes.tsv --out results/cds_search --threads 8
+```
+
+Arbitrary genomic/noncoding DNA input:
+
+```bash
+gene-context run --query region.fna --query-type dna \
+  --genomes genomes.tsv --out results/dna_search --flank 5000 --context 50000
+```
+
+Search a directory recursively, including ordinary gzip-compressed FASTA:
+
+```bash
+gene-context run --query targets.faa --query-type protein \
+  --genome-dir /path/to/genomes --out results/all_genomes
+```
+
+Multiple queries of the same type can be supplied in one FASTA. Query type is explicit because DNA letters are also valid amino-acid letters. Internal `q0001` IDs map to original query names in `manifest.json`. Protein/CDS queries must encode at least 30 amino acids. This release supports the standard nuclear genetic code only.
+
+## Download genomes
+
+```bash
+gene-context download --manifest examples/vertebrates18.download.tsv \
+  --out data/vertebrates18 --only GCF_016699485.2 --dry-run
+gene-context download --manifest examples/vertebrates18.download.tsv \
+  --out data/vertebrates18 --only GCF_016699485.2
+```
+
+This creates a verified `data/vertebrates18/genomes.tsv` ready for `run --genomes`. Downloads are checked against official source MD5 files. Omit `--only` for the complete optional panel; use your own download manifest for other assemblies. See the detailed guide for storage requirements and the two unannotated assembly exceptions.
+
+## Genome manifest and annotations
+
+`genomes.tsv` is tab-separated:
+
+```tsv
+genome_id	fasta	gff3
+assembly_1	genomes/assembly_1.fna	annotations/assembly_1.gff3
+assembly_2	genomes/assembly_2.fna.gz
+```
+
+Paths are relative to the manifest file, or absolute. `gff3` is optional. Use the annotation for the **exact assembly**, with matching FASTA contig IDs. FASTA and GFF3 can be gzipped. Convert GTF to GFF3 first. CDS Parent relationships define transcripts, including isoforms; gene features supply named neighbours. Missing annotation does not establish gene-free flanks.
+
+Directory mode searches every FASTA recursively. Duplicate file stems require an explicit manifest with unique IDs. Directory mode does not guess annotation associations. Each file is an assembly observation: multiple assemblies of one species are not automatically merged into a copy count.
+
+Inputs are read-only. Indices are created inside the run directory. Ordinary gzip inputs are decompressed there: allow space for uncompressed genomes and search indices. Use a new or empty output directory for each run. Stale results are not silently reused.
+
+## What the pipeline does
+
+1. **Protein:** miniprot searches every whole genome with splice-aware alignment, retaining secondary candidates rather than only the best hit. Default gates: >=50% query coverage and >=30% amino-acid identity. Search/reporting controls include `--max-intron`, `--max-hits` and `--secondary-ratio`.
+2. **CDS:** translate the query, run the protein-to-genome route, and also run BLASTN. A terminal query stop is optional; internal stops and ambiguous coding triplets are rejected.
+3. **DNA:** BLASTN searches all contigs on both strands. Passing HSPs overlapping annotated coding exons identify candidate transcripts. A complete unambiguous ATG-to-stop ORF in the query additionally enables the protein route, with that inference recorded. Otherwise, DNA without a matching coding annotation remains a DNA-region result. **Arbitrary DNA does not uniquely determine CDS/protein.** Supply an annotation or a known CDS/protein query for coding reconstruction.
+4. Overlapping annotated models found through the protein route undergo a separate BLASTP check. Exact exon-coordinate duplicate models are merged, preferring annotation; distinct isoforms and loci remain separate. Counts of transcript models are not gene copy counts.
+5. Re-extract CDS from source exons in transcript order and translate. Internal phases are checked without deleting bases from split codons. Separate terminal-stop features are handled explicitly. Missing start/stop gives a partial model; frameshifts, internal stops, ambiguous CDS and inconsistent phases give a disrupted model. All statuses remain in the inventory.
+6. Extract gene+flank DNA and separate upstream/downstream windows in gene orientation. Flanks are anchored on the coding model, not a measured TSS. Record contig-boundary clipping. Retrieve annotated genes within the context radius and draw a native-coordinate context SVG.
+
+DNA defaults: >=70% identity, E <=1e-5, HSP length >=30 bp. CDS associations need >=30 genomic CDS-overlap bases per HSP and >=10% union of query HSP spans (`--min-dna-coverage`). These are discovery criteria, not orthology proof. Same-orientation HSPs within 10 kb are merged only for region export; the region can contain several genes. Original BLAST/miniprot evidence is retained. Thresholds are operational and should be tuned to divergence, gene length, repeats and assembly quality.
+
+## Alignments
+
+MAFFT aligns proteins per query across qualifying candidates. CDS alignments are **backtranslated from protein alignments**, with exact codon/protein checks. Protein-only references have no invented reference CDS. Known query CDS supplies both. Terminal stops remain in CDS exports but are excluded from codon alignments.
+
+Upstream/downstream windows are aligned separately in existing gene orientation. Whole gene+flank alignment is opt-in (`--align-locus`) because introns and distant flanks may be long and poorly alignable. Complete predicted models enter alignments by default; `--include-partial` allows clean incomplete models. Disrupted models remain exported and are excluded. Arbitrary DNA queries also get DNA-region and region-flank alignments, even when no CDS model can be recovered. `--skip-alignments` runs search/extraction only.
+
+Pairwise tables report identity and paired-position coverage. Gaps and ambiguous characters are excluded from comparable positions. Flank alignments are exploratory: identity and coverage must be considered together. An alignment does not demonstrate CRE activity, expression, individual-copy orthology or conserved function.
+
+`--max-alignment-bases` bounds each input alignment set (default 2 million residues/bases). Exceeding it produces an explicit recorded error after extraction. Raise the limit or run extraction only; no arbitrary subset is silently selected.
+
+## Outputs
+
+Open `report.html` first for a filterable overview of every input genome and links to recovered contexts.
+
+| Path | Content |
+| --- | --- |
+| `report.html` | Filterable overview and context links |
+| `genome_query_summary.tsv` | Every genome/query, including no hits and errors |
+| `models.tsv` | Candidate transcripts, integrity, native coordinates, exon structure, evidence and flank completeness |
+| `dna_regions.tsv` | DNA-hit envelopes, including matches without a coding model |
+| `neighbors.tsv` | Annotated context genes for each coding model |
+| `sequences/q0001/` | CDS, proteins, gene+flank DNA and separate oriented flanks across genomes |
+| `genomes/<id>/models.gff3` | Coding models on native assembly coordinates |
+| `genomes/<id>/*.context.svg` | Context overview; recovered model in blue |
+| `genomes/<id>/dna_regions.fna`, `dna_regions.with_flanks.fna` | DNA-hit regions, with and without flanks, in query-relative orientation |
+| `genomes/<id>/miniprot.gff3`, `blastn.tsv` | Original search evidence when relevant |
+| `alignments/q0001/` | Protein, codon-CDS and flank alignments, pairwise comparisons |
+| `manifest.json` | Input hashes, parameters, tool versions, commands and errors |
+
+TSV coordinates are **0-based, half-open on the original genome**; GFF3 is 1-based, inclusive. FASTA headers link to model IDs. Zero-length flanks are omitted from FASTA and recorded as such in the model table.
+
+A failed genome is recorded and the others are still processed. Exit codes: 1 for genome/alignment errors, 2 for invalid configuration, 0 for successful processing (including valid no-hit searches). No hit means not detected under these methods, not gene loss. Miniprot is less sensitive to distant homologs, and search reporting caps mean this is not a guaranteed exhaustive census.
+
+## Tests
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+Unit tests cover exon phases, strand-aware extraction, integrity, codon alignment and inputs. Integration tests use real external tools when installed and are explicitly skipped otherwise.
+
+Methods: [miniprot](https://github.com/lh3/miniprot), [NCBI BLAST+](https://www.ncbi.nlm.nih.gov/books/NBK279690/), [samtools faidx](https://www.htslib.org/doc/samtools-faidx.html), [MAFFT](https://mafft.cbrc.jp/alignment/software/).

@@ -1,0 +1,3 @@
+genome_id	fasta	gff3
+assembly_1	genomes/assembly_1.fna	annotations/assembly_1.gff3
+assembly_2	genomes/assembly_2.fna.gz
