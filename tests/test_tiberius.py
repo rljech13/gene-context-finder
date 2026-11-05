@@ -20,7 +20,8 @@ from unittest.mock import patch
 from genecontext.cli import parser
 from genecontext.context_predict import prediction_model
 from genecontext.sequence import read_fasta, read_gff, reverse_complement, translate, write_fasta
-from genecontext.tiberius_backend import MODELS, ensure_model, runtime_info, runtime_python
+from genecontext.tiberius_backend import MODELS, ensure_model, runtime_info, runtime_python, predict_batches
+from genecontext.tools import Runner
 
 
 def table(path):
@@ -139,7 +140,7 @@ class TiberiusIntegration(unittest.TestCase):
                             '--tiberius-python',self.python,'--offline','--threads','1'],capture_output=True,text=True)
         self.assertEqual(run.returncode,expected,run.stdout+run.stderr)
 
-    def test_complete_protein_query_pipeline_with_shared_cpu_batch_and_no_gff(self):
+    def test_complete_protein_query_pipeline_with_isolated_windows_and_no_gff(self):
         out=self.root/'analysis'
         self.execute(['analyze','--query',self.query,'--query-type','protein','--genomes',self.genomes,'--out',out,
                       '--context-proteins',self.references,'--context-reference','none'])
@@ -149,9 +150,10 @@ class TiberiusIntegration(unittest.TestCase):
         self.assertEqual(len(table(result/'loci.tsv')),2)
         prediction=manifest['context_prediction']
         self.assertEqual(prediction['predictor'],'tiberius')
-        self.assertEqual(len(prediction['batches']),1)
-        self.assertEqual(len(prediction['batches'][0]['loci']),2)
-        self.assertTrue(all('GPU' not in d for d in prediction['batches'][0]['cpu_execution']['visible_devices']))
+        self.assertEqual(len(prediction['batches']),2)
+        self.assertTrue(all(len(b['loci'])==1 for b in prediction['batches']))
+        self.assertTrue(all(b['cpu_execution']['input_windows']==1 for b in prediction['batches']))
+        self.assertTrue(all('GPU' not in d for b in prediction['batches'] for d in b['cpu_execution']['visible_devices']))
         neighbors=table(result/'neighbors.tsv')
         named=[r for r in neighbors if r['name']=='PTGS2']
         self.assertEqual({r['genome_id'] for r in named},{'first','second'})
@@ -173,6 +175,23 @@ class TiberiusIntegration(unittest.TestCase):
                 self.assertEqual(seq.upper(),cds[pid])
                 self.assertEqual(translate(seq.upper()).removesuffix('*'),proteins[pid])
         self.assertIn('Tiberius on CPU',(out/'report.html').read_text())
+
+    def test_unrelated_long_window_does_not_change_existing_prediction(self):
+        short = next(iter(read_fasta(Path(__file__).parent/'fixtures/HS04636.fna').values()))
+        sequences = {'short_window': short, 'long_window': short+'N'*30000}
+        def predict(ids, name):
+            root=self.root/name;root.mkdir()
+            args=parser().parse_args(['compare','--results','unused','--out',str(root),
+                                     '--tiberius-python',self.python,'--offline','--threads','1'])
+            rows=[dict(locus_id=key,context_predictor_model='vertebrates',window_bp=len(sequences[key])) for key in ids]
+            errors=[]
+            models,proof=predict_batches(args,root,rows,sequences,Runner(root),errors)
+            self.assertEqual(errors,[])
+            self.assertTrue(all(b['cpu_execution']['input_windows']==1 for b in proof['batches']))
+            return [(m.contig,m.strand,m.cds,m.stops) for m in models['short_window']]
+        alone=predict(['short_window'],'alone')
+        self.assertTrue(alone)
+        self.assertEqual(alone,predict(['long_window','short_window'],'with_longer_window'))
 
     def test_model_map_splits_batches_for_saved_dna_search(self):
         query=self.root/'seed.fna'; write_fasta(query,[('noncoding_seed',self.sequence[:400])])

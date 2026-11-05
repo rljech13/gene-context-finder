@@ -19,9 +19,9 @@ gene-context setup-predictor --with-reference
 gene-context doctor
 ```
 
-The backend runs pinned Tiberius 2.0.9 on CPU, with GPUs hidden explicitly. Both strands are predicted without GFF3, protein or synteny hints. It uses unmasked DNA (`--no_softmasking`), the tested 400,050-base inference length, and neural batch size 1 to limit memory. Original window FASTAs retain their original letter case for DNA comparison. No model training or RNA-seq is required.
+The backend runs pinned Tiberius 2.0.9 on CPU, with GPUs hidden explicitly. Both strands are predicted without GFF3, protein or synteny hints. It uses unmasked DNA (`--no_softmasking`), requests a 400,050-base inference length, and uses neural batch size 1 to limit memory. Upstream Tiberius reduces the inference length for shorter input sequences; the effective value is recorded in CPU provenance. Original window FASTAs retain their original letter case for DNA comparison. No model training or RNA-seq is required.
 
-A separate Python process handles all windows sharing one model, amortizing TensorFlow/model startup. Different model groups run sequentially. `--threads` limits the TensorFlow intra-operation pool; the inter-operation pool is 1. `--tiberius-batch-size` can be increased at the cost of memory. Provenance records visible devices, package versions, source-file hashes and weight checksums.
+Since v0.4.2, each window runs in a separate worker, sequentially. This prevents a longer unrelated window from changing another window's upstream length clamping and neural/HMM chunking. The two model weight sets remain shared cached files, not a separate download per species. Worker startup adds overhead. `--threads` limits the TensorFlow intra-operation pool; the inter-operation pool is 1. `--tiberius-batch-size` controls neural chunks within that one window and can be increased at the cost of memory. Provenance records input-window count, requested/effective inference length, visible devices, package versions, source-file hashes and weight checksums. Query reports show separate counts and GFF3 links for the predictor's own models; a discovery target from GFF3 is not itself a Tiberius prediction.
 
 Model choices:
 

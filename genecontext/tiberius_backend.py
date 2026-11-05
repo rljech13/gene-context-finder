@@ -1,5 +1,4 @@
 """Pinned shared weights and an optional, isolated native-CPU runtime."""
-from collections import defaultdict
 from datetime import datetime, timezone
 import json
 from pathlib import Path, PurePosixPath
@@ -177,12 +176,14 @@ def setup_predictor(args):
 def predict_batches(args, root, rows, windows, runner, errors):
     python = runtime_python(args)
     provenance = dict(predictor="tiberius", cpu_only=True, runtime=runtime_info(python), batches=[],
+                      window_isolation="one window per worker; independent upstream sequence-length clamping",
                       method="DNA-only prediction before protein identification; no annotation/protein hints")
-    groups = defaultdict(list)
-    for row in rows:
-        groups[row["context_predictor_model"]].append(row)
     result = {}
-    for index, (name, loci) in enumerate(sorted(groups.items()), 1):
+    # Upstream clamps inference length to the longest sequence in its input.
+    # A longer unrelated window must not change another locus's neural/HMM
+    # chunking. Shared weight files remain cached; inference is per window.
+    for index, row in enumerate(rows, 1):
+        name, loci = row["context_predictor_model"], [row]
         for row in loci:
             if row["window_bp"] < 1000:
                 row["context_status"] = "prediction_window_too_short"

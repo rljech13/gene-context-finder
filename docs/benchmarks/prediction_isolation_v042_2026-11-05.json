@@ -1,0 +1,37 @@
+{
+  "version": "0.4.2",
+  "validation_date": "2026-11-05",
+  "tests": 59,
+  "skipped": 0,
+  "wall_seconds": 395.279,
+  "status": "passed",
+  "driver_python": "Python 3.12",
+  "command": "python -m unittest discover -s tests -v",
+  "controls": [
+    "real Tiberius one-window workers",
+    "prediction invariant when a longer unrelated window is added",
+    "CPU device and requested/effective inference-length provenance",
+    "existing BLAST, miniprot, MAFFT, LASTZ and AUGUSTUS integration tests"
+  ],
+  "source_code_sha256": {
+    "__init__.py": "3d6cff54a122bf692cdc8226d0d8174843183453f690ed5fcda3d9fb3f50e68e",
+    "__main__.py": "935a1c1166b0c1ea35a82256345000bf2c73ded718d77773bc27a71ecce28f7d",
+    "alignment.py": "f008131bff286b7d6b8de51dcd3d7637ea53d71b412b07e776993f4ccf0fbc5b",
+    "cli.py": "3d3132281c582bdff01295a17b78023c56b19cff50765254051bde1014e1392c",
+    "comparison.py": "7a8013fa657975c949afb3d39177dd87c79366cc69d9705a62dad048da69dd5c",
+    "comparison_report.py": "2c499fde55d1c1cfc13efa379235d680c0ce99950fa42798a93e52a53c211b81",
+    "context_compare.py": "ea7be977f6f86a1dbd5b99af25585b04fd0bb816837ce5e8915d1017201007e2",
+    "context_predict.py": "0b796f35b27d008f3b418e1c360edbf79cd75afd0051b5a1248fe01257e8a5d0",
+    "context_reference.py": "1b2198283441634e549f24ae4a4af1a5951d67833038e72105d911229ae0768c",
+    "dna_compare.py": "45ba6ef36269664308652d3f4f0fb8de8a8fd24fe8a258e08e543d930a31fbd2",
+    "download.py": "9d2b22277dd60a8bcaad088eb4e750ae947debe7bb9864a551515c3f76b5c2ce",
+    "pipeline.py": "aaf757d266d63f0268b55304322b382c755c0086289d4e94ed0d2e37adbf1768",
+    "protein_discovery.py": "2063747ebc128a99bc3c71a70537876912e4a0bce6e0259535d1ff45930b04e4",
+    "report.py": "552536e5151d040608036349b81243aa357e072dbb70311682cb2ce31bf3944c",
+    "sequence.py": "ec8a2b0992ddd17890477651aa9a05d0377dd7cb6ef0f93da41be856a692359d",
+    "tiberius_backend.py": "ad613c3f5263c9ab792d7624ff20dfde19764165ed4f58fcf477cab5943600c3",
+    "tiberius_worker.py": "0d40e9689c26c982bc05e7ff66ed8876893dbcf9e0296c0678e7c403ed8a4466",
+    "tools.py": "b66263cb56552f589106763c757d818a0dd6ea35eb454698ca3332913de97ed5"
+  },
+  "limits": "Defined regression controls, not a genome-wide prediction-accuracy or orthology estimate."
+}

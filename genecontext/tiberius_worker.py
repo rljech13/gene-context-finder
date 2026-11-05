@@ -37,16 +37,21 @@ def main():
     tf.config.set_visible_devices([], "GPU")
     tf.config.threading.set_intra_op_parallelism_threads(args.threads)
     tf.config.threading.set_inter_op_parallelism_threads(1)
-    print("GENE_CONTEXT_CPU=" + json.dumps(dict(tensorflow=tf.__version__,
-          visible_devices=[str(device) for device in tf.config.get_visible_devices()],
-          intraop_threads=args.threads, interop_threads=1)), flush=True)
-    from tiberius.main import run_tiberius
+    from tiberius.main import run_tiberius, clamp_seq_len_to_genome
     from tiberius.tiberius_args import parseCmd
     sys.argv = [__file__, "--genome", args.fasta, "--model", args.model,
                 "--no_softmasking", "--seq_len", "400050", "--batch_size", str(args.batch_size),
                 "--out", args.out, "--codingseq", args.out + ".cds.fna",
                 "--protseq", args.out + ".proteins.faa"]
-    run_tiberius(parseCmd())
+    settings = parseCmd()
+    effective = clamp_seq_len_to_genome(args.fasta, settings.seq_len, settings.min_genome_seqlen)
+    with open(args.fasta) as handle:
+        input_windows = sum(line.startswith(">") for line in handle)
+    print("GENE_CONTEXT_CPU=" + json.dumps(dict(tensorflow=tf.__version__,
+          visible_devices=[str(device) for device in tf.config.get_visible_devices()],
+          intraop_threads=args.threads, interop_threads=1, input_windows=input_windows,
+          requested_seq_len=settings.seq_len, effective_seq_len=effective)), flush=True)
+    run_tiberius(settings)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,9 @@
 """Portable comparative HTML/SVG reports and protein/codon summaries."""
 from collections import Counter, defaultdict
+import csv
 import hashlib
 from html import escape
+import json
 
 from .alignment import backtranslate, pairwise_stats
 from .sequence import read_fasta, translate, write_fasta, write_tsv
@@ -213,6 +215,45 @@ def html_table(rows, columns):
 STYLE = '<style>body{font:15px system-ui;margin:30px auto;max-width:1600px;padding:0 20px;color:#172033}table{border-collapse:collapse;width:100%;margin:20px 0}td,th{padding:8px;border:1px solid #ddd;text-align:left}th{background:#f1f5f9}img{width:100%;height:auto;border:1px solid #ddd}a{color:#1856b8}.note{padding:12px;background:#f1f5f9}h2{margin-top:30px}</style>'
 
 
+def prediction_evidence(root, loci):
+    """Show the predictor's own target/neighbor models separately from discovery."""
+    path = root / "context_predictions.tsv"
+    if not path.exists():
+        return ''
+    with open(path) as handle:
+        records = list(csv.DictReader(handle, delimiter='\t'))
+    counts, targets = Counter(), Counter()
+    for record in records:
+        counts[record['locus_id']] += 1
+        targets[record['locus_id']] += record['target_overlap'] == 'True'
+    rows = [dict(genome_id=r['genome_id'], locus_id=r['locus_id'],
+                 predictor=r['context_predictor'], model=r['context_predictor_model'],
+                 status=r['context_status'], predicted_models=counts[r['locus_id']],
+                 predicted_target_models=targets[r['locus_id']],
+                 predicted_neighbors=counts[r['locus_id']]-targets[r['locus_id']]) for r in loci]
+    html = ['<h2>Window gene predictions</h2>',
+            '<p>The red discovery target and its CDS can come from the supplied GFF3. '
+            'The counts below describe the predictor\'s own models, including target-overlapping models. '
+            'Tiberius processes each window independently; actual inference lengths and CPU evidence are in '
+            '<a href="../../context_prediction.json">predictor provenance</a>. Model overlap does not establish a correct exon structure.</p>',
+            html_table(rows, ['genome_id','locus_id','predictor','model','status','predicted_models','predicted_target_models','predicted_neighbors']), '<ul>']
+    receipt = root / 'context_prediction.json'
+    batches = json.loads(receipt.read_text()).get('batches', []) if receipt.exists() else []
+    for locus in loci:
+        links = []
+        native = 'context_predictions/'+locus['genome_id']+'.gff3'
+        if (root/native).exists():
+            links.append(f'<a href="../../{escape(native, quote=True)}">native-coordinate GFF3</a>')
+        for batch in batches:
+            raw = batch.get('raw_gff3', '')
+            if locus['locus_id'] in batch['loci'] and raw and (root/raw).exists():
+                links.append(f'<a href="../../{escape(raw, quote=True)}">raw prediction GFF3</a>')
+        if links:
+            html.append('<li>'+escape(locus['genome_id'])+': '+' · '.join(links)+'</li>')
+    html.append('</ul>')
+    return '\n'.join(html)
+
+
 def write_comparison_reports(root, groups, original, selected, observations, context, synteny, dna, blocks, protein, errors, args):
     index = ['<!doctype html><html lang="en"><meta charset="utf-8"><title>Comparative gene contexts</title>', STYLE,
              '<h1>Comparative gene contexts</h1>',
@@ -254,6 +295,7 @@ def write_comparison_reports(root, groups, original, selected, observations, con
                 'Ranked alternatives remain in candidates.tsv. This ranking is not an orthology assignment. '
                 'Gene boundaries use GFF3 where the selected annotation supplies them; otherwise coding-model/DNA-hit boundaries are used. '
                 'Windows are clipped at contig ends. Distances and coordinates are available in loci.tsv.</p>',
+                prediction_evidence(root, loci) if args.context_mode == 'predict' else '',
                 '<h2>Local synteny</h2><img src="synteny.svg" alt="Gene order and orientation across input genomes">',
                 html_table(loci, ["genome_id", "annotation_status", "context_status", "context_predictor", "context_predictor_model"]),
                 html_table([r for r in context if r["group"] == group["id"]],
