@@ -46,6 +46,8 @@ Add one row per assembly. Paths are relative to `genomes.tsv`, or absolute. Leav
 
 Put your real query proteins in `targets.faa`, then run:
 
+A ready-to-use chicken Pou5f3 query is included: [protein FASTA](examples/queries/chicken_Pou5f3.protein.faa), with [CDS and provenance](examples/queries/README.md).
+
 ```bash
 gene-context run --query targets.faa --query-type protein \
   --genomes genomes.tsv --out results/search --threads 8 --skip-alignments
