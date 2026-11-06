@@ -1,106 +1,98 @@
-# Stage 1: one gene, multiple reference variants, candidate loci
+# Stage 1: discover candidate loci, check available contexts, then review
 
-## Contract
+The primary route is **BLASTP against all annotated protein products**, then exact annotation identifiers locate each gene in the assembly. TBLASTN remains available for missing annotations and rescue.
 
-Input: a manually selected reference FASTA for **one gene/search group**, its metadata and an explicit list of genomes. Include all chosen annotation variants; the reference set need not contain exactly four sequences. No genome annotation is required.
+Input: the curated FASTA variants of **one target gene/search group**, a genome list, and the available source datasets. Output: one offline report where the user selects genomic loci. No candidate is approved automatically.
 
-Output: candidate genomic loci with all supporting query alignments, a manual decision file, and explicitly selected intervals for subsequent synteny analysis. This stage does not determine orthology, annotate neighbouring genes or measure final cross-species conservation.
-
-The new `stage1` commands implement this contract. The older `search` command has a different, model-first checkpoint format. They must not be mixed. `stage1-select` currently exports TSV/BED regions; these exports are **not yet accepted directly by the legacy `contexts` command**. The next-stage interface should consume the approved intervals without searching for targets again.
-
-## First test
-
-Run from the repository root with BLAST+, samtools and miniprot on PATH:
+## One command
 
 ```bash
-gene-context stage1 --gene POU5 \
-  --query examples/queries/pou5_test/proteins.faa --query-type protein \
-  --query-metadata examples/queries/pou5_test/queries.tsv \
-  --genomes examples/queries/pou5_test/controls.genomes.tsv \
-  --refine miniprot --out results/pou5_stage1 --threads 4
+gene-context stage1 --gene NANOG \
+  --query NANOG_query.fasta --query-type protein \
+  --genomes genomes.tsv --out results/nanog_stage1 \
+  --jobs 8 --threads 8
 ```
 
-Open `results/pou5_stage1/report.html`. This test searches **small annotated reference windows**, not 18 complete genomes. For a complete run, replace only `--genomes` with the TSV of the actual assemblies. Include source-reference assemblies as ordinary genome rows if source controls should run alongside the study genomes.
+`--threads` is per genome; `--jobs 8 --threads 8` can use 64 tool threads during discovery. The annotation-based early-synteny pass runs once in the parent after the genome workers finish. On host2, submit every computation through the constrained launcher described in [LIMITED_EXPERIMENTS.md](LIMITED_EXPERIMENTS.md): all concurrent descendants share 250 GiB RAM and zero swap, and data/cache/output must stay on `/mnt/data`.
 
-On host2, submit this command through the constrained launcher described in [LIMITED_EXPERIMENTS.md](LIMITED_EXPERIMENTS.md), using `/usr/bin/python3 -m genecontext` and absolute `/mnt/data` paths. The deployment must contain this version; a v0.5.2 source snapshot does not provide `stage1`. Do not bypass the shared 250 GiB RAM cap.
+The genome TSV requires `genome_id` and `fasta`; useful optional columns are `gff3`, `protein`, `cds`, `species` and `assembly_accession`. Paths are relative to the TSV or absolute; gzip files are accepted. Each row identifies one actual assembly. For protein-first search, `fasta` may be empty or point to a not-yet-downloaded assembly when GFF3 and protein/CDS are supplied and GFF contains contig lengths; genomic DNA is needed later for sequence extraction. `protein` is the annotated protein FASTA; `cds` is the annotated CDS FASTA. These files let discovery and the automatic context pass avoid reading the entire genome. If only GFF and genome are present, annotated coding products are reconstructed once and cached. Annotation is optional for the genomic discovery route. If it is missing, the report explicitly marks the context evidence unavailable.
 
-## Inputs
+Use `--datasets datasets.tsv` when the complete annotation/protein inventory is separate from the target genome list. Use `--source-datasets references.tsv` for additional source-reference assemblies that are not study targets. The program resolves query origins from identifiers and exact sequences in the supplied data. It preserves ambiguous matches and reports unresolved origins. No manually constructed source-locus list is required. `--query-metadata queries.tsv` can supply source species, gene symbols and accession provenance; if supplied, it must describe every input FASTA ID exactly once.
 
-Genome TSV, with paths relative to that TSV or absolute:
+## What runs
 
-```tsv
-genome_id	fasta
-human	assemblies/human_genomic.fna.gz
-chicken	assemblies/chicken_genomic.fna.gz
-```
+1. The default `--discovery auto` uses BLASTP for protein/CDS queries when a GFF is supplied. **All usable annotated isoforms** enter the search; identical full protein sequences are searched once and keep every transcript/gene binding. CDS queries are translated first. `--discovery blastp` requires annotation, while `--discovery genome` explicitly requests whole-genome TBLASTN. In auto mode a genome without GFF uses TBLASTN. DNA queries always use BLASTN.
+2. BLASTP HSPs are chained within each query/subject protein. Exact product → transcript → gene relationships map them to genomic loci; all matched isoforms of one annotated gene share one locus. Separate annotated genes stay separate, even if their proteins are identical. Genomic searches instead chain compatible query/genome HSPs and group overlapping aligned blocks. No gene-name lookup substitutes for sequence search.
+3. Loci are ranked within each genome by the strongest single-query chain score. Overlapping query positions are counted once; scores from separate isoforms are not added. All candidates and the raw BLAST evidence remain available.
+4. Available reference and candidate neighborhoods are checked automatically. Annotation and proteome indexes are cached. Reference neighbor proteins are matched against target proteomes in batches; coordinates, order, side and direction provide preliminary context evidence. Target genes are not counted as their own neighbor evidence.
+5. The report stops for human selection. No Tiberius prediction, target-protein MSA or comparative CDS alignment runs here.
 
-One row means one assembly. The stage searches every listed assembly, including source species; there is no self-hit exclusion. It does not recursively treat CDS/transcript FASTAs as additional genomes. Gzip is accepted. Genome errors remain in the report and cause a nonzero final exit code.
+A BLASTP no-hit or weak result does not silently trigger a potentially expensive whole-genome search. Inspect the result and repeat the relevant genome with `--discovery genome` if annotation rescue is needed. Invalid/mismatched annotation is an explicit error. Missing annotation products and identical proteins at multiple gene loci are reported.
 
-From v0.6.1, `--jobs 8 --threads 8` processes eight genomes concurrently with eight tool threads each. Default `--jobs 1` retains sequential processing. Worker checkpoints and logs are saved under `workers/`; the final root contains one normal report and decision file. `progress.json` records completed workers. Merging checks reference/settings identity, evidence seals, duplicate genome IDs and missing workers. Failed input genomes remain explicit in the combined report. This does not change discovery/filtering rules. CPU demand is approximately jobs × threads; on host2 all workers must inherit the shared constrained launcher cgroup.
+The new default is `--refine none`. Annotated candidates use GFF gene boundaries; local miniprot refinement applies only to genomic searches. Optional `--refine miniprot` performs local spliced boundary refinement; these predictions stay in technical details and do not establish gene identity. Older imported checkpoints may already contain those predictions.
 
-Query metadata must assign every FASTA ID exactly once. Minimum useful columns are `query` and `species`; optional columns include `group`, `gene_symbol`, `transcript` and source links. If `group` is supplied, it must match `--gene`. Without species metadata, species support is unknown (reported as zero labelled species), not inferred from filenames.
+Early contexts start with five genes on each side, expanding to ten/twenty when insufficient preliminary support is found, within 1 Mb. These are configurable limits (`--synteny-neighbors`, `--synteny-max-neighbors`, `--synteny-max-distance`), not biological thresholds. The actual inspected span is shown; it is separate from the proposed ±50 kb window for detailed downstream work. `--neighbor-cache` selects a reusable cache. By default it is `_genecontext_cache/early_synteny` beside the output, not an implicit home-directory download cache. No reference/model downloads are performed by this pass. `--early-synteny off` requests discovery alone.
 
-Identical sequences are searched once while preserving every transcript/species alias. Variant count, distinct sequence count and supporting species count are separate quantities. A larger number of annotated isoforms does not multiply a locus's ranking score.
+## Read the report
 
-`--query-type protein` uses TBLASTn. `cds` translates the supplied spliced CDS and uses TBLASTn; this is **not an additional BLASTN run**. `dna` uses BLASTN and does not perform protein-guided reconstruction. Protein/CDS validation assumes the standard nuclear genetic code and the documented query alphabet. Use separate runs for protein and nucleotide evidence.
+Open `report.html`. Choose a genome or open the overview. Each locus is one row; the first three are displayed by score, with a button to show the rest. Nothing is preselected.
 
-## Automatic assembly before manual review
+**Where this locus matches each query** shows:
 
-1. BLAST retrieves local matches with the relatively permissive `--search-evalue` ceiling. Raw output is retained. All target contigs can be reported; no default top-500-contig cap is used.
-2. Exact duplicate HSPs are removed. The seed length and identity gates are applied; rejected seeds and reasons remain in raw JSON.
-3. Compatible HSPs are chained on the same contig and strand in query/transcriptional order. Query-coordinate resets prevent a simple join of tandem full-length copies. Intron length, overlap tolerance and total locus span are configurable. The algorithm extracts best collinear paths and retains residual chains; it does not enumerate every possible exon chain.
-4. Chains from different queries are initially grouped by shared **aligned genomic blocks**, not merely overlapping envelopes or distance.
-5. Local miniprot reconstruction tests each proposal. The full GFF3 is retained; the best coverage-times-identity model per unique query is offered in the review. The mapper's alternative-output limit is explicit, default 10 per query/local window; it does not limit the number of BLAST loci.
-6. Spliced models reconcile fragmented proposals into loci. A fixed representative provides the proposed coding anchor; weaker chains never extend it across a neighbouring copy. A chain supported by separate model anchors is split by its HSP-to-anchor assignments. All retained HSPs stay in the evidence. Ambiguous assignments are flagged and do not satisfy review thresholds by themselves. Unassigned fragments remain BLAST-only candidates.
+- For BLASTP: annotated CDS blocks on a genomic axis, and separate query/subject amino-acid match axes. CDS blocks are annotation features, not direct BLASTP-to-DNA alignments.
+- For genomic BLAST: aligned DNA blocks on a shared genomic axis.
+- Every supplied query variant, including variants without retained support at this locus.
+- Covered query positions as `N / full query length`, coverage, HSP-weighted identity, chain score and best HSP E-value.
+- A separate position map along each query and the underlying HSP coordinates/metrics.
 
-The initial and model-based grouping rules differ intentionally: model blocks help resolve fragments that BLAST extends into intronic sequence. Model consolidation uses fixed representatives, avoiding transitive extension through bridging matches. Nearby distinct genes can remain distinct.
+These are maps of the existing search matches. They do not require new comparisons between candidate proteins. BLASTP also reports coverage of the annotated subject protein, without assuming the annotation is complete. Genomic BLAST does not estimate coverage of an unknown complete candidate gene. The miniprot models, if present, are optional technical evidence within their locus.
 
-This is a heuristic for candidate loci, not a validated gene caller. A wrong or missing spliced model can still leave a split/merged proposal. Miniprot failures preserve BLAST candidates. `--refine miniprot` requires the executable; default `auto` records its absence and leaves BLAST-only proposals. `--refine none` skips this step explicitly.
+**Early synteny** shows the source reference, specific matched neighbors, order diagrams, ambiguity and the actual examined span. Missing annotation, missing proteins, unresolved source loci and insufficient anchors are distinct states. Lack of context support never automatically removes a locus. Gene symbols alone are not evidence of correspondence.
 
-The [host2 validation receipt](benchmarks/stage1_pou5_v060_2026-11-06.json) records the reference-window outcomes and tests. It is not a complete-genome sensitivity benchmark.
+Saved display thresholds are coverage 0.20, identity 0.25, E-value 1e-5. One chain must pass all three together; it need not be the highest-scoring chain shown in the locus summary. Initially weak alternatives remain visible among the first three. Check **Hide below-threshold candidates** to narrow the view. Selections remain visible even when below those filters. Browser filters do not delete evidence or change the saved checkpoint.
 
-The default anchor is the representative's predicted **coding interval**, not an established full gene/UTR interval. Without reconstruction it is the BLAST-chain envelope. Both can be corrected manually.
+`loci.tsv` contains every ranked candidate; `passing_loci.tsv` is the saved passing subset; `query_support.tsv` contains per-query/product chains, covered positions and separate subject-protein or genomic intervals. BLASTP loci include original gene/model identifiers and all matched isoforms; `raw/<genome>.annotation/` contains product mappings, matched proteins and cache/provenance receipts. Annotated locus DNA extraction is deferred until selection, so `loci.fna` contains only any genomic-search results; it may be empty for a purely BLASTP run. Genome coordinates are zero-based half-open. Query positions in the report's HSP tables are one-based inclusive; TSV interval fields are zero-based half-open. Chain identity is an estimate from local HSP identities, with overlaps prorated. Chain E-value is the best HSP E-value, not a combined gene-level probability. Ranking and context evidence do not prove orthology.
 
-## Review and filters
+## Choose loci
 
-The HTML report works offline. It has text search, coverage/identity/E-value display filters, compact alignment tracks and a switch to show every query variant. Candidates are ranked separately for each genome/search group by the highest single-reference chain bit score. The chain score sums HSP bit scores with query overlaps counted once; scores from different queries or isoforms are not added. Coverage, identity and E-value beside the ranking score describe that same chain. A separate score/query-length column is retained in `loci.tsv`. Ranking does not establish orthology and does not discard lower-scoring candidates. Candidate cards are collapsible; the highest-ranked locus in each genome opens initially. The reference-support table preserves transcript identities and shows their scores. Alternative source-derived CDS models can be used to set anchor bounds.
+For each gene/genome pair, check one or more loci and choose **Investigate selected loci**, or choose **Exclude** / **Unresolved** with no locus selections. Select a short reason; a comment is optional except for **Other**. Save the pair decision. Different CDS predictions stay inside the locus; this stop chooses genomic regions, not a definitive transcript.
 
-Default review thresholds are `--min-query-coverage 0.20`, `--min-identity 0.25`, `--max-evalue 1e-5`. **One and the same reference chain must pass all three.** It need not be the highest-scoring chain. Identity is measured within aligned sequence; query coverage uses the union of covered query positions, never the sum of overlapping matches. For small overlaps, identity and score contributions are prorated by the fraction of newly covered query positions; aggregate identity is an estimate, not a new residue-level alignment. Chain E-value is the best constituent HSP E-value, not a combined statistical significance for the reconstructed gene. These are BLAST-chain metrics, distinct from the local model's alignment metrics.
+The report supports a portable draft JSON and automatic browser-local saving. A draft is not an approved decision file. **Validate all pairs** lists every pending or inconsistent pair and previews the selected windows. **Validate and download decisions TSV** exports exact IDs only after all pair decisions are saved and valid. For an inspected pair, unselected loci are explicitly recorded as excluded from this run. No original evidence or decision file is overwritten.
 
-No candidate is deleted by these review thresholds. `loci.tsv` contains all retained loci with `rank_within_genome` and `bitscore`; `passing_loci.tsv` is the saved passing subset, preserving the original ranks. Neither constitutes approval. Browser filtering changes the view only. The report initially shows passing loci; uncheck **Show passing loci only** to inspect weak alternatives. The genome summary shows both all-locus counts and the subset passing the saved thresholds.
-
-To save different review thresholds without rerunning BLAST, chaining or reconstruction:
+Validate or export the selected windows on the command line:
 
 ```bash
-gene-context stage1-filter --results results/pou5_stage1 \
-  --min-query-coverage 0.50 --min-identity 0.35 \
-  --out results/pou5_stage1_stricter
-```
+gene-context stage1-select --results results/nanog_stage1 \
+  --decisions /path/to/downloaded/loci.decisions.tsv --validate-only
 
-This creates a new review ID and blank decisions. It does not transfer old approvals. Review E-value cannot exceed the original search ceiling.
-
-Search/assembly settings require a fresh `stage1` run: `--search-evalue 1e-3`, `--seed-min-length 20` (aa for protein/CDS, nt for DNA), `--seed-min-identity 0.20`, `--max-intron 200000`, `--max-locus-span 2000000`, `--chain-max-overlap 0.15`, `--locus-shared-fraction 0.5`, `--refine-padding 50000`, `--refine-max-models 10`. These are pilot defaults, not universal biological thresholds. A raw match omitted by BLAST or the seed gates cannot be recovered by display filtering.
-
-## Explicit decisions and synteny intervals
-
-In the report, record `inspect`, `exclude` or `unresolved` for **every locus**. Genomes without candidates also have a required decision row. Notes are required for exclusions/unresolved cases, manual boundary/window changes and below-filter selections. A failed genome cannot be marked `inspect` without a locus.
-
-Download `loci.decisions.tsv` from the report. Its export contains **all rows, including hidden loci**. A saved decision file can be reloaded in the same report. Browser-local storage is a convenience; the downloaded TSV is the portable review record.
-
-`anchor_intervals` uses zero-based `start:end`. Change it to correct boundaries. To split an erroneously joined proposal, use `start1:end1;start2:end2` and explain the change in notes. Each anchor must overlap its original candidate and stay within the contig. Several independently discovered loci can be selected. A merged inspection window can be specified explicitly using `window_start` and `window_end` on the chosen locus, with other rows still receiving explicit decisions.
-
-By default, the proposed synteny window is anchor ±50 kb, clipped to the contig. A custom window must contain the anchor. Split anchors each receive their own default window; one custom window cannot be applied to several split anchors.
-
-```bash
-gene-context stage1-select --results results/pou5_stage1 \
+gene-context stage1-select --results results/nanog_stage1 \
   --decisions /path/to/downloaded/loci.decisions.tsv \
-  --out results/pou5_selected
+  --out results/nanog_selected
 ```
 
-Blank decisions, unknown IDs, duplicate rows, evidence changes and decisions from a different checkpoint block export. Outputs are `approved_loci.tsv`, `synteny_windows.bed`, the decision snapshot and provenance. BED has the standard six fields plus genome ID in column seven, since contig names are not unique across species. No context prediction starts automatically.
+The output contains `approved_loci.tsv`, `synteny_windows.bed`, `validation.json` and a decision snapshot. It does not start downstream prediction. Anchor/window overrides are available in the locus technical details. The proposed ±50 kb window uses the selected anchor; it is clipped at contig boundaries. BLASTP defaults to the annotated gene bounds. Genomic-search anchors are similarity-region bounds, not guaranteed full-gene bounds. Annotation completeness still requires review.
 
-## Evidence and limits
+Legacy TSVs with explanations in `notes` remain accepted. The new report also exports a short `reason` and repeated `pair_decision` metadata. The selector checks both per-locus decisions and pair consistency, reports all errors, and creates no selection output if invalid.
 
-The result contains the locus table, per-query support, every input genome's outcome, candidate DNA in source-locus orientation, complete raw BLAST and local miniprot GFF3 output, command receipts, source FASTA SHA-256 fingerprints and checksums of review evidence. FASTA hashing streams the input and adds an input-read pass. Raw BLAST files allow independent inspection. Work directories contain genome indexes/scratch data and are not themselves review evidence.
+## Reuse a saved search
 
-Manual `inspect` means investigate that interval. It does not prove orthology or functional pluripotency. Weak domains, paralogs, pseudogenes and assembly artifacts can survive. Lack of a match is not evidence of gene loss. The POU5 reference-window controls test mechanics; they do not validate sensitivity/specificity on all 18 complete assemblies or on unrelated gene families.
+To add/recompute available early context and regenerate the report without another genome BLAST:
+
+```bash
+gene-context stage1-context --results results/nanog_search \
+  --datasets datasets.tsv --source-datasets references.tsv \
+  --neighbor-cache /mnt/data/project/cache/early_synteny \
+  --out results/nanog_review --threads 8
+```
+
+To save different display thresholds without another search or context calculation:
+
+```bash
+gene-context stage1-filter --results results/nanog_review \
+  --out results/nanog_review_cov20 --min-query-coverage .20 \
+  --min-identity .25 --max-evalue 1e-5
+```
+
+Each command creates a new checkpoint and leaves the source untouched. Searches use a more permissive initial E-value ceiling of 1e-3; HSP seed gates and chaining limits are recorded in the manifest. A match omitted by discovery cannot be recovered by display filtering. Source errors and missing data remain explicit; no-hit results do not establish gene absence.
+
+The locus-first selected-window export is not yet connected to the legacy `contexts` model-first interface. Detailed prediction and final conservation comparisons remain separate downstream work.

@@ -16,16 +16,17 @@ from uuid import uuid4
 from . import __version__
 from .comparison import table
 from .locus_chaining import chain_hsps, group_loci, intersection_length, same_locus, summarise
-from .pipeline import load_genomes, load_queries
+from .pipeline import load_queries
+from .stage1_proteins import discovery_rows, engine_for, search_annotated
 from .sequence import read_gff, sha256, union_length, write_fasta, write_tsv
 from .tools import Genome, Runner, tool_versions
 
 OUTFMT = '6 qseqid sseqid pident length qstart qend sstart send evalue bitscore qlen slen'
 DECISIONS = ['review_id', 'genome_id', 'locus_id', 'decision', 'anchor_intervals',
-             'window_start', 'window_end', 'notes']
+             'window_start', 'window_end', 'notes', 'pair_decision', 'reason']
 FILTERS = ['min_query_coverage', 'min_identity', 'max_evalue']
 LOCUS_FIELDS = ['genome_id', 'rank_within_genome', 'locus_id', 'gene', 'contig', 'start', 'end', 'strand',
-                'boundary_source', 'query_variants', 'unique_sequences', 'support_species',
+                'boundary_source', 'discovery_engine', 'annotation_gene_id', 'annotation_gene_name', 'query_variants', 'unique_sequences', 'support_species',
                 'best_query', 'bitscore', 'coverage', 'identity', 'evalue', 'bitscore_per_query_unit',
                 'pass_filters', 'filter_reasons', 'flags', 'window_start', 'window_end']
 
@@ -317,6 +318,10 @@ def summary_rows(data):
     for genome in data['genomes']:
         loci=[l for l in data['loci'] if l['genome_id']==genome['genome_id']]
         rows.append(dict(genome_id=genome['genome_id'], status=genome['status'],
+            discovery_engine=genome.get('discovery_engine','genomic'),
+            searched_unique_products=genome.get('searched_unique_products',''),
+            annotation_models=genome.get('all_product_models',''),unavailable_products=genome.get('unavailable_product_models',''),
+            catalog_seconds=genome.get('catalog_seconds',''),blast_seconds=genome.get('blast_seconds',''),
             raw_hsps=genome.get('raw_hsps',0), loci=len(loci),passing_loci=sum(l['pass_filters'] for l in loci),
             refinement_errors=len(genome.get('refinement_errors',[])),
             control_expected=genome.get('control_expected',''),control_overlap=genome.get('control_overlap',''),
@@ -342,6 +347,15 @@ def write_outputs(root, data):
                     chain_id=c['chain_id'],query=member['query'],species=member.get('species',''),
                     gene_symbol=member.get('gene_symbol',''),transcript=member.get('transcript',''),
                     ambiguous_support=c.get('ambiguous_support',False),
+                    query_length=len(qmap[c['query']]['sequence']),
+                    query_aligned=union_length([(h['qstart'],h['qend']) for h in c['hsps']]),
+                    query_intervals=';'.join(f"{h['qstart']}:{h['qend']}" for h in c['hsps']),
+                    genomic_intervals=';'.join(f"{h['start']}:{h['end']}" for h in c['hsps'] if h.get('coordinate_space')!='protein'),
+                    evidence_type=c.get('coordinate_space','genomic'),subject_protein=c.get('subject',''),
+                    subject_length=c.get('subject_length',''),subject_coverage=c.get('subject_coverage',''),
+                    subject_intervals=';'.join(f"{h['subject_start']}:{h['subject_end']}" for h in c['hsps'] if h.get('coordinate_space')=='protein'),
+                    annotation_gene=locus.get('annotation_gene_id',''),annotation_model=c.get('annotation_model',{}).get('model_id',''),
+                    contig=c['contig'],strand=c['strand'],
                     coverage=c['coverage'],identity=c['identity'],evalue=c['evalue'],bitscore=c['bitscore'],
                     hsp_ids=';'.join(h['hsp_id'] for h in c['hsps'])))
     write_tsv(root/'query_support.tsv',support,list(support[0]) if support else
@@ -364,7 +378,8 @@ def write_outputs(root, data):
     manifest=dict(version=__version__,stage='blast_locus_review',review_id=data['review_id'],
         created=now(),status='awaiting_review',config=data['config'],filters=data['filters'],
         query_provenance=data['query_provenance'],genomes=data['genomes'],tools=data['tools'],
-        commands=data.get('commands',[]),parent_review=data.get('parent_review'))
+        commands=data.get('commands',[]),parent_review=data.get('parent_review'),
+        early_synteny=dict(status=data['early_synteny']['status'],artifact=data['early_synteny']['artifact']) if data.get('early_synteny') else None)
     dump(root/'manifest.json',manifest)
     write_report(root,data)
     files=[p for name in ['raw'] for p in (root/name).rglob('*') if p.is_file()]
@@ -388,16 +403,19 @@ def search(args):
     if not all(math.isfinite(v) for v in [args.max_evalue,args.search_evalue]) or args.max_evalue>args.search_evalue or args.max_evalue<=0 or args.search_evalue<=0:
         raise ValueError('Require 0 < --max-evalue <= --search-evalue')
     queries,aliases=panel(args);qmap={q['id']:q for q in queries}
-    genomes=load_genomes(args)
-    tools=tool_versions(['samtools','makeblastdb','tblastn' if args.query_type!='dna' else 'blastn','miniprot'])
-    required=['samtools','makeblastdb','tblastn' if args.query_type!='dna' else 'blastn']
-    if args.refine=='miniprot' and args.query_type!='dna':required.append('miniprot')
+    genomes=discovery_rows(args)
+    engines={engine_for(row,args) for row in genomes}
+    tools=tool_versions(['samtools','makeblastdb','blastp','tblastn','blastn','miniprot'])
+    required=['makeblastdb',*engines]
+    if engines-{'blastp'} or any(not (r.get('protein') or r.get('cds')) for r in genomes):required.append('samtools')
+    if args.refine=='miniprot' and 'tblastn' in engines:required.append('miniprot')
     missing=[name for name in required if not tools[name]['path']]
     if missing:raise ValueError('Missing tools: '+', '.join(missing))
     root=new_output(args.out);(root/'raw').mkdir();runner=Runner(root)
     config={k:getattr(args,k) for k in ['gene','query_type','threads','search_evalue','seed_min_length',
         'seed_min_identity','max_intron','chain_max_overlap','max_locus_span','locus_shared_fraction',
         'window','refine','refine_padding','refine_max_models']}
+    config['discovery']=getattr(args,'discovery','auto')
     data=dict(schema='blast_loci_v1',review_id=str(uuid4()),created=now(),queries=queries,
         query_provenance=dict(fasta=str(Path(args.query).resolve()),sha256=sha256(args.query),
             metadata=str(Path(args.query_metadata).resolve()) if args.query_metadata else None,
@@ -410,6 +428,13 @@ def search(args):
         work=root/'work'/gid;work.mkdir(parents=True);genome=None
         print('[stage 1] '+gid,file=sys.stderr,flush=True)
         try:
+            record['discovery_engine']=engine_for(row,args)
+            if record['discovery_engine']=='blastp':
+                loci=search_annotated(row,args,config,qmap,root,work,runner,record)
+                data['loci'].extend(loci)
+                record['status']='completed' if loci else 'no_candidate'
+                record['rescue_available']='Repeat this genome with --discovery genome if annotation support is absent or weak'
+                continue
             initial_stat=Path(row['fasta']).stat()
             record.update(fasta_sha256=sha256(row['fasta']),fasta_bytes=initial_stat.st_size,
                           fasta_mtime_ns=initial_stat.st_mtime_ns)
@@ -448,9 +473,12 @@ def search(args):
             if genome is not None:genome.close()
             dump(root/'progress.json',dict(updated=now(),genomes=data['genomes']))
     write_fasta(root/'loci.fna',sequences)
-    data['commands']=runner.commands;write_outputs(root,data)
+    data['commands']=runner.commands
+    from .stage1_context import attach
+    context_error=attach(args,root,data,runner)
+    write_outputs(root,data)
     print('STOP — open '+str(root/'report.html'),file=sys.stderr)
-    return 1 if any(g['status']=='error' or g.get('refinement_errors') for g in data['genomes']) else 0
+    return 1 if context_error or any(g['status']=='error' or g.get('refinement_errors') for g in data['genomes']) else 0
 
 
 def refilter(args):
@@ -471,56 +499,97 @@ def refilter(args):
     return 0
 
 
-def approve(args):
-    source,data=verify(args.results)
+def validate_decisions(data, rows):
+    """Collect all decision errors before exporting any selected windows."""
     loci={l['locus_id']:l for l in data['loci']}
+    genomes={g['genome_id']:g for g in data['genomes']}
     expected={(l['genome_id'],l['locus_id']) for l in data['loci']}
     expected|={(g['genome_id'],'') for g in data['genomes'] if not any(l['genome_id']==g['genome_id'] for l in data['loci'])}
-    decisions=table(args.decisions);seen=set();approved=[]
-    for row in decisions:
+    seen=set();approved=[];errors=[];by_genome=defaultdict(list)
+    for number,row in enumerate(rows,2):
         key=(row.get('genome_id',''),row.get('locus_id',''))
-        if row.get('review_id')!=data['review_id'] or key not in expected or key in seen:
-            raise ValueError('Wrong checkpoint, unknown locus, or duplicate decision: '+str(key))
-        seen.add(key);action=row.get('decision','').strip();notes=row.get('notes','').strip()
-        if action not in {'inspect','exclude','unresolved'}:raise ValueError('Pending/invalid decision: '+str(key))
+        prefix=f'Row {number} ({key[0]} / {key[1] or "no candidate"}): '
+        issues=[]
+        if row.get('review_id')!=data['review_id']:issues.append('wrong review checkpoint')
+        if key not in expected:issues.append('unknown genome/locus')
+        if key in seen:issues.append('duplicate genome/locus')
+        if issues:
+            errors.extend(prefix+message for message in issues);continue
+        seen.add(key);by_genome[key[0]].append(row)
+        action=(row.get('decision') or '').strip();notes=(row.get('notes') or '').strip()
+        reason=(row.get('reason') or '').strip();explanation=reason or notes
+        pair_action=(row.get('pair_decision') or '').strip()
+        if pair_action and pair_action not in {'inspect','exclude','unresolved'}:
+            errors.append(prefix+'invalid pair decision')
+        if action not in {'inspect','exclude','unresolved'}:
+            errors.append(prefix+'pending or invalid decision');continue
         if action in {'exclude','unresolved'}:
-            if not notes:raise ValueError('Exclusions/unresolved decisions need notes: '+str(key))
+            if not explanation:errors.append(prefix+'a short reason or note is required')
             continue
-        if not key[1]:raise ValueError('Cannot inspect a genome without a discovered locus')
-        l=loci[key[1]]
-        intervals=row.get('anchor_intervals','').strip() or f"{l['start']}:{l['end']}"
-        anchors=[]
-        for value in intervals.split(';'):
-            try:a,b=map(int,value.split(':'))
-            except ValueError:raise ValueError('Anchor intervals must be start:end separated by semicolons')
-            if not (0<=a<b<=l['contig_length']) or max(a,l['start'])>=min(b,l['end']):
-                raise ValueError('Anchor must overlap the candidate and stay on its contig')
-            anchors.append((a,b))
-        if len(set(anchors))!=len(anchors):raise ValueError('Duplicate manual anchor intervals')
-        changed=anchors!=[(l['start'],l['end'])]
-        if (changed or not l['pass_filters']) and not notes:
-            raise ValueError('Manual boundary changes or below-filter selections need notes')
-        custom=bool(row.get('window_start','').strip() or row.get('window_end','').strip())
-        if custom and (len(anchors)!=1 or not row.get('window_start','').strip() or not row.get('window_end','').strip()):
-            raise ValueError('Custom window requires both bounds and exactly one anchor')
-        for i,(a,b) in enumerate(anchors,1):
-            ws=int(row['window_start']) if custom else max(0,a-data['config']['window'])
-            we=int(row['window_end']) if custom else min(l['contig_length'],b+data['config']['window'])
-            if not (0<=ws<=a<b<=we<=l['contig_length']):raise ValueError('Window must contain the anchor and stay on its contig')
-            if custom and not notes:raise ValueError('Manual window changes need notes')
-            approved.append(dict(genome_id=l['genome_id'],locus_id=l['locus_id'],
-                region_id=l['locus_id']+(f'__part{i}' if len(anchors)>1 else ''),gene=l['gene'],
-                contig=l['contig'],strand=l['strand'],anchor_start=a,anchor_end=b,
-                window_start=ws,window_end=we,boundary_source='manual' if changed else l['boundary_source'],notes=notes))
-    if seen!=expected:raise ValueError('Missing decisions: '+str(sorted(expected-seen)))
-    root=new_output(args.out)
-    fields=['genome_id','locus_id','region_id','gene','contig','strand','anchor_start','anchor_end','window_start','window_end','boundary_source','notes']
+        try:
+            if not key[1]:raise ValueError('cannot inspect a genome without a discovered locus')
+            if genomes[key[0]]['status']=='error':raise ValueError('search failed; resolve the failed search before selecting a locus')
+            l=loci[key[1]]
+            intervals=(row.get('anchor_intervals') or '').strip() or f"{l['start']}:{l['end']}"
+            anchors=[]
+            for value in intervals.split(';'):
+                try:a,b=map(int,value.split(':'))
+                except ValueError:raise ValueError('anchor intervals must be start:end separated by semicolons')
+                if not (0<=a<b<=l['contig_length']) or max(a,l['start'])>=min(b,l['end']):
+                    raise ValueError('anchor must overlap the candidate and stay on its contig')
+                anchors.append((a,b))
+            if len(set(anchors))!=len(anchors):raise ValueError('duplicate manual anchor intervals')
+            changed=anchors!=[(l['start'],l['end'])]
+            if (changed or not l['pass_filters']) and not explanation:
+                raise ValueError('boundary changes or below-filter selections need a short reason')
+            start=(row.get('window_start') or '').strip();end=(row.get('window_end') or '').strip()
+            custom=bool(start or end)
+            if custom and (len(anchors)!=1 or not start or not end):raise ValueError('custom window requires both bounds and one anchor')
+            if custom and not explanation:raise ValueError('manual window changes need a short reason')
+            own=[]
+            for i,(a,b) in enumerate(anchors,1):
+                ws=int(start) if custom else max(0,a-data['config']['window'])
+                we=int(end) if custom else min(l['contig_length'],b+data['config']['window'])
+                if not (0<=ws<=a<b<=we<=l['contig_length']):raise ValueError('window must contain the anchor and stay on the contig')
+                own.append(dict(genome_id=l['genome_id'],locus_id=l['locus_id'],region_id=l['locus_id']+(f'__part{i}' if len(anchors)>1 else ''),
+                    gene=l['gene'],contig=l['contig'],strand=l['strand'],anchor_start=a,anchor_end=b,window_start=ws,window_end=we,
+                    boundary_source='manual' if changed else l['boundary_source'],reason=reason,notes=notes))
+            approved.extend(own)
+        except (ValueError,TypeError) as error:errors.append(prefix+str(error))
+    for gid,lid in sorted(expected-seen):errors.append(f'Missing decision: {gid} / {lid or "no candidate"}')
+    pairs=[]
+    for gid in genomes:
+        own=by_genome[gid];declared={r.get('pair_decision','').strip() for r in own if r.get('pair_decision','').strip()}
+        actions={r.get('decision','').strip() for r in own};selected=sum(r.get('decision')=='inspect' for r in own)
+        if declared:
+            if len(declared)!=1 or len(own)!=sum(bool(r.get('pair_decision','').strip()) for r in own):
+                errors.append(gid+': inconsistent or incomplete pair decision metadata')
+            else:
+                decision=next(iter(declared))
+                if decision=='inspect' and (not selected or not actions<={'inspect','exclude'}):errors.append(gid+': inspect pair must select loci and exclude the other loci')
+                if decision in {'exclude','unresolved'} and actions!={decision}:errors.append(gid+': locus actions conflict with pair decision')
+        decision=next(iter(declared)) if len(declared)==1 else ('inspect' if selected else next(iter(actions)) if len(actions)==1 else 'mixed_locus_decisions')
+        pairs.append(dict(genome_id=gid,gene=data['config']['gene'],decision=decision,selected_loci=selected,
+                          regions=sum(r['genome_id']==gid for r in approved)))
+    return dict(valid=not errors,review_id=data['review_id'],errors=errors,pairs=pairs,regions=approved,
+                selected_loci=sum(p['selected_loci'] for p in pairs),region_count=len(approved))
+
+
+def approve(args):
+    source,data=verify(args.results)
+    result=validate_decisions(data,table(args.decisions))
+    if getattr(args,'validate_only',False):
+        print(json.dumps(result,indent=2))
+        return 0 if result['valid'] else 2
+    if not result['valid']:raise ValueError('Decision validation failed:\n'+'\n'.join(result['errors']))
+    if not args.out:raise ValueError('--out is required unless --validate-only is used')
+    root=new_output(args.out);approved=result['regions']
+    fields=['genome_id','locus_id','region_id','gene','contig','strand','anchor_start','anchor_end','window_start','window_end','boundary_source','reason','notes']
     write_tsv(root/'approved_loci.tsv',approved,fields)
     with open(root/'synteny_windows.bed','w') as handle:
         for r in approved:handle.write(f"{r['contig']}\t{r['window_start']}\t{r['window_end']}\t{r['region_id']}\t0\t{r['strand']}\t{r['genome_id']}\n")
-    shutil.copyfile(args.decisions,root/'decisions.snapshot.tsv')
-    dump(root/'manifest.json',dict(stage='approved_loci',review_id=data['review_id'],created=now(),
-        source=str(source),source_evidence_sha256=sha256(source/'evidence.json'),
-        decisions_sha256=sha256(args.decisions),regions=len(approved),
+    shutil.copyfile(args.decisions,root/'decisions.snapshot.tsv');dump(root/'validation.json',result)
+    dump(root/'manifest.json',dict(stage='approved_loci',review_id=data['review_id'],created=now(),source=str(source),
+        source_evidence_sha256=sha256(source/'evidence.json'),decisions_sha256=sha256(args.decisions),regions=len(approved),
         note='Explicitly reviewed regions; not an orthology assertion. Context prediction has not run.'))
     return 0

@@ -29,7 +29,7 @@ def load_genomes(args):
             for row in reader:
                 if not any(row.values()):
                     continue
-                for key in ("fasta", "gff3"):
+                for key in ("fasta", "gff3", "protein", "cds", "annotation_provenance"):
                     value = row.get(key, "") or ""
                     row[key] = str((manifest.parent / value).resolve()) if value else ""
                 if row.get("tiberius_model"):

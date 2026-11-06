@@ -73,6 +73,20 @@ def predictor_options(command):
                          help="Neural inference batch size; 1 limits CPU memory")
 
 
+def early_synteny_options(command, disable_option=True):
+    if disable_option:
+        command.add_argument("--early-synteny", choices=["auto", "off"], default="auto",
+                             help="Automatically check annotated neighbor contexts before STOP 1")
+    else:
+        command.set_defaults(early_synteny="auto", genomes=None)
+    command.add_argument("--datasets", help="Optional complete datasets TSV; default: the search genome list")
+    command.add_argument("--source-datasets", help="Optional source-reference datasets TSV; query-to-gene mapping is automatic")
+    command.add_argument("--neighbor-cache", help="Reusable context/proteome cache; default: _genecontext_cache beside the output")
+    command.add_argument("--synteny-neighbors", type=positive, default=5)
+    command.add_argument("--synteny-max-neighbors", type=positive, default=20)
+    command.add_argument("--synteny-max-distance", type=positive, default=1000000)
+
+
 def search_options(command, comparative=False):
     command.add_argument("--query", required=True, help="FASTA with one or more query sequences")
     command.add_argument("--query-type", required=True, choices=["protein", "cds", "dna"])
@@ -197,12 +211,14 @@ def parser():
     check.add_argument("--reference-labels", help="Optional complete TSV: reference, family; exact reference FASTA IDs")
     check.add_argument("--out", required=True, help="Separate new/empty directory")
     check.add_argument("--threads", type=positive, default=4)
-    loci = commands.add_parser("stage1", help="Locus-first pilot: BLAST one gene's reference variants against every genome, then STOP")
+    loci = commands.add_parser("stage1", help="Find annotated protein loci first, check contexts, then STOP for review")
     loci.add_argument("--gene", required=True, help="One target/search-group label, e.g. POU5")
     loci.add_argument("--query", required=True)
     loci.add_argument("--query-type", required=True, choices=["protein", "cds", "dna"])
     loci.add_argument("--query-metadata", help="Complete TSV: query, species, optional group/gene_symbol/transcript")
-    loci.add_argument("--genomes", required=True, help="TSV: genome_id, fasta, optional gff3; GFF3 is not needed at this stage")
+    loci.add_argument("--genomes", required=True, help="TSV: genome_id, fasta; optional gff3, protein, cds (paths relative to TSV)")
+    loci.add_argument("--discovery", choices=["auto", "blastp", "genome"], default="auto",
+                      help="auto: BLASTP all annotated products when GFF exists, otherwise TBLASTN; blastp: require annotation; genome: explicit TBLASTN rescue. DNA always uses BLASTN")
     loci.set_defaults(genome_dir=None)
     loci.add_argument("--out", required=True)
     loci.add_argument("--threads", type=positive, default=4)
@@ -214,17 +230,24 @@ def parser():
     loci.add_argument("--chain-max-overlap", type=fraction, default=0.15)
     loci.add_argument("--max-locus-span", type=positive, default=2000000)
     loci.add_argument("--locus-shared-fraction", type=fraction, default=0.5, help="Shared aligned genomic bases / smaller chain; not envelope overlap")
-    loci.add_argument("--refine", choices=["auto", "miniprot", "none"], default="auto", help="Auto: refine locally if miniprot is installed; failures never erase BLAST loci")
+    loci.add_argument("--refine", choices=["auto", "miniprot", "none"], default="none", help="Optional local boundary refinement for genomic searches; annotated BLASTP loci use GFF bounds")
     loci.add_argument("--refine-padding", type=nonnegative, default=50000)
     loci.add_argument("--refine-max-models", type=positive, default=10, help="Miniprot alternative-model cap per query/local window; does not cap discovered loci")
     loci.add_argument("--window", type=nonnegative, default=50000, help="Proposed synteny flank length; no context prediction runs here")
+    early_synteny_options(loci)
+    annotated = commands.add_parser("stage1-context", help="Add automatic early synteny to a saved locus search without repeating BLAST")
+    annotated.add_argument("--results", required=True)
+    annotated.add_argument("--out", required=True)
+    annotated.add_argument("--threads", type=positive, default=4)
+    early_synteny_options(annotated, disable_option=False)
     filtered = commands.add_parser("stage1-filter", help="Change locus review thresholds without another genome search")
     filtered.add_argument("--results", required=True)
     filtered.add_argument("--out", required=True)
     selected = commands.add_parser("stage1-select", help="Validate explicit locus decisions and export chosen synteny windows")
     selected.add_argument("--results", required=True)
     selected.add_argument("--decisions", required=True)
-    selected.add_argument("--out", required=True)
+    selected.add_argument("--out")
+    selected.add_argument("--validate-only", action="store_true", help="List all decision errors and proposed windows without creating output")
     for command, defaults in [(loci, True), (filtered, False)]:
         command.add_argument("--min-query-coverage", type=fraction, default=0.20 if defaults else None)
         command.add_argument("--min-identity", type=fraction, default=0.25 if defaults else None)
@@ -234,12 +257,13 @@ def parser():
 
 def main(argv=None):
     args = parser().parse_args(argv)
-    if args.command in {"stage1", "stage1-filter", "stage1-select"}:
+    if args.command in {"stage1", "stage1-filter", "stage1-select", "stage1-context"}:
         from .stage1 import search, refilter, approve
+        from .stage1_context import context
         if args.command == "stage1" and args.jobs > 1:
             from .stage1_parallel import search
         try:
-            return {"stage1": search, "stage1-filter": refilter, "stage1-select": approve}[args.command](args)
+            return {"stage1": search, "stage1-filter": refilter, "stage1-select": approve, "stage1-context": context}[args.command](args)
         except (OSError, ValueError, RuntimeError, KeyError) as error:
             print(f"ERROR: {error}", file=sys.stderr)
             return 2

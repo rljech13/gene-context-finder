@@ -8,12 +8,12 @@ import subprocess
 import sys
 from uuid import uuid4
 
-from .pipeline import load_genomes
+from .stage1_proteins import discovery_rows
 from .sequence import sha256, write_tsv
 from .stage1 import dump, new_output, now, verify, write_outputs
 
 
-OPTIONS = ['gene','query','query_type','query_metadata','threads','search_evalue',
+OPTIONS = ['discovery','gene','query','query_type','query_metadata','threads','search_evalue',
            'seed_min_length','seed_min_identity','max_intron','chain_max_overlap',
            'max_locus_span','locus_shared_fraction','window','refine','refine_padding',
            'refine_max_models','min_query_coverage','min_identity','max_evalue']
@@ -57,7 +57,7 @@ def merge_parts(parts, output, expected_genomes):
 
 def search(args):
     # Only processes are parallel: every worker runs the same stage1 algorithm.
-    genomes=load_genomes(args)
+    genomes=discovery_rows(args)
     root=new_output(args.out);work=root/'workers';work.mkdir()
     rows={g['genome_id']:dict(g) for g in genomes}
     statuses={gid:dict(genome_id=gid,status='queued') for gid in rows}
@@ -67,12 +67,13 @@ def search(args):
         if value is not None:
             if key in {'query','query_metadata'}:value=str(Path(value).resolve())
             options+=['--'+key.replace('_','-'),str(value)]
+    cache=Path(getattr(args,'neighbor_cache',None) or root.parent/'_genecontext_cache'/'early_synteny').resolve()
     def worker(row):
         gid=row['genome_id'];folder=work/gid;folder.mkdir()
         manifest=folder/'genome.tsv';write_tsv(manifest,[row],list(row))
         output=folder/'result'
-        argv=[sys.executable,'-m','genecontext','stage1',*options,'--jobs','1',
-              '--genomes',str(manifest),'--out',str(output)]
+        argv=[sys.executable,'-m','genecontext','stage1',*options,'--jobs','1','--early-synteny','off',
+              '--neighbor-cache',str(cache),'--genomes',str(manifest),'--out',str(output)]
         env=dict(os.environ,OMP_NUM_THREADS=str(args.threads))
         with (folder/'stdout.log').open('w') as out,(folder/'stderr.log').open('w') as err:
             result=subprocess.run(argv,stdout=out,stderr=err,env=env)
@@ -102,7 +103,10 @@ def search(args):
     data=merge_parts([completed[g['genome_id']] for g in genomes],merged,[g['genome_id'] for g in genomes])
     for path in merged.iterdir():shutil.move(str(path),root/path.name)
     merged.rmdir()
+    from .stage1_context import attach
+    context_error=attach(args,root,data)
+    write_outputs(root,data)
     dump(root/'batch.json',dict(jobs=args.jobs,threads_per_genome=args.threads,
                                source_part_reviews=data['source_part_reviews'],failures=failures))
     print('STOP — open '+str(root/'report.html'),file=sys.stderr)
-    return 1 if failures else 0
+    return 1 if failures or context_error else 0
