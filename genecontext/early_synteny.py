@@ -178,6 +178,47 @@ def fasta_records(path):
             yield header, ''.join(pieces).upper().removesuffix('*')
 
 
+def merged_intervals(values):
+    result=[]
+    for start,end in sorted(values):
+        if result and start<=result[-1][1]:
+            result[-1]=(result[-1][0],max(end,result[-1][1]))
+        else:
+            result.append((start,end))
+    return result
+
+
+def cds_header_matches_model(header, model, gene):
+    """NCBI CDS accessions can be shared by primary/alternate loci.
+
+    Use declared contig, GeneID and native CDS locations when available. A
+    generic FASTA lacking these fields still requires an exact accession, and
+    contradictory sequences for that model are quarantined by the caller.
+    """
+    contig=re.match(r'lcl\|(.+?)_cds_',header.split()[0])
+    if contig and contig[1]!=model.contig:
+        return False
+    dbxref=re.search(r'\[db_xref=([^\]]+)\]',header)
+    geneids=set(re.findall(r'GeneID:(\d+)',dbxref[1])) if dbxref else set()
+    if geneids and gene['ncbi_gene_id'] and gene['ncbi_gene_id'] not in geneids:
+        return False
+    location=re.search(r'\[location=([^\]]+)\]',header)
+    if location:
+        value=location[1]
+        if ('complement(' in value)!=(model.strand=='-'):
+            return False
+        plain=re.sub(r'\b(?:complement|join|order)\(', '(', value).replace('(','').replace(')','')
+        ranges=[]
+        for block in plain.split(','):
+            m=re.fullmatch(r'[<>]?(\d+)(?:\.\.[<>]?(\d+))?',block.strip())
+            if not m:
+                ranges=[];break
+            a,b=int(m[1]),int(m[2] or m[1]);ranges.append((a-1,b))
+        if ranges and merged_intervals(ranges)!=merged_intervals([(a,b) for a,b,_ in model.cds]+model.stops):
+            return False
+    return True
+
+
 @contextmanager
 def cache_lock(path):
     """OS-released advisory lock; a killed worker cannot leave a stale lock."""
@@ -247,7 +288,7 @@ def build_catalog(row, cache_base, runner, known_fasta_digest=None):
                 for alias in item['aliases']:
                     if alias:
                         aliases[alias].add(mid)
-            supplied = {};product_origins = {}
+            supplied = {};product_origins = {};cds_sources={};cds_conflicts={}
             if row.get('cds'):
                 for header, coding in fasta_records(row['cds']):
                     code = re.search(r'\[transl_table=(\d+)\]', header)
@@ -262,9 +303,19 @@ def build_catalog(row, cache_base, runner, known_fasta_digest=None):
                     identifiers = {match[1]} if match else set(ACCESSION.findall(header))
                     for pid in identifiers:
                         for mid in aliases.get(pid, ()):
+                            model=models[mid]['model']
+                            if not cds_header_matches_model(header,model,genes[model.gene]):
+                                continue
+                            evidence=dict(header=header,sequence_sha256=hashlib.sha256(seq.encode()).hexdigest(),protein_aa=len(seq))
+                            if mid in cds_conflicts:
+                                if evidence not in cds_conflicts[mid]:cds_conflicts[mid].append(evidence)
+                                continue
                             if mid in supplied and supplied[mid] != seq:
-                                raise ValueError('Conflicting CDS products for transcript: '+mid)
+                                cds_conflicts[mid]=[cds_sources[mid],evidence]
+                                supplied.pop(mid,None);product_origins.pop(mid,None)
+                                continue
                             supplied[mid] = seq;product_origins[mid] = 'translated_supplied_cds'
+                            cds_sources[mid]=evidence
             if row.get('protein'):
                 seen = set()
                 for header, seq in fasta_records(row['protein']):
@@ -276,6 +327,7 @@ def build_catalog(row, cache_base, runner, known_fasta_digest=None):
                         continue
                     for mid in aliases.get(pid, ()):
                         supplied[mid] = seq;product_origins[mid] = 'supplied_annotation_protein'
+                        cds_conflicts.pop(mid,None)
             genome = None
             # A supplied proteome is mapped by exact annotation accession. Its
             # unmapped transcripts remain explicit, rather than using names.
@@ -289,6 +341,9 @@ def build_catalog(row, cache_base, runner, known_fasta_digest=None):
                     regions = {c:(0,v[0]) for c,v in genome.index.items()}
                 for mid, item in models.items():
                     model = item['model']
+                    if mid in cds_conflicts:
+                        unavailable_products.append(dict(model_id=mid,gene_id=model.gene,reason='conflicting_supplied_cds_products',aliases=item['aliases'],evidence=cds_conflicts[mid]))
+                        continue
                     if row.get('protein') or row.get('cds'):
                         seq, status = supplied.get(mid, ''), product_origins.get(mid, 'no_supplied_product')
                     else:
