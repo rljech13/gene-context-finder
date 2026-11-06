@@ -1,5 +1,7 @@
 # Comparative locus analysis
 
+For the recommended workflow with manual locus/CDS/neighbour decisions, use [staged review](STAGED_WORKFLOW.md). The automatic commands described below bypass those review stops.
+
 `analyze` accepts your sequences and your genome table. Gene names, species and reference assemblies are not built into the algorithm. Protein/CDS inputs use the standard nuclear genetic code; arbitrary DNA can also be compared as matched regions.
 
 The default context workflow predicts genes from the DNA of **every window**, then identifies the predicted proteins. See [window prediction](WINDOW_PREDICTION.md) for model selection, database preparation and outputs. Since v0.4, Tiberius on CPU is the default predictor. Use optional `tiberius_model` values (`vertebrates` or `mammalia`) or `--prediction-models models.tsv`; omitted values use `vertebrates`. The legacy v0.2 context workflow is explicitly selected with `--context-mode annotation`.

@@ -275,7 +275,48 @@ def collect_windows(args, source, root, original, selected, runner, errors):
     return context, proteins, metadata, windows
 
 
-def compare(args):
+def finish_comparison(args, source, root, original, groups, selected, candidates, observations,
+                      context, proteins, metadata, windows, runner, errors, manifest, sequence_overrides=None):
+    """Compare prepared, optionally reviewed contexts without running a predictor."""
+    from .context_compare import homology_groups, synteny_pairs
+    from .dna_compare import compare_dna
+    from .comparison_report import write_comparison_reports, protein_comparison
+    valid = [r for r in selected if not r.get("comparison_error")]
+    try:
+        families, matches = homology_groups(args, root, context, proteins, metadata, runner)
+    except (OSError, ValueError, RuntimeError) as error:
+        errors.append(dict(stage="neighbor_homology", error=str(error)))
+        families, matches = {}, []
+    for feature in context:
+        feature["homology_group"] = families.get(feature["protein_id"], "")
+    synteny = synteny_pairs(valid, context)
+    dna, blocks, categories = compare_dna(args, root, valid, windows, runner, errors)
+    protein = protein_comparison(args, source, root, groups, original["queries"], valid, runner, errors, sequence_overrides=sequence_overrides)
+    columns = ["group", "group_name", "genome_id", "status", "candidate_loci", "model_id", "target_name", "model_status", "coverage", "identity", *SCORE_FIELDS, "error"]
+    for observation in observations:
+        chosen = next((r for r in selected if r["group"] == observation["group"] and r["genome_id"] == observation["genome_id"]), None)
+        if chosen and chosen.get("comparison_error"):
+            observation.update(error=chosen["comparison_error"], status="comparison_error")
+        if chosen:
+            observation.update(target_name=chosen.get("target_name", ""), model_status=chosen["status"],
+                               coverage=chosen.get("coverage", ""), identity=chosen.get("identity", ""), **{key:chosen.get(key, "") for key in SCORE_FIELDS})
+    write_tsv(root / "summary.tsv", observations, columns)
+    write_tsv(root / "candidates.tsv", candidates, ["group", "genome_id", "locus_rank", "model_id", "representative", "selected", "contig", "start", "end", "strand", "status", "source", "source_gene", "source_model", "query", "coverage", "identity", *SCORE_FIELDS])
+    write_tsv(root / "loci.tsv", selected, ["locus_id", "group", "genome_id", "model_id", "selection_status", "candidate_loci", "target_name", "source", "source_gene", "source_model", "coverage", "identity", "protein_aa", "contig", "strand", "status", "window_start", "window_end", "target_start", "target_end", "anchor_kind", "left_clipped", "right_clipped", "window_bp", "softmasked_bases", "window_fasta", "window_sha256", "annotation_status", "context_status", "context_predictor", "context_predictor_model", *SCORE_FIELDS, "comparison_error"])
+    write_tsv(root / "neighbors.tsv", context, ["locus_id", "group", "genome_id", "gene_id", "name", "contig", "start", "end", "strand", "relative_start", "relative_end", "relative_strand", "protein_id", "homology_group", "evidence", "clipped", "reference_protein", "reference_identity", "reference_coverage", "prediction_coverage", "coding_status", "identification_status", "provided_gff_overlap"])
+    write_tsv(root / "neighbor_proteins.tsv", [dict(protein_id=pid, **item,
+              protein_aa=len(proteins.get(pid, "")), protein_sha256=hashlib.sha256(proteins[pid].encode()).hexdigest() if pid in proteins else "")
+              for pid, item in sorted(metadata.items())],
+              ["protein_id", "genome_id", "gene_id", "name", "transcript_id", "coding_status", "evidence", "reference_protein", "reference_identity", "reference_coverage", "description", "protein_aa", "protein_sha256"])
+    write_tsv(root / "neighbor_matches.tsv", matches, ["protein_a", "protein_b", "identity", "coverage_a", "coverage_b", "bitscore", "reciprocal_best_in_local_catalog"])
+    write_tsv(root / "synteny.tsv", synteny, ["group", "locus_a", "locus_b", "shared_groups", "unique_anchors", "order_concordance", "relative_orientation_concordance", "status"])
+    write_comparison_reports(root, groups, original, selected, observations, context, synteny, dna, blocks, protein, errors, args)
+    manifest.update(context_reference_proteins=len(proteins), context_evidence=dict(
+        provided=sum(r["evidence"] == "provided_gff3" for r in context),
+        inferred=sum(r["evidence"] in {"protein_supported_prediction", "ab_initio_prediction"} for r in context)))
+
+
+def compare(args, *, selection=None, context_only=False):
     from . import __version__
     from .context_compare import annotate_missing, homology_groups, synteny_pairs, prune_reference_catalog
     from .dna_compare import compare_dna
@@ -287,16 +328,16 @@ def compare(args):
     if args.context_mode == "predict":
         from .context_predict import validate_prediction_inputs
         validate_prediction_inputs(args, original["genomes"])
-    groups = make_groups(original["queries"], args.query_groups)
+    groups = getattr(args, "_review_groups", None) or make_groups(original["queries"], args.query_groups)
     if args.reference_genome and args.reference_genome not in {g["genome_id"] for g in original["genomes"]}:
         raise ValueError("Unknown --reference-genome")
-    versions = tool_versions(["samtools", "blastp", "makeblastdb", "mafft", args.dna_engine])
+    versions = tool_versions(["samtools", "blastp", "makeblastdb"] + ([] if context_only else ["mafft", args.dna_engine]))
     if any(not item["path"] for item in versions.values()):
         raise ValueError("Missing comparison tools: " + ", ".join(k for k, v in versions.items() if not v["path"]))
     if root.exists() and any(root.iterdir()):
         raise ValueError("Comparison output must be new or empty")
-    selected, candidates, observations = select_candidates(groups, original["genomes"], table(source / "models.tsv"),
-                                                         table(source / "dna_regions.tsv"), args.select_loci)
+    selected, candidates, observations = selection if selection is not None else select_candidates(
+        groups, original["genomes"], table(source / "models.tsv"), table(source / "dna_regions.tsv"), args.select_loci)
     root.mkdir(parents=True, exist_ok=True)
     (root / "windows").mkdir()
     runner, errors = Runner(root), []
@@ -337,38 +378,12 @@ def compare(args):
             if manifest["context_prediction"].get("runtime"):
                 info = manifest["context_prediction"]["runtime"]
                 manifest["tools"]["tiberius"] = dict(path=info["executable"], version=info["packages"]["tiberius"])
-        try:
-            families, matches = homology_groups(args, root, context, proteins, metadata, runner)
-        except (OSError, ValueError, RuntimeError) as error:
-            errors.append(dict(stage="neighbor_homology", error=str(error)))
-            families, matches = {}, []
-        for feature in context:
-            feature["homology_group"] = families.get(feature["protein_id"], "")
-        synteny = synteny_pairs(valid, context)
-        dna, blocks, categories = compare_dna(args, root, valid, windows, runner, errors)
-        protein = protein_comparison(args, source, root, groups, original["queries"], valid, runner, errors)
-        columns = ["group", "group_name", "genome_id", "status", "candidate_loci", "model_id", "target_name", "model_status", "coverage", "identity", *SCORE_FIELDS, "error"]
-        for observation in observations:
-            chosen = next((r for r in selected if r["group"] == observation["group"] and r["genome_id"] == observation["genome_id"]), None)
-            if chosen and chosen.get("comparison_error"):
-                observation.update(error=chosen["comparison_error"], status="comparison_error")
-            if chosen:
-                observation.update(target_name=chosen.get("target_name", ""), model_status=chosen["status"],
-                                   coverage=chosen.get("coverage", ""), identity=chosen.get("identity", ""), **{key:chosen.get(key, "") for key in SCORE_FIELDS})
-        write_tsv(root / "summary.tsv", observations, columns)
-        write_tsv(root / "candidates.tsv", candidates, ["group", "genome_id", "locus_rank", "model_id", "representative", "selected", "contig", "start", "end", "strand", "status", "source", "source_gene", "source_model", "query", "coverage", "identity", *SCORE_FIELDS])
-        write_tsv(root / "loci.tsv", selected, ["locus_id", "group", "genome_id", "model_id", "selection_status", "candidate_loci", "target_name", "source", "source_gene", "source_model", "coverage", "identity", "protein_aa", "contig", "strand", "status", "window_start", "window_end", "target_start", "target_end", "anchor_kind", "left_clipped", "right_clipped", "window_bp", "softmasked_bases", "window_fasta", "window_sha256", "annotation_status", "context_status", "context_predictor", "context_predictor_model", *SCORE_FIELDS, "comparison_error"])
-        write_tsv(root / "neighbors.tsv", context, ["locus_id", "group", "genome_id", "gene_id", "name", "contig", "start", "end", "strand", "relative_start", "relative_end", "relative_strand", "protein_id", "homology_group", "evidence", "clipped", "reference_protein", "reference_identity", "reference_coverage", "prediction_coverage", "coding_status", "identification_status", "provided_gff_overlap"])
-        write_tsv(root / "neighbor_proteins.tsv", [dict(protein_id=pid, **item,
-                  protein_aa=len(proteins.get(pid, "")), protein_sha256=hashlib.sha256(proteins[pid].encode()).hexdigest() if pid in proteins else "")
-                  for pid, item in sorted(metadata.items())],
-                  ["protein_id", "genome_id", "gene_id", "name", "transcript_id", "coding_status", "evidence", "reference_protein", "reference_identity", "reference_coverage", "description", "protein_aa", "protein_sha256"])
-        write_tsv(root / "neighbor_matches.tsv", matches, ["protein_a", "protein_b", "identity", "coverage_a", "coverage_b", "bitscore", "reciprocal_best_in_local_catalog"])
-        write_tsv(root / "synteny.tsv", synteny, ["group", "locus_a", "locus_b", "shared_groups", "unique_anchors", "order_concordance", "relative_orientation_concordance", "status"])
-        write_comparison_reports(root, groups, original, selected, observations, context, synteny, dna, blocks, protein, errors, args)
-        manifest.update(context_reference_proteins=len(proteins), context_evidence=dict(
-            provided=sum(r["evidence"] == "provided_gff3" for r in context),
-            inferred=sum(r["evidence"] in {"protein_supported_prediction", "ab_initio_prediction"} for r in context)))
+        if context_only:
+            from .review import save_context_review
+            return save_context_review(args, source, root, original, groups, selected, candidates, observations,
+                                       context, proteins, metadata, windows, runner, errors, manifest)
+        finish_comparison(args, source, root, original, groups, selected, candidates, observations,
+                          context, proteins, metadata, windows, runner, errors, manifest)
     except (OSError, ValueError, RuntimeError) as error:
         errors.append(dict(stage="comparison", error=str(error)))
         print(f"Comparison error: {error}", file=sys.stderr)

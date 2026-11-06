@@ -151,20 +151,59 @@ def parser():
     align.add_argument("--max-alignment-bases", type=positive, default=2000000)
     run = commands.add_parser("run", help="Search every input genome, extract models/context and align sequences")
     search_options(run)
-    analyze = commands.add_parser("analyze", help="Search genomes and build comparative locus/synteny/DNA/protein reports")
+    analyze = commands.add_parser("analyze", help="Automatic diagnostic search/comparison without manual stops")
     search_options(analyze, comparative=True)
     comparison_options(analyze)
-    compare = commands.add_parser("compare", help="Compare saved search loci without repeating genome searches")
+    compare = commands.add_parser("compare", help="Automatic diagnostic comparison of saved search loci")
     compare.add_argument("--results", required=True)
     compare.add_argument("--out", required=True)
     compare.add_argument("--threads", type=positive, default=4)
     compare.add_argument("--max-alignment-bases", type=positive, default=2000000)
     comparison_options(compare)
+    search = commands.add_parser("search", help="Stage 1: discover candidates and STOP for manual locus review")
+    search_options(search, comparative=True)
+    search.add_argument("--query-groups", help="Optional TSV grouping reference queries of one target")
+    review = commands.add_parser("review-search", help="Create STOP 1 from a saved search without searching genomes again")
+    review.add_argument("--results", required=True)
+    review.add_argument("--out", required=True)
+    review.add_argument("--query-groups")
+    contexts = commands.add_parser("contexts", help="Stage 2: inspect explicitly selected loci, predict genes, and STOP for CDS/neighbour review")
+    contexts.add_argument("--review", required=True, help="Stage 1 review directory")
+    contexts.add_argument("--search-results", help="Relocated source search; fingerprints must match the checkpoint")
+    contexts.add_argument("--decisions", required=True, help="Completed loci.decisions.tsv")
+    contexts.add_argument("--out", required=True)
+    contexts.add_argument("--threads", type=positive, default=4)
+    contexts.add_argument("--max-alignment-bases", type=positive, default=2000000)
+    comparison_options(contexts)
+    imported = commands.add_parser("review-contexts", help="Create STOP 2 from saved comparisons without repeating prediction")
+    imported.add_argument("--results", required=True, help="Existing comparison directory")
+    imported.add_argument("--search-results", help="Relocated source search; fingerprints must match")
+    imported.add_argument("--out", required=True)
+    reviewed = commands.add_parser("compare-reviewed", help="Stage 3: compare approved CDS/neighbours, reusing predictions")
+    reviewed.add_argument("--review", required=True, help="Stage 2 review directory")
+    reviewed.add_argument("--search-results", help="Relocated source search; preserves the checkpoint review ID")
+    reviewed.add_argument("--models", required=True, help="Completed models.decisions.tsv")
+    reviewed.add_argument("--neighbors", required=True, help="Completed neighbors.decisions.tsv")
+    reviewed.add_argument("--out", required=True)
+    reviewed.add_argument("--threads", type=positive, default=4)
+    reviewed.add_argument("--dna-engine", choices=["blastn", "lastz"])
+    reviewed.add_argument("--dna-min-block", type=positive)
+    reviewed.add_argument("--dna-min-identity", type=fraction)
+    reviewed.add_argument("--reference-genome")
+    reviewed.add_argument("--max-alignment-bases", type=positive)
     return parser
 
 
 def main(argv=None):
     args = parser().parse_args(argv)
+    if args.command in {"search", "review-search", "contexts", "compare-reviewed", "review-contexts"}:
+        from .review import search, review_search, contexts, compare_reviewed, review_contexts
+        function = {"search": search, "review-search": review_search, "contexts": contexts, "compare-reviewed": compare_reviewed, "review-contexts": review_contexts}[args.command]
+        try:
+            return function(args)
+        except (OSError, ValueError, RuntimeError, KeyError) as error:
+            print(f"ERROR: {error}", file=sys.stderr)
+            return 2
     if args.command == "doctor":
         versions = tool_versions(["samtools", "miniprot", "blastn", "blastp", "blastx", "tblastn", "makeblastdb", "mafft"] + (["augustus"] if args.predictor == "augustus" else []))
         if args.predictor == "tiberius":

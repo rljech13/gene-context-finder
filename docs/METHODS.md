@@ -1,5 +1,7 @@
 # Methods and file reference
 
+For the recommended workflow with manual locus/CDS/neighbour decisions, use [staged review](STAGED_WORKFLOW.md). The automatic commands described below bypass those review stops.
+
 Start with the [README](../README.md) for the usual workflow. This page describes search rules, alignment settings and output fields.
 
 ## Genome manifest and annotations

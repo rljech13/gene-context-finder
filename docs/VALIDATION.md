@@ -1,5 +1,7 @@
 # Validation of the generic sequence workflow
 
+The v0.5.0 staged workflow adds two mandatory manual-review gates. A 67-test full suite and the final 11-test review suite passed without skips (70 unique tests). Real-tool controls cover search → Tiberius prediction → reviewed comparison, DNA-only targets, rejection of pending/stale decisions, and relocation of matching evidence. A replay of the saved axolotl window confirms that selecting its 296-aa prediction replaces the 99-aa discovery fragment in the final protein export without rerunning prediction. This is a software control, not biological approval. See the [workflow guide](STAGED_WORKFLOW.md) and [machine-readable receipt](benchmarks/staged_review_v050_2026-11-06.json).
+
 The [full 18-assembly NANOG/POU5 run](VERTEBRATES18_VALIDATION.md) audits operational completion, DNA-only window predictions and selected-target identity separately. Its automatic selections include other homeobox/POU genes and incomplete models; the resulting alignments are not a confirmed-ortholog conservation dataset.
 
 The v0.4.2 prediction correction isolates each window in its own Tiberius worker and records requested/effective inference lengths. A real-model regression checks that adding a longer unrelated window does not change the existing prediction; see [prediction isolation](PREDICTION_ISOLATION.md). Prediction accuracy is assessed separately from sequence roundtrips and successful program execution.

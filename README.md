@@ -3,20 +3,18 @@
 Find candidate genes and their surroundings in a set of genomes using DNA or protein sequences.
 
 ```text
-Your query FASTA + genome FASTAs + optional matching GFF3 annotations
-                              ↓
-              TBLASTn discovery for protein/CDS; BLASTN for DNA
-                              ↓
-         Extract candidate loci and ±50 kb gene contexts
-                              ↓
-        Predict genes from the DNA of every context window
-                              ↓
-        Identify predicted proteins against a reference library
-                              ↓
-       Compare neighbours, genomic DNA and amino acids
-                              ↓
-                 One comparative report per target
+Query FASTA + genome FASTAs + optional matching GFF3
+                       ↓
+              1. Search all genomes
+              STOP: choose loci to inspect
+                       ↓
+       2. Extract ±50 kb, predict and identify genes
+              STOP: choose CDS models and neighbours
+                       ↓
+       3. Compare the reviewed DNA, CDS and proteins
 ```
+
+The recommended workflow has **two manual review stops**. Each stage writes a report and exits. Blank decisions never approve a candidate; changing a decision file does not automatically restart a process. See the [staged workflow](docs/STAGED_WORKFLOW.md).
 
 ## What to prepare
 
@@ -54,69 +52,68 @@ Add one row per assembly. Paths are relative to `genomes.tsv`, or absolute. Leav
 
 `tiberius_model` is optional: omitted entries use `--tiberius-model vertebrates`. Select `mammalia` explicitly for mammals. A separate `--prediction-models models.tsv` table can override models, including for saved searches; the [18-species example](examples/vertebrates18.models.tsv) matches the download manifest. No taxonomy is inferred from filenames.
 
-## 2. Analyze your genes
+## 2. Search, review, then compare
 
-A ready-to-use chicken Pou5f3 query is included: [protein FASTA](examples/queries/chicken_Pou5f3.protein.faa), with [CDS and provenance](examples/queries/README.md).
-
-Put one or more query proteins in `targets.faa`, then run:
+A chicken Pou5f3 [protein query](examples/queries/chicken_Pou5f3.protein.faa) is included, with [CDS and provenance](examples/queries/README.md). Put your query proteins in `targets.faa`.
 
 ```bash
-gene-context analyze --query targets.faa --query-type protein \
-  --genomes genomes.tsv --out results/analysis --threads 8
+gene-context search --query targets.faa --query-type protein \
+  --genomes genomes.tsv --out results/01_search --threads 8
 ```
 
-This searches every protein/CDS query with TBLASTn against all contigs, obtains matching coding models from GFF3 or dense local miniprot reconstruction, checks their integrity, and extracts each selected locus with **50 kb on either side**. It then predicts genes from each window's DNA with Tiberius on CPU, identifies their proteins, compares neighbours, and compares genomic DNA and target proteins. The prediction step runs for **every genome**, including genomes with GFF3. Use `--window` to change the context size. Add `--include-partial` to include clean incomplete target proteins; disrupted target models stay excluded.
+**Stop 1:** open `results/01_search/review/report.html`. Fill `loci.decisions.tsv`: inspect one or several candidate loci, exclude a pair, or leave it explicitly unresolved. Rankings remain suggestions.
 
-Each window is predicted independently, so adding a longer window does not change another locus's inference settings. Query reports distinguish the discovery target from Tiberius's own models and link their raw and native-coordinate GFF3 files. See [prediction isolation](docs/PREDICTION_ISOLATION.md).
+```bash
+gene-context contexts --review results/01_search/review \
+  --decisions results/01_search/review/loci.decisions.tsv \
+  --out results/02_contexts --threads 8
+```
 
-**Finding divergent genes:** local protein matches can cover only one conserved domain. These candidates are retained and marked `local_alignment`, rather than rejected by the old 50%-coverage mapping gate. New searches rank coding candidates by BLASTP bitscore normalized to the query self score; this is a display ranking, not an orthology assignment. `--protein-search miniprot` restores the faster whole-genome mapping route. See the [NANOG missed-hit diagnosis and correction](docs/NANOG_SEARCH_VALIDATION.md).
+This extracts the selected windows and predicts their genes with Tiberius on CPU, including genomes with GFF3. **Stop 2:** open `results/02_contexts/report.html`. Choose the actual target CDS in `models.decisions.tsv` and review the neighbours in `neighbors.decisions.tsv`. Source isoforms, prediction models, exon tracks and sequence exports are retained separately.
 
-**Biological validation:** the [full 18-assembly NANOG/POU5 audit](docs/VERTEBRATES18_VALIDATION.md) exposes other-family selections, POU5 naming/paralogy questions and incomplete models. Automatic alignments are diagnostic until target identity and the intended gene copy are reviewed.
+```bash
+gene-context compare-reviewed --review results/02_contexts \
+  --models results/02_contexts/models.decisions.tsv \
+  --neighbors results/02_contexts/neighbors.decisions.tsv \
+  --out results/03_comparison --threads 8
+```
 
-**Without GFF3:** the same DNA-only prediction step runs. Genes remain on the diagram even if their proteins cannot be identified. BLASTP names predicted proteins against Swiss-Prot (default), supplied `--context-proteins reference.faa`, and any usable proteins from the provided annotations. GFF3 supplies an independent comparison/reference track, without constraining prediction. Unnamed predictions can still match across genomes by their protein sequences. See [window prediction](docs/WINDOW_PREDICTION.md).
+The final command reuses the saved predictions. It compares only explicitly kept targets/neighbours and writes `results/03_comparison/report.html`: context maps, synteny, local genomic DNA blocks, protein alignments and codon-guided CDS alignments. Changing the chosen model changes the actual sequences used downstream.
 
-After setup, add `--offline` to require cached models/references and prevent downloads during analysis. Use `--context-reference none` to identify only against your local proteins; prediction still runs.
+Use `--query-type cds` for spliced coding DNA, or `--query-type dna` for genomic/noncoding regions. Use `--window` on `contexts` to change the default 50 kb flanks. After setup, `--offline` on `contexts` requires cached predictor/reference files. Paths and caches are explained in the [stage-by-stage instructions](docs/STAGED_WORKFLOW.md).
 
-For spliced coding DNA without introns or UTRs, use `--query-type cds`. For genomic/noncoding DNA, use `--query-type dna`; these matches can remain DNA regions when coding evidence is unavailable.
+## 3. Outputs to inspect
 
-Use a new or empty output directory for each run. Gzip genomes are decompressed inside that directory, which also holds search indexes; allow additional disk space beyond the compressed downloads.
-
-## 3. Open the results
-
-Start with `results/analysis/report.html`, then open a target's page for its **synteny diagram, DNA blocks and protein comparison**.
-
-| File or folder | What it contains |
+| Output | Purpose |
 |---|---|
-| `search/` | Every search candidate, extracted CDS/proteins/flanks and original evidence |
-| `comparison/summary.tsv` | Outcome for every genome/target group |
-| `comparison/candidates.tsv` | All loci, isoforms, ranks and the displayed representative |
-| `comparison/loci.tsv`, `comparison/windows/` | Selected coordinates and actual context DNA |
-| `comparison/neighbors.tsv`, `comparison/synteny.tsv` | Neighbour homology groups, order and orientation |
-| `comparison/context_predictions/`, `comparison/context_predictions.tsv` | Native-coordinate predicted genes, including unnamed models |
-| `comparison/context_prediction_cds.fna`, `comparison/context_prediction_proteins.faa` | CDS/proteins from window predictions |
-| `comparison/provided_neighbors.tsv` | Independent neighbours from supplied GFF3 |
-| `comparison/context_reference.json` | Identification source, pinned database release and checksums |
-| `comparison/dna_pairs.tsv`, `comparison/dna_categories.tsv` | DNA identity and aligned coverage, including region-specific results |
-| `comparison/queries/` | Target pages, SVG diagrams, protein/codon alignments and comparison tables |
-| `comparison/manifest.json` | Input/window hashes, parameters, versions, commands and errors |
+| `01_search/search/` | All search candidates, extracted sequences and original evidence |
+| `01_search/review/report.html`, `loci.decisions.tsv` | First review: which loci advance |
+| `02_contexts/report.html`, `model_options.tsv` | CDS options, exon tracks and provisional surroundings |
+| `02_contexts/models.decisions.tsv`, `neighbors.decisions.tsv` | Second review: selected CDS and neighbours |
+| `03_comparison/report.html` | Comparative reports for reviewed targets |
+| `03_comparison/reviewed_targets.tsv`, `reviewed_targets.gff3` | Exact chosen models and actual flank lengths |
+| `03_comparison/reviewed_target_cds.fna`, `reviewed_target_proteins.faa` | Sequences actually used for comparison |
+| `03_comparison/approved_models.tsv`, `approved_neighbors.tsv` | Decision snapshots |
+| Each stage's `manifest.json` | State, provenance, fingerprints and errors |
 
-Queries become `q0001`, `q0002`, etc., in FASTA order. Use an optional query-group TSV to combine several references of one gene. Multiple candidate loci remain visible; the displayed representative is ranked by sequence evidence, with coding integrity breaking ties. Neighbour families are provisional protein-homology groups, not proven orthology assignments.
+Each stage needs a new/empty output directory. Evidence is sealed; edit the decision TSVs, not the saved models/windows. Partial models and shortened flanks require explicit acknowledgement in the decisions. Human selection records a review decision and does not independently prove orthology.
 
-## Reuse an existing search
-
-Build the comparative report without searching the genomes again:
+## Reuse existing work
 
 ```bash
-gene-context compare --results results/search --out results/comparison --threads 8 \
-  --prediction-models examples/vertebrates18.models.tsv
+gene-context review-search --results previous/search --out results/01_review
+gene-context review-contexts --results previous/comparison --out results/02_review
 ```
 
-`analyze` combines search and comparison. The existing `run` and `align` commands remain available for search/extraction or ordinary multiple alignments. See [comparative analysis](docs/COMPARATIVE_ANALYSIS.md) for grouping, manual locus selection, DNA engines and interpretation.
+These generate review checkpoints without repeating search or prediction. Imported automatic selections remain unapproved. See [reuse and decision formats](docs/STAGED_WORKFLOW.md).
 
-The v0.2 annotation-first context workflow is still available explicitly with `--context-mode annotation`.
+The existing `analyze` and `compare` commands still provide uninterrupted diagnostic runs and bypass manual review stops. `run` and `align` remain available for extraction/ordinary multiple alignments. See [automatic comparison](docs/COMPARATIVE_ANALYSIS.md).
+
+**Validation:** the [18-assembly NANOG/POU5 audit](docs/VERTEBRATES18_VALIDATION.md) exposed other-family selections, copy ambiguity and incomplete models. This is why explicit review precedes comparative interpretation. The staged workflow adds review gates; automatic family/copy classification remains future work.
 
 ## More detail
 
+- [Manual stages, decision formats and resuming](docs/STAGED_WORKFLOW.md)
 - [Setup, local inputs and optional downloads](docs/SETUP_AND_DOWNLOAD.md)
 - [Comparative analysis and report interpretation](docs/COMPARATIVE_ANALYSIS.md)
 - [Search methods, options and file reference](docs/METHODS.md)

@@ -12,7 +12,7 @@ from .sequence import read_fasta, translate, write_fasta, write_tsv
 PAIR_COLUMNS = ["sequence_a", "sequence_b", "paired_positions", "identical_positions", "identity", "coverage_a", "coverage_b"]
 
 
-def protein_comparison(args, source, root, groups, queries, selected, runner, errors):
+def protein_comparison(args, source, root, groups, queries, selected, runner, errors, sequence_overrides=None):
     summaries = []
     query_by_id = {q["id"]: q for q in queries}
     for group in groups:
@@ -25,8 +25,12 @@ def protein_comparison(args, source, root, groups, queries, selected, runner, er
                 continue
             try:
                 pid = row["model_id"]
-                proteins[row["locus_id"]] = read_fasta(source / "sequences" / row["query"] / "protein.faa")[pid]
-                cds = read_fasta(source / "sequences" / row["query"] / "cds.fna")[pid]
+                override = (sequence_overrides or {}).get(row["locus_id"])
+                if override is not None:
+                    proteins[row["locus_id"]], cds = override["protein"], override["cds"]
+                else:
+                    proteins[row["locus_id"]] = read_fasta(source / "sequences" / row["query"] / "protein.faa")[pid]
+                    cds = read_fasta(source / "sequences" / row["query"] / "cds.fna")[pid]
                 coding[row["locus_id"]] = cds[:-3] if translate(cds).endswith("*") else cds
             except (OSError, ValueError, KeyError) as error:
                 errors.append(dict(stage="protein_input", locus_id=row["locus_id"], error=str(error)))
