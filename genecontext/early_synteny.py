@@ -536,7 +536,10 @@ def run_early_synteny(data, *, genomes_manifest, source_genomes_manifest=None,
     enriched into a NEW checkpoint without another target-discovery run.
     """
     started=time.perf_counter();out=Path(out_dir);out.mkdir(parents=True,exist_ok=False)
-    cache=Path(cache_dir).resolve();cache.mkdir(parents=True,exist_ok=True)
+    cache=Path(cache_dir).resolve()
+    if cache==out.resolve() or cache in out.resolve().parents or out.resolve() in cache.parents:
+        raise ValueError('Cache and evidence output must be separate directories')
+    cache.mkdir(parents=True,exist_ok=True)
     cfg=dict(neighbors=5,max_neighbors=20,max_distance=1000000,min_coverage=.5,min_identity=.3,competing_ratio=.95,evalue=1e-5)
     cfg.update(config or {})
     if not (0<cfg['neighbors']<=cfg['max_neighbors'] and cfg['max_distance']>0):
@@ -598,7 +601,7 @@ def run_early_synteny(data, *, genomes_manifest, source_genomes_manifest=None,
             protein_sequences={header.split()[0]:seq for header,seq in fasta_records(Path(cat['cache'])/'proteins.faa') if header.split()[0] in required}
             for neighbor in context['neighbors']:
                 pid=neighbor['protein_id']
-                neighbor['panel_protein_id']='P'+token([cat['key'],pid])[:24] if pid else ''
+                neighbor['panel_protein_id']='P'+hashlib.sha256(protein_sequences[pid].encode()).hexdigest()[:24] if pid else ''
                 if pid:
                     panel[neighbor['panel_protein_id']]=protein_sequences[pid]
             ref.update(neighbors=context['neighbors'],limits=context['limits'],window_start=context['window_start'],window_end=context['window_end'])
