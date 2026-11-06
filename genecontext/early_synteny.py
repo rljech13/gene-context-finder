@@ -445,6 +445,7 @@ def resolve_origins(queries, sources):
                 if member.get('gene_id'):
                     hinted=set(cat['ncbi_gene_ids'].get(str(member['gene_id']),[]))
                     linked |= hinted & same
+                    stale |= hinted-same
                 strong.extend((cat['genome_id'],gid) for gid in linked)
                 identical.extend((cat['genome_id'],gid) for gid in same)
                 mismatches.extend((cat['genome_id'],gid) for gid in stale-linked)
@@ -454,7 +455,8 @@ def resolve_origins(queries, sources):
                     'exact_sequence_only' if selected else
                     'identifier_sequence_mismatch' if mismatches else 'source_locus_unresolved')
             mapping.append(dict(query_id=query['id'],query=member['query'],status=status,
-                                sources=[dict(genome_id=g,gene_id=gid) for g,gid in selected]))
+                                sources=[dict(genome_id=g,gene_id=gid) for g,gid in selected],
+                                mismatching_sources=[dict(genome_id=g,gene_id=gid) for g,gid in sorted(set(mismatches))]))
             records.extend(dict(genome_id=g,gene_id=gid,query_id=query['id'],query=member['query'],resolution=status) for g,gid in selected)
     grouped={}
     for r in records:
