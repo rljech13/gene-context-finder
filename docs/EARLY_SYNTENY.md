@@ -16,7 +16,7 @@ Protein queries and translated spliced CDS queries are supported. An unspliced D
 
 ## Automatic preparation
 
-1. Parse each supplied GFF3 once into distinct gene positions and parented CDS models.
+1. Parse each supplied GFF3 once into distinct gene positions and parented CDS models. Alignment-evidence rows (`cDNA_match`, `match_part` and related match types) are ignored; their legal multipart IDs are not interpreted as duplicated gene/transcript identifiers. Duplicate annotation gene/transcript IDs remain errors.
 2. Map an available protein FASTA or spliced CDS FASTA to exact GFF3 accessions. NCBI CDS headers are additionally checked against contig, GeneID and native CDS intervals when available: the same protein accession can occur on primary/alternate loci. Unresolved contradictory CDS sequences quarantine only the affected transcript in `unavailable_products.json`; they do not abort an otherwise usable proteome or select an arbitrary sequence. CDS translation uses the standard nuclear code; explicitly different translation tables are excluded. If neither is supplied, derive proteins from GFF3 CDS and the source genomic FASTA using the existing coding-sequence checks.
 3. Keep all usable products for source resolution, and one longest usable product per gene for the full target search catalogue. Missing/unusable proteins remain visible as incomplete evidence.
 4. Export every usable product as `all_products.faa`, searching identical sequences once, with a binding row for every transcript/gene in `products.jsonl` and `products.tsv`. Protein-first discovery must use these files, not the longest-product catalogue. Missing/unusable models are listed in `unavailable_products.json`.

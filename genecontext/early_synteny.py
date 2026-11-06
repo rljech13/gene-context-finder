@@ -106,6 +106,11 @@ def parse_annotation(path):
             start, end = int(start)-1, int(end)
             if not 0 <= start < end:
                 raise ValueError('Invalid GFF3 coordinates')
+            # Alignment evidence may reuse one ID across separate match blocks.
+            # These rows are not annotation gene/transcript/CDS parent nodes.
+            if kind in {'match', 'match_part', 'cDNA_match', 'EST_match',
+                        'nucleotide_match', 'protein_match', 'translated_nucleotide_match'}:
+                continue
             attrs = attributes(raw); fid = attrs.get('ID', '')
             if fid:
                 if fid in meta and kind not in {'CDS', 'exon', 'stop_codon'}:
