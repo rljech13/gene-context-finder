@@ -4,7 +4,7 @@ The early-synteny backend prepares annotation-supported context evidence from th
 
 ## Inputs
 
-A dataset TSV uses `genome_id`, `fasta`, and optional `gff3`, `protein`, `cds`, `species`, `assembly_accession`. Paths are relative to that TSV. An explicit source-dataset TSV can add reference assemblies absent from the study panel; otherwise supplied study datasets also serve as possible sources. A source/target row with the same genome ID may fill missing fields of the other row, but conflicting nonempty paths are rejected.
+A dataset TSV uses `genome_id`, `fasta`, and optional `gff3`, `protein`, `cds`, `species`, `assembly_accession`, `annotation_provenance`. Paths are relative to that TSV. An explicit source-dataset TSV can add reference assemblies absent from the study panel; otherwise supplied study datasets also serve as possible sources. A source/target row with the same genome ID may fill missing fields of the other row, but conflicting nonempty paths are rejected.
 
 When explicit annotation/protein/CDS paths are absent, only exact NCBI sibling names (`*_genomic.gff[.gz]`, `*_protein.faa[.gz]`, `*_cds_from_genomic.fna[.gz]`) are discovered. Other annotation releases are not searched recursively or downloaded. Missing annotation is reported as `annotation_unavailable` and is never interpreted as absence of the target gene.
 
@@ -28,6 +28,8 @@ Order is evaluated in each target gene's transcriptional orientation. Matched up
 ## Cache and provenance
 
 The caller supplies a writable cache outside the checkpoint (on `/mnt/data` for host2). GFF3, FASTA and supplied protein/CDS content hashes, backend source hash, tool versions and matching parameters identify reusable artefacts. OS-released file locks protect concurrent writers. New entries are published atomically; reuse checks their recorded output hashes. Input byte counts/mtime are checked for changes during construction. Annotation protein databases are cached independently of a particular query panel.
+
+An optional `annotation_provenance` JSON sidecar can record a compact annotation snapshot. Its genome ID and snapshot SHA256 must match the actual GFF, and its original source SHA256 must match the recorded expected fingerprint. That derivation is embedded in the dataset receipt. Compact pilot snapshots preserve sequence-region directives and all gene/mRNA/CDS/stop-codon coordinates, phases and parent/accession fields; descriptive and exon/UTR rows may be omitted.
 
 Exact input hashing still requires input reads. Cache reuse avoids GFF parsing, protein extraction, database construction and repeated alignment, but is not claimed to eliminate all disk I/O.
 

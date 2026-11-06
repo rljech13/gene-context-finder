@@ -58,7 +58,7 @@ def datasets(manifest):
             row = dict(source)
             if not row.get('genome_id') or not row.get('fasta'):
                 raise ValueError('Dataset requires a nonempty genome_id and fasta')
-            for key in ['fasta', 'gff3', 'protein', 'cds']:
+            for key in ['fasta', 'gff3', 'protein', 'cds', 'annotation_provenance']:
                 row[key] = str((manifest.parent/row[key]).resolve()) if row.get(key) else ''
             # Only exact NCBI sibling names are discovered; no recursive folder
             # guessing and no mixing annotation releases from other directories.
@@ -210,7 +210,7 @@ def seal_cache(path, identity):
 def build_catalog(row, cache_base, runner, known_fasta_digest=None):
     t0 = time.perf_counter()
     gff, fasta = Path(row['gff3']), Path(row['fasta'])
-    input_paths=[gff, fasta]+[Path(row[k]) for k in ['protein','cds'] if row.get(k)]
+    input_paths=[gff, fasta]+[Path(row[k]) for k in ['protein','cds','annotation_provenance'] if row.get(k)]
     initial_stats={str(p):(p.stat().st_size,p.stat().st_mtime_ns) for p in input_paths}
     inputs = {'gff3': dict(path=str(gff), sha256=sha256(gff)),
               'fasta': dict(path=str(fasta), sha256=known_fasta_digest or sha256(fasta))}
@@ -218,6 +218,15 @@ def build_catalog(row, cache_base, runner, known_fasta_digest=None):
         inputs['protein'] = dict(path=row['protein'], sha256=sha256(row['protein']))
     if row.get('cds'):
         inputs['cds'] = dict(path=row['cds'], sha256=sha256(row['cds']))
+    if row.get('annotation_provenance'):
+        provenance_path=Path(row['annotation_provenance'])
+        provenance=json.loads(provenance_path.read_text())
+        if provenance.get('genome_id')!=row['genome_id'] or provenance.get('snapshot_sha256')!=inputs['gff3']['sha256']:
+            raise ValueError('Annotation snapshot provenance does not match this dataset')
+        if provenance.get('source_sha256')!=provenance.get('expected_sha256') or not provenance.get('source_sha256'):
+            raise ValueError('Original annotation fingerprint is not verified')
+        inputs['annotation_provenance']=dict(path=str(provenance_path),sha256=sha256(provenance_path))
+        inputs['gff3']['derivation']=provenance
     identity = dict(schema=SCHEMA, implementation_sha256=sha256(Path(__file__)), inputs={k:v['sha256'] for k,v in inputs.items()})
     key = token(identity); destination = cache_base/'catalogs'/key
     with cache_lock(destination.with_suffix('.lock')):
@@ -262,7 +271,7 @@ def build_catalog(row, cache_base, runner, known_fasta_digest=None):
             genome = None
             # A supplied proteome is mapped by exact annotation accession. Its
             # unmapped transcripts remain explicit, rather than using names.
-            if not (row.get('protein') or row.get('cds')) and models:
+            if models and (not (row.get('protein') or row.get('cds')) or any(g['contig'] not in regions for g in genes.values())):
                 genome = Genome(fasta, tmp/'genome', runner)
             try:
                 if genome:
@@ -545,7 +554,7 @@ def run_early_synteny(data, *, genomes_manifest, source_genomes_manifest=None,
     for r in target_rows+source_rows:
         gid=r['genome_id']
         if gid in all_rows:
-            if any(r[k] and all_rows[gid][k] and r[k]!=all_rows[gid][k] for k in ['fasta','gff3','protein','cds']):
+            if any(r[k] and all_rows[gid][k] and r[k]!=all_rows[gid][k] for k in ['fasta','gff3','protein','cds','annotation_provenance']):
                 raise ValueError('Same genome_id refers to conflicting source/target datasets: '+gid)
             all_rows[gid].update({k:v for k,v in r.items() if v})
         else:
