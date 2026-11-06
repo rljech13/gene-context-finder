@@ -4,7 +4,7 @@ The early-synteny backend prepares annotation-supported context evidence from th
 
 ## Inputs
 
-A dataset TSV uses `genome_id`, `fasta`, and optional `gff3`, `protein`, `cds`, `species`, `assembly_accession`, `annotation_provenance`. Paths are relative to that TSV. An explicit source-dataset TSV can add reference assemblies absent from the study panel; otherwise supplied study datasets also serve as possible sources. A source/target row with the same genome ID may fill missing fields of the other row, but conflicting nonempty paths are rejected.
+A dataset TSV uses `genome_id` and optional `gff3`, `protein`, `cds`, `species`, `assembly_accession`, `annotation_provenance`. Paths are relative to that TSV. Supply GFF3 plus protein/CDS FASTA, or GFF3 plus genomic `fasta` for protein derivation. With supplied protein/CDS and GFF sequence-region lengths, the genomic FASTA is neither required nor read/hashed; it can still be downloading. Missing contig lengths remain explicit. An explicit source-dataset TSV can add reference assemblies absent from the study panel; otherwise supplied study datasets also serve as possible sources. A source/target row with the same genome ID may fill missing fields of the other row, but conflicting nonempty paths are rejected.
 
 When explicit annotation/protein/CDS paths are absent, only exact NCBI sibling names (`*_genomic.gff[.gz]`, `*_protein.faa[.gz]`, `*_cds_from_genomic.fna[.gz]`) are discovered. Other annotation releases are not searched recursively or downloaded. Missing annotation is reported as `annotation_unavailable` and is never interpreted as absence of the target gene.
 
@@ -17,9 +17,10 @@ Protein queries and translated spliced CDS queries are supported. An unspliced D
 1. Parse each supplied GFF3 once into distinct gene positions and parented CDS models.
 2. Map an available protein FASTA or spliced CDS FASTA to exact GFF3 accessions. CDS translation uses the standard nuclear code; explicitly different translation tables are excluded. If neither is supplied, derive proteins from GFF3 CDS and the source genomic FASTA using the existing coding-sequence checks.
 3. Keep all usable products for source resolution, and one longest usable product per gene for the full target search catalogue. Missing/unusable proteins remain visible as incomplete evidence.
-4. Retrieve five coding neighbours per genomic side, excluding genes overlapping the target interval and other resolved source target genes. Do not count isoforms as independent neighbours.
-5. Reserve neighbours up to twenty per side within a one-megabase extent, and search their unique proteins in one BLASTP panel against each complete available target catalogue. No target-gene BLASTP, target MSA, genome-wide neighbour TBLASTn, or Tiberius is run here.
-6. Reuse the resulting protein correspondences for every candidate locus. Expand annotation lookups from five to ten/twenty when a two-sided ordered context has not been found; this does not rerun BLAST.
+4. Export every usable product as `all_products.faa`, searching identical sequences once, with a binding row for every transcript/gene in `products.jsonl` and `products.tsv`. Protein-first discovery must use these files, not the longest-product catalogue. Missing/unusable models are listed in `unavailable_products.json`.
+5. Retrieve five coding neighbours per genomic side, excluding genes overlapping the target interval and other resolved source target genes. Do not count isoforms as independent neighbours.
+6. Reserve neighbours up to twenty per side within a one-megabase extent, and search their unique proteins in one BLASTP panel against each complete available target catalogue. No target-gene BLASTP, target MSA, genome-wide neighbour TBLASTn, or Tiberius is run here.
+7. Reuse the resulting protein correspondences for every candidate locus. Expand annotation lookups from five to ten/twenty when a two-sided ordered context has not been found; this does not rerun BLAST.
 
 BLASTP runs against the full available protein catalogue, not just candidate-window proteins. Default preliminary-match gates are 50% coverage of each protein and 30% identity. All passing hits are examined; hits scoring within 95% of the global best remain ambiguous. Several source genes matching one target gene are excluded from independent-anchor counts. These settings are inspection aids, not an orthology classifier or universal biological thresholds.
 
@@ -71,3 +72,9 @@ Each reference retains `reference_id`, source genome/gene IDs, original query al
 Each locus retains the original `genome_id` and `locus_id`, `status`, requested/used neighbour count, actual window, `neighbors`, `comparisons`, limits and flags. Comparisons contain `reference_id`, `shared_anchors`, `left_anchors`, `right_anchors`, `order_concordance`, `orientation_concordance`, `matches`, `ambiguous_matches`, `colliding_matches`, and flags. A match contains source/target gene IDs and names, sides, starts, relative strands, protein IDs, bit score, E-value, identity and both coverages.
 
 Locus statuses include `two_sided_context_support`, `one_sided_context_support`, `order_or_orientation_differs`, `insufficient_anchors`, `source_locus_unresolved`, `annotation_unavailable`, `annotation_contig_missing`, `annotation_contig_length_mismatch`, `protein_matching_unavailable`, and `dataset_error`. Match support is always preliminary protein-homology context evidence, not established orthology.
+
+## All-product catalogue API for protein-first discovery
+
+`build_catalog(row, cache_base, runner, known_fasta_digest=None)` returns `all_products_fasta`, `products_tsv`, `products_jsonl`, `all_product_models`, `unique_product_sequences`, `unavailable_product_models`, `cache`, `key`, `genes`, `contigs`, `inputs`, and preparation/reuse metadata. `iter_products(catalog)` streams binding records. Existing `proteins.faa` retains one longest usable product per gene solely for neighbour matching.
+
+Each product binding has `search_id`, `sequence_sha256`, `protein_ids` (original accessions), `model_id`, `transcript_ids`, `gene_id`, `ncbi_gene_id`, `gene_name`, `contig`, `gene_start`, `gene_end`, CDS `start`/`end`, `strand`, `protein_aa`, native `cds` blocks with phase, `stop_codons`, `origin`, annotation `exception`, and `aliases`. Coordinates are zero-based half-open. Several products/genes can share a search ID when the complete product sequences are identical; no binding is removed. Protein BLAST coordinates remain amino-acid coordinates and must not be presented as genomic alignments.

@@ -49,20 +49,20 @@ def datasets(manifest):
     manifest = Path(manifest).resolve()
     with manifest.open() as handle:
         reader = csv.DictReader(handle, delimiter='\t')
-        if not {'genome_id', 'fasta'} <= set(reader.fieldnames or []):
-            raise ValueError('Dataset TSV requires genome_id and fasta')
+        if 'genome_id' not in (reader.fieldnames or []):
+            raise ValueError('Dataset TSV requires genome_id')
         rows = []
         for source in reader:
             if not any(source.values()):
                 continue
             row = dict(source)
-            if not row.get('genome_id') or not row.get('fasta'):
-                raise ValueError('Dataset requires a nonempty genome_id and fasta')
+            if not row.get('genome_id'):
+                raise ValueError('Dataset requires a nonempty genome_id')
             for key in ['fasta', 'gff3', 'protein', 'cds', 'annotation_provenance']:
                 row[key] = str((manifest.parent/row[key]).resolve()) if row.get(key) else ''
             # Only exact NCBI sibling names are discovered; no recursive folder
             # guessing and no mixing annotation releases from other directories.
-            if not row['gff3']:
+            if not row['gff3'] and row['fasta']:
                 fasta = Path(row['fasta'])
                 prefix = re.sub(r'_genomic\.(?:fna|fa|fasta)(?:\.gz)?$', '', fasta.name)
                 if prefix != fasta.name:
@@ -154,7 +154,9 @@ def parse_annotation(path):
             raise ValueError('CDS outside parent gene: '+mid)
         model.gene = parent; model.attrs = attrs
         gene['models'].append(mid)
-        retained[mid] = dict(model=model, aliases=sorted(set([mid, mid.removeprefix('rna-'), attrs.get('transcript_id', ''), attrs.get('protein_id', '')]) | protein_ids[mid]))
+        retained[mid] = dict(model=model,
+            protein_ids=sorted(protein_ids[mid] | ({attrs['protein_id']} if attrs.get('protein_id') else set())),
+            aliases=sorted(set([mid, mid.removeprefix('rna-'), attrs.get('transcript_id', ''), attrs.get('protein_id', '')]) | protein_ids[mid]))
     for gene in genes.values():
         gene['coding'] = bool(gene['models'])
     return genes, retained, regions
@@ -209,11 +211,16 @@ def seal_cache(path, identity):
 
 def build_catalog(row, cache_base, runner, known_fasta_digest=None):
     t0 = time.perf_counter()
-    gff, fasta = Path(row['gff3']), Path(row['fasta'])
-    input_paths=[gff, fasta]+[Path(row[k]) for k in ['protein','cds','annotation_provenance'] if row.get(k)]
+    gff = Path(row['gff3'])
+    use_genome=not (row.get('protein') or row.get('cds'))
+    fasta=Path(row['fasta']) if row.get('fasta') else None
+    if use_genome and (fasta is None or not fasta.is_file()):
+        raise ValueError('Need supplied protein/CDS FASTA or a genomic FASTA to derive products')
+    input_paths=[gff]+([fasta] if use_genome else [])+[Path(row[k]) for k in ['protein','cds','annotation_provenance'] if row.get(k)]
     initial_stats={str(p):(p.stat().st_size,p.stat().st_mtime_ns) for p in input_paths}
-    inputs = {'gff3': dict(path=str(gff), sha256=sha256(gff)),
-              'fasta': dict(path=str(fasta), sha256=known_fasta_digest or sha256(fasta))}
+    inputs = {'gff3': dict(path=str(gff), sha256=sha256(gff))}
+    if use_genome:
+        inputs['fasta']=dict(path=str(fasta),sha256=known_fasta_digest or sha256(fasta))
     if row.get('protein'):
         inputs['protein'] = dict(path=row['protein'], sha256=sha256(row['protein']))
     if row.get('cds'):
@@ -234,6 +241,7 @@ def build_catalog(row, cache_base, runner, known_fasta_digest=None):
         if not reused:
             tmp = Path(tempfile.mkdtemp(prefix=key+'.building-', dir=destination.parent))
             genes, models, regions = parse_annotation(gff)
+            unavailable_products=[]
             aliases = defaultdict(set); sequences = defaultdict(list)
             for mid, item in models.items():
                 for alias in item['aliases']:
@@ -271,7 +279,7 @@ def build_catalog(row, cache_base, runner, known_fasta_digest=None):
             genome = None
             # A supplied proteome is mapped by exact annotation accession. Its
             # unmapped transcripts remain explicit, rather than using names.
-            if models and (not (row.get('protein') or row.get('cds')) or any(g['contig'] not in regions for g in genes.values())):
+            if models and use_genome:
                 genome = Genome(fasta, tmp/'genome', runner)
             try:
                 if genome:
@@ -286,16 +294,32 @@ def build_catalog(row, cache_base, runner, known_fasta_digest=None):
                     else:
                         _, seq, status, issues = coding_sequence(model, genome)
                     if not seq or '*' in seq or not set(seq) <= AA or status == 'disrupted':
+                        unavailable_products.append(dict(model_id=mid,gene_id=model.gene,reason=status if status=='disrupted' else 'no_usable_sequence',aliases=item['aliases']))
                         continue
                     sequences[model.gene].append(dict(sequence=seq, model_id=mid, aliases=item['aliases'], status=status))
             finally:
                 if genome:
                     genome.close()
             records, sequence_map, alias_map, geneids = [], defaultdict(list), defaultdict(list), defaultdict(list)
+            all_sequences={};product_count=0
+            product_fields=['search_id','sequence_sha256','protein_ids','model_id','transcript_ids','gene_id','ncbi_gene_id','gene_name','contig','gene_start','gene_end','start','end','strand','protein_aa','cds','stop_codons','origin','exception','aliases']
+            jsonl=(tmp/'products.jsonl').open('w');tsv=(tmp/'products.tsv').open('w',newline='')
+            product_writer=csv.DictWriter(tsv,product_fields,delimiter='\t');product_writer.writeheader()
             for gid, gene in genes.items():
                 gene['protein_id'] = ''; gene['protein_length'] = 0
                 for product in sequences[gid]:
                     digest = hashlib.sha256(product['sequence'].encode()).hexdigest()
+                    sid='A'+digest[:24];all_sequences[sid]=product['sequence']
+                    item=models[product['model_id']];model=item['model']
+                    transcript_ids=sorted({a for a in product['aliases'] if re.fullmatch(r'[NXY][MR]_\d+\.\d+',a)})
+                    record=dict(search_id=sid,sequence_sha256=digest,protein_ids=item['protein_ids'],model_id=product['model_id'],
+                        transcript_ids=transcript_ids,gene_id=gid,ncbi_gene_id=gene['ncbi_gene_id'],gene_name=gene['name'],
+                        contig=gene['contig'],gene_start=gene['start'],gene_end=gene['end'],start=model.start,end=model.end,strand=model.strand,
+                        protein_aa=len(product['sequence']),cds=sorted(model.cds),stop_codons=sorted(model.stops),origin=product['status'],
+                        exception=model.attrs.get('exception',''),aliases=product['aliases'])
+                    jsonl.write(json.dumps(record,separators=(',',':'))+'\n')
+                    product_writer.writerow({k:json.dumps(v,separators=(',',':')) if isinstance(v,(list,dict)) else v for k,v in record.items()})
+                    product_count+=1
                     sequence_map[digest].append(gid)
                     for alias in product['aliases']:
                         if alias:
@@ -307,11 +331,16 @@ def build_catalog(row, cache_base, runner, known_fasta_digest=None):
                     pid = 'G'+token(gid)[:24]
                     gene.update(protein_id=pid, protein_length=len(best['sequence']), protein_origin=best['status'])
                     records.append((pid, best['sequence']))
+            jsonl.close();tsv.close()
             write_fasta(tmp/'proteins.faa', sorted(records))
+            write_fasta(tmp/'all_products.faa',sorted(all_sequences.items()))
+            save(tmp/'unavailable_products.json',unavailable_products)
             payload = dict(genes=list(genes.values()), aliases=dict(alias_map),
                 sequence_genes={k:sorted(set(v)) for k,v in sequence_map.items()}, ncbi_gene_ids=dict(geneids),
                 contigs=regions, annotation_genes=len(genes), coding_genes=sum(g['coding'] for g in genes.values()),
-                protein_genes=len(records), inputs=inputs)
+                protein_genes=len(records),all_product_models=product_count,unique_product_sequences=len(all_sequences),
+                unavailable_product_models=len(unavailable_products),inputs=inputs,
+                fasta_read=use_genome,contig_lengths_available=len(regions))
             save(tmp/'catalog.json', payload)
             # Genome copies/indexes are scratch data, not a persistent proteome.
             if (tmp/'genome').exists():
@@ -326,7 +355,21 @@ def build_catalog(row, cache_base, runner, known_fasta_digest=None):
     payload = json.loads((destination/'catalog.json').read_text())
     return dict(payload, cache=str(destination), key=key, genome_id=row['genome_id'],
                 species=row.get('species',''), assembly=row.get('assembly_accession',''),
-                inputs=inputs, cache_reused=reused, elapsed_seconds=time.perf_counter()-t0)
+                inputs=inputs, cache_reused=reused, elapsed_seconds=time.perf_counter()-t0,
+                all_products_fasta=str(destination/'all_products.faa'),products_tsv=str(destination/'products.tsv'),
+                products_jsonl=str(destination/'products.jsonl'))
+
+
+def iter_products(catalog):
+    """Stream every usable annotated product and binding, without loading an MSA.
+
+    Several rows may share search_id: identical proteins are searched once but
+    every transcript/gene/coordinate association remains a separate record.
+    """
+    with Path(catalog['products_jsonl']).open() as handle:
+        for line in handle:
+            if line.strip():
+                yield json.loads(line)
 
 
 class GeneIndex:
@@ -575,7 +618,14 @@ def run_early_synteny(data, *, genomes_manifest, source_genomes_manifest=None,
                 else:
                     print('[early synteny] prepare '+gid,flush=True)
                     old=known.get(gid,{})
-                    digest=old.get('fasta_sha256') if row['fasta']==old.get('fasta') else None
+                    digest=None
+                    if old.get('fasta_sha256') and not (row.get('protein') or row.get('cds')):
+                        stat=Path(row['fasta']).stat()
+                        same_unchanged=(row['fasta']==old.get('fasta') and
+                            stat.st_size==old.get('fasta_bytes') and stat.st_mtime_ns==old.get('fasta_mtime_ns'))
+                        digest=old['fasta_sha256'] if same_unchanged else sha256(row['fasta'])
+                        if digest!=old['fasta_sha256']:
+                            raise ValueError('Target FASTA differs from the saved discovery input')
                     cat=build_catalog(row,cache,runner,digest)
                     catalogs[gid]=cat;indexes[gid]=GeneIndex(cat)
                     receipt.update(status='ready' if cat['protein_genes'] else 'protein_catalog_empty',
