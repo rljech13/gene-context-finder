@@ -197,11 +197,49 @@ def parser():
     check.add_argument("--reference-labels", help="Optional complete TSV: reference, family; exact reference FASTA IDs")
     check.add_argument("--out", required=True, help="Separate new/empty directory")
     check.add_argument("--threads", type=positive, default=4)
+    loci = commands.add_parser("stage1", help="Locus-first pilot: BLAST one gene's reference variants against every genome, then STOP")
+    loci.add_argument("--gene", required=True, help="One target/search-group label, e.g. POU5")
+    loci.add_argument("--query", required=True)
+    loci.add_argument("--query-type", required=True, choices=["protein", "cds", "dna"])
+    loci.add_argument("--query-metadata", help="Complete TSV: query, species, optional group/gene_symbol/transcript")
+    loci.add_argument("--genomes", required=True, help="TSV: genome_id, fasta, optional gff3; GFF3 is not needed at this stage")
+    loci.set_defaults(genome_dir=None)
+    loci.add_argument("--out", required=True)
+    loci.add_argument("--threads", type=positive, default=4)
+    loci.add_argument("--search-evalue", type=float, default=1e-3, help="BLAST retrieval ceiling; weaker matches cannot be recovered by refiltering")
+    loci.add_argument("--seed-min-length", type=positive, default=20, help="Minimum HSP alignment length: aa for protein/CDS, nt for DNA")
+    loci.add_argument("--seed-min-identity", type=fraction, default=0.20)
+    loci.add_argument("--max-intron", type=positive, default=200000)
+    loci.add_argument("--chain-max-overlap", type=fraction, default=0.15)
+    loci.add_argument("--max-locus-span", type=positive, default=2000000)
+    loci.add_argument("--locus-shared-fraction", type=fraction, default=0.5, help="Shared aligned genomic bases / smaller chain; not envelope overlap")
+    loci.add_argument("--refine", choices=["auto", "miniprot", "none"], default="auto", help="Auto: refine locally if miniprot is installed; failures never erase BLAST loci")
+    loci.add_argument("--refine-padding", type=nonnegative, default=50000)
+    loci.add_argument("--refine-max-models", type=positive, default=10, help="Miniprot alternative-model cap per query/local window; does not cap discovered loci")
+    loci.add_argument("--window", type=nonnegative, default=50000, help="Proposed synteny flank length; no context prediction runs here")
+    filtered = commands.add_parser("stage1-filter", help="Change locus review thresholds without another genome search")
+    filtered.add_argument("--results", required=True)
+    filtered.add_argument("--out", required=True)
+    selected = commands.add_parser("stage1-select", help="Validate explicit locus decisions and export chosen synteny windows")
+    selected.add_argument("--results", required=True)
+    selected.add_argument("--decisions", required=True)
+    selected.add_argument("--out", required=True)
+    for command, defaults in [(loci, True), (filtered, False)]:
+        command.add_argument("--min-query-coverage", type=fraction, default=0.15 if defaults else None)
+        command.add_argument("--min-identity", type=fraction, default=0.25 if defaults else None)
+        command.add_argument("--max-evalue", type=float, default=1e-5 if defaults else None)
     return parser
 
 
 def main(argv=None):
     args = parser().parse_args(argv)
+    if args.command in {"stage1", "stage1-filter", "stage1-select"}:
+        from .stage1 import search, refilter, approve
+        try:
+            return {"stage1": search, "stage1-filter": refilter, "stage1-select": approve}[args.command](args)
+        except (OSError, ValueError, RuntimeError, KeyError) as error:
+            print(f"ERROR: {error}", file=sys.stderr)
+            return 2
     if args.command == "check-targets":
         from .target_check import check_targets
         try:

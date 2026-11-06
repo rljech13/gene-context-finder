@@ -1,0 +1,7 @@
+gene_id	symbol	species	contig	start	end	strand	assembly
+5460	POU5F1	Homo sapiens	NC_000006.12	31164336	31170682	-	Reference GRCh38.p14 Primary Assembly
+30333	pou5f3	Danio rerio	NC_141041.1	14896294	14901142	-	Reference GRCz13ab Primary Assembly
+427781	Pou5f3	Gallus gallus	NC_052548.1	1135043	1138692	-	Reference bGalGal1.mat.broiler.GRCg7b Primary Assembly
+100498076	pou5f3	Xenopus tropicalis	NC_030684.2	3297185	3301765	-	Reference UCB_Xtro_10.0 Primary Assembly
+100170181	pou5f3.2	Xenopus tropicalis	NC_030684.2	3286062	3291320	-	Reference UCB_Xtro_10.0 Primary Assembly
+100170593	pou5f3.3	Xenopus tropicalis	NC_030684.2	3277707	3282836	-	Reference UCB_Xtro_10.0 Primary Assembly

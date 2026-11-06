@@ -1,0 +1,72 @@
+{
+  "created": "2026-11-06T04:01:04.760696+00:00",
+  "source": "NCBI Gene and RefSeq annotated transcript CDS",
+  "genes": [
+    "5460",
+    "30333",
+    "427781",
+    "100498076",
+    "100170181",
+    "100170593"
+  ],
+  "scope": "All NM_/XM_ products listed in the fetched Gene records; not all annotation providers or releases",
+  "caution": "POU5F1 and POU5F3 copies are labelled separately; group POU5 is a search panel, not an orthology assignment",
+  "queries": 16,
+  "excluded": [],
+  "sources": [
+    {
+      "file": "sources/genes.xml.gz",
+      "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=gene&id=5460%2C30333%2C427781%2C100498076%2C100170181%2C100170593&retmode=xml",
+      "sha256": "7da81c1af5c30c0fd5461e94d3d40b44b25eebe9f21224379589a43ee296b263",
+      "retrieved_sha256": "ffcff55f2581550edf201b97421a8e55af15712a9ecfe4c752ef02c737198cc2"
+    },
+    {
+      "file": "sources/transcripts_00.xml.gz",
+      "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=NM_001129934.1%2CNM_001130364.1%2CNM_001173531.3%2CNM_001285474.1%2CNM_001285986.2%2CNM_001285987.1%2CNM_001309372.2%2CNM_002701.6%2CNM_131112.1%2CNM_203289.6%2CXM_005161103.6%2CXM_005161104.6%2CXM_068215772.2%2CXM_087299141.1%2CXM_087299142.1&rettype=gb&retmode=xml",
+      "sha256": "73ad7b2fd7f424fe072e22b5b336bc5bd1f7a982c356bd2e5c07dbaaff430314",
+      "retrieved_sha256": "17fb98287b726a83c1e93f3c917b48f674471fc7eab640fd3943c020c5522e39"
+    },
+    {
+      "file": "sources/transcripts_01.xml.gz",
+      "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=XM_087299143.1&rettype=gb&retmode=xml",
+      "sha256": "a6626fcf4aee5cb76970d2b3d5f2d2f02bb84805a7c75b2b2990e15b7bd603c1",
+      "retrieved_sha256": "3ac0d064ebe590d52e363da7e01a28c6c5e7abc9c498b8da9e5c9d2f4e0fa98e"
+    },
+    {
+      "file": "sources/Homo_sapiens__POU5F1.fna.gz",
+      "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=NC_000006.12&seq_start=31154337&seq_stop=31180682&rettype=fasta&retmode=text",
+      "sha256": "5e6e0f60dbac74bc70c4c9c9768605e7d22070402473398f870482793d212710",
+      "retrieved_sha256": "b076ebfddc47d29c3ba12a8951b511cbb956039246f5679874b685f569b5b11c"
+    },
+    {
+      "file": "sources/Danio_rerio__pou5f3.fna.gz",
+      "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=NC_141041.1&seq_start=14886295&seq_stop=14911142&rettype=fasta&retmode=text",
+      "sha256": "3eca84b714d86d18fb19be1bbf8a18703b2f8ac7142b20b14be9eb494d58e053",
+      "retrieved_sha256": "8b81d2f63f7a53075445b512f3a3f68fe04349aa66f1d99a7cd3ca78c6a50818"
+    },
+    {
+      "file": "sources/Gallus_gallus__Pou5f3.fna.gz",
+      "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=NC_052548.1&seq_start=1125044&seq_stop=1148692&rettype=fasta&retmode=text",
+      "sha256": "32638160eb4f8ce18e2a5c7a31e582640ce2722f20eca6c6ca70f808816431af",
+      "retrieved_sha256": "515b0ae3776100cfd3ae777aec5c93cb379c29d1143dfbf65a0f651accd3cd6e"
+    },
+    {
+      "file": "sources/Xenopus_tropicalis__pou5f3.fna.gz",
+      "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=NC_030684.2&seq_start=3287186&seq_stop=3311765&rettype=fasta&retmode=text",
+      "sha256": "23b479e5b9f40a00957be33709989beea6214a9ddc3147d3037aad9953820f6b",
+      "retrieved_sha256": "102b7409d9bba3c35357a3c2af70e48de87527e622550a95392eb4e0fb0142e0"
+    },
+    {
+      "file": "sources/Xenopus_tropicalis__pou5f3.2.fna.gz",
+      "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=NC_030684.2&seq_start=3276063&seq_stop=3301320&rettype=fasta&retmode=text",
+      "sha256": "b0a46a5c75346e1e74a7b13c4a8deda0f93008b8c0214ee78d7afb1ee36e2886",
+      "retrieved_sha256": "7c5ae9f910ff3d7085f31b0533c2304552cb18672ae763a57fcd1a5c020a9413"
+    },
+    {
+      "file": "sources/Xenopus_tropicalis__pou5f3.3.fna.gz",
+      "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=NC_030684.2&seq_start=3267708&seq_stop=3292836&rettype=fasta&retmode=text",
+      "sha256": "ac7cd48008ba90beaec78b09d7c02ba7e01cbd66acf369fc3fd4aee2190e17cc",
+      "retrieved_sha256": "fc36bbbb930b7e3ac66a429863f1aeb3e1351aa6f8ca04208ff3513aa8442f02"
+    }
+  ]
+}

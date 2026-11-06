@@ -1,3 +1,3 @@
 """Sequence-driven gene and genomic-context extraction."""
 
-__version__ = "0.5.2"
+__version__ = "0.6.0"

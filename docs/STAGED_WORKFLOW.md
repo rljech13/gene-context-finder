@@ -1,6 +1,8 @@
 # A workflow with two manual review stops
 
-The recommended v0.5 workflow has three execution stages. Each stage ends and writes its output to disk. Nothing waits at a terminal prompt, and no process automatically resumes after a review file is edited.
+This page describes the **legacy v0.5 model-first workflow**. For the new multi-reference, locus-first stage, start with [STAGE1.md](STAGE1.md). The checkpoint formats differ and cannot be mixed.
+
+The v0.5 workflow has three execution stages. Each stage ends and writes its output to disk. Nothing waits at a terminal prompt, and no process automatically resumes after a review file is edited.
 
 | Stage | Automatic work | Required human decision |
 |---|---|---|

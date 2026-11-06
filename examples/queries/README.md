@@ -1,5 +1,7 @@
 # Chicken Pou5f3 query sequences
 
+For the multi-species, multi-variant stage 1 pilot, use the [POU5 test panel](pou5_test/README.md). The single chicken sequences below remain available.
+
 These versioned RefSeq sequences were retrieved and checked for the 2026-11-05 pilot.
 
 - Species: *Gallus gallus*; gene: [Pou5f3, Gene 427781](https://www.ncbi.nlm.nih.gov/gene/427781).

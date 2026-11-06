@@ -1,0 +1,7 @@
+genome_id	fasta	gff3	species	original_contig	source_start	expected_start	expected_end	expected_strand
+Homo_sapiens__POU5F1	controls/Homo_sapiens__POU5F1.fna		Homo sapiens	NC_000006.12	31154336	10000	16346	-
+Danio_rerio__pou5f3	controls/Danio_rerio__pou5f3.fna		Danio rerio	NC_141041.1	14886294	10000	14848	-
+Gallus_gallus__Pou5f3	controls/Gallus_gallus__Pou5f3.fna		Gallus gallus	NC_052548.1	1125043	10000	13649	-
+Xenopus_tropicalis__pou5f3	controls/Xenopus_tropicalis__pou5f3.fna		Xenopus tropicalis	NC_030684.2	3287185	10000	14580	-
+Xenopus_tropicalis__pou5f3.2	controls/Xenopus_tropicalis__pou5f3.2.fna		Xenopus tropicalis	NC_030684.2	3276062	10000	15258	-
+Xenopus_tropicalis__pou5f3.3	controls/Xenopus_tropicalis__pou5f3.3.fna		Xenopus tropicalis	NC_030684.2	3267707	10000	15129	-
