@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gene-context-finder"
-version = "0.7.0"
+version = "0.7.1"
 description = "Find genes and their genomic surroundings from DNA or protein queries"
 requires-python = ">=3.10"
 dependencies = []
