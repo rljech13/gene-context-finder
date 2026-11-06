@@ -1,6 +1,8 @@
 # Reading stage 1 evidence
 
-The compact view shows one ranked candidate and its neighbor diagram. More candidates appear ten at a time. The sequence metrics describe the **best-scoring single query/product chain**; open **Sequence matches and metric explanations** to compare all supplied queries and annotated isoforms. Click a metric card or focus a table heading marked ⓘ for its definition.
+The review unit is a **candidate genomic locus**. Its compact card shows a row for every supplied query variant: query/source, covered positions and percentage, aligned identity, and chain score. A row summarizes that query's best-scoring single query/product chain at this locus. Weak matches stay visible and are marked **Below filters** when no non-ambiguous chain from that query passes the current thresholds. A query without a retained chain is explicitly marked **No retained match**. Identical input sequences retain separate variant names but share evidence; the variant count is not a count of independent votes.
+
+More candidate loci appear ten at a time. Open **Sequence matches and metric explanations** for all annotated isoforms and HSPs; the expanded metric cards explicitly describe the single strongest query. Click a metric card or focus a table heading marked ⓘ for its definition.
 
 | Metric | Meaning | What it does not establish |
 |---|---|---|

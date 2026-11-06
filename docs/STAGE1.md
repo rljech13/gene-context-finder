@@ -35,7 +35,7 @@ Early contexts start with five genes on each side, expanding to ten/twenty when 
 
 ## Read the report
 
-Open `report.html`. Choose a genome or open the overview. Each locus is one row; the strongest retained candidate is displayed first, with a button to show the next ten. Selected loci remain visible. Nothing is preselected.
+Open `report.html`. Choose a genome or open the overview. Each locus is one row; the strongest retained candidate is displayed first, with a button to show the next ten. Selected loci remain visible. Nothing is preselected. Each card is one candidate locus and immediately lists **every supplied query variant**, including weak/no-match variants, with per-query covered positions/percentage, aligned identity and chain score. Each row uses that query's strongest product chain, not the locus-wide best query or a sum across variants. Identical sequence variants share evidence; their count does not represent independent support.
 
 **Where this locus matches each query** shows:
 
