@@ -49,7 +49,7 @@ class TargetCheckUnits(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'Duplicate'):proteins(p, 'Q')
 
 
-@unittest.skipUnless(shutil.which('blastp'), 'BLAST+ blastp is required')
+@unittest.skipUnless(shutil.which('blastp') and shutil.which('makeblastdb'), 'BLAST+ is required')
 class TargetCheckIntegration(unittest.TestCase):
     def test_real_blast_competitors_domain_matches_no_hits_and_immutable_inputs(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -79,7 +79,9 @@ class TargetCheckIntegration(unittest.TestCase):
             self.assertIn('internal_stop', rows['disrupted']['flags'])
             receipt = json.loads((root/'audit/manifest.json').read_text())
             self.assertEqual(receipt['status'], 'completed')
-            self.assertEqual([c['argv'][0] for c in receipt['commands']], ['blastp'])
+            self.assertEqual([c['argv'][0] for c in receipt['commands']], ['makeblastdb', 'blastp'])
+            self.assertIn('-db', receipt['commands'][1]['argv'])
+            self.assertNotIn('-subject', receipt['commands'][1]['argv'])
             for name, digest in receipt['outputs_sha256'].items():self.assertEqual(sha256(root/'audit'/name), digest)
             for path, digest in before.items():self.assertEqual(sha256(path), digest)
             # No output overwrite and no input clobbering.

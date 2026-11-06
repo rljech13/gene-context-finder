@@ -80,9 +80,9 @@ def check_targets(args):
         inputs.append(Path(args.reference_labels).resolve())
     if any(root == p or root in p.parents for p in inputs):
         raise ValueError('Output must not contain the input files')
-    versions = tool_versions(['blastp'])
-    if not versions['blastp']['path']:
-        raise ValueError('check-targets requires BLAST+ blastp on PATH')
+    versions = tool_versions(['blastp', 'makeblastdb'])
+    if any(not tool['path'] for tool in versions.values()):
+        raise ValueError('check-targets requires BLAST+ blastp and makeblastdb on PATH')
     root = new_root(root, inputs[0])
     write_fasta(root/'candidates.faa', candidates)
     write_fasta(root/'references.faa', references)
@@ -91,7 +91,11 @@ def check_targets(args):
         write_tsv(root/filename, rows, ['search_id', 'id', 'name', 'protein_aa', 'internal_stops', 'family', 'description'])
     runner = Runner(root)
     try:
-        runner.run(['blastp', '-query', root/'candidates.faa', '-subject', root/'references.faa',
+        # BLASTP ignores -num_threads with -subject. Index only this small local
+        # panel so the requested threads are available without indexing genomes.
+        runner.run(['makeblastdb', '-in', root/'references.faa', '-dbtype', 'prot',
+                    '-out', root/'reference_db'], root/'makeblastdb.stdout')
+        runner.run(['blastp', '-query', root/'candidates.faa', '-db', root/'reference_db',
                     '-num_threads', args.threads, '-evalue', '1e-5', '-max_target_seqs', len(references),
                     '-outfmt', '6 qseqid sseqid pident length qstart qend sstart send evalue bitscore qlen slen'],
                    root/'blastp.tsv')
