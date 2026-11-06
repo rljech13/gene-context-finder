@@ -206,6 +206,7 @@ def parser():
     loci.set_defaults(genome_dir=None)
     loci.add_argument("--out", required=True)
     loci.add_argument("--threads", type=positive, default=4)
+    loci.add_argument("--jobs", type=positive, default=1, help="Concurrent genomes; --threads is per genome, so CPU demand is jobs × threads")
     loci.add_argument("--search-evalue", type=float, default=1e-3, help="BLAST retrieval ceiling; weaker matches cannot be recovered by refiltering")
     loci.add_argument("--seed-min-length", type=positive, default=20, help="Minimum HSP alignment length: aa for protein/CDS, nt for DNA")
     loci.add_argument("--seed-min-identity", type=fraction, default=0.20)
@@ -235,6 +236,8 @@ def main(argv=None):
     args = parser().parse_args(argv)
     if args.command in {"stage1", "stage1-filter", "stage1-select"}:
         from .stage1 import search, refilter, approve
+        if args.command == "stage1" and args.jobs > 1:
+            from .stage1_parallel import search
         try:
             return {"stage1": search, "stage1-filter": refilter, "stage1-select": approve}[args.command](args)
         except (OSError, ValueError, RuntimeError, KeyError) as error:

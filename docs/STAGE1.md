@@ -36,6 +36,8 @@ chicken	assemblies/chicken_genomic.fna.gz
 
 One row means one assembly. The stage searches every listed assembly, including source species; there is no self-hit exclusion. It does not recursively treat CDS/transcript FASTAs as additional genomes. Gzip is accepted. Genome errors remain in the report and cause a nonzero final exit code.
 
+From v0.6.1, `--jobs 8 --threads 8` processes eight genomes concurrently with eight tool threads each. Default `--jobs 1` retains sequential processing. Worker checkpoints and logs are saved under `workers/`; the final root contains one normal report and decision file. `progress.json` records completed workers. Merging checks reference/settings identity, evidence seals, duplicate genome IDs and missing workers. Failed input genomes remain explicit in the combined report. This does not change discovery/filtering rules. CPU demand is approximately jobs × threads; on host2 all workers must inherit the shared constrained launcher cgroup.
+
 Query metadata must assign every FASTA ID exactly once. Minimum useful columns are `query` and `species`; optional columns include `group`, `gene_symbol`, `transcript` and source links. If `group` is supplied, it must match `--gene`. Without species metadata, species support is unknown (reported as zero labelled species), not inferred from filenames.
 
 Identical sequences are searched once while preserving every transcript/species alias. Variant count, distinct sequence count and supporting species count are separate quantities. A larger number of annotated isoforms does not multiply a locus's ranking score.

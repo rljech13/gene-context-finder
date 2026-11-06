@@ -185,6 +185,23 @@ class Stage1Integration(unittest.TestCase):
             self.assertEqual(len([l for l in data['loci'] if l['pass_filters']]),2)
             self.assertTrue(any(c['argv'][0]==('tblastn' if kind=='cds' else 'blastn') for c in data['commands']))
 
+    def test_parallel_genomes_match_serial_candidates_and_keep_failures(self):
+        from genecontext.stage1_parallel import search as parallel
+        args=parser().parse_args(self.argv);args.out=str(self.root/'parallel');args.jobs=2
+        self.assertEqual(parallel(args),1)  # The deliberately missing genome remains an error.
+        _,serial=verify(self.output);_,batched=verify(args.out)
+        fields=['genome_id','locus_id','start','end','strand','coverage','identity','flags']
+        signature=lambda data:sorted(tuple(str(l[k]) for k in fields) for l in data['loci'])
+        self.assertEqual(signature(serial),signature(batched))
+        self.assertEqual({g['genome_id']:g['status'] for g in serial['genomes']},
+                         {g['genome_id']:g['status'] for g in batched['genomes']})
+        self.assertTrue(all(not r['decision'] for r in table(Path(args.out)/'loci.decisions.tsv')))
+
+    def test_merge_rejects_duplicate_genomes(self):
+        from genecontext.stage1_parallel import merge_parts
+        with self.assertRaisesRegex(ValueError,'Duplicate genome'):
+            merge_parts([self.output,self.output],self.root/'invalid_merge',['copies','empty','broken'])
+
 
 class QueryBundle(unittest.TestCase):
     def test_shipped_annotation_cds_translations_and_provenance(self):
