@@ -24,9 +24,9 @@ OUTFMT = '6 qseqid sseqid pident length qstart qend sstart send evalue bitscore 
 DECISIONS = ['review_id', 'genome_id', 'locus_id', 'decision', 'anchor_intervals',
              'window_start', 'window_end', 'notes']
 FILTERS = ['min_query_coverage', 'min_identity', 'max_evalue']
-LOCUS_FIELDS = ['genome_id', 'locus_id', 'gene', 'contig', 'start', 'end', 'strand',
+LOCUS_FIELDS = ['genome_id', 'rank_within_genome', 'locus_id', 'gene', 'contig', 'start', 'end', 'strand',
                 'boundary_source', 'query_variants', 'unique_sequences', 'support_species',
-                'best_query', 'coverage', 'identity', 'evalue', 'bitscore_per_query_unit',
+                'best_query', 'bitscore', 'coverage', 'identity', 'evalue', 'bitscore_per_query_unit',
                 'pass_filters', 'filter_reasons', 'flags', 'window_start', 'window_end']
 
 
@@ -295,12 +295,21 @@ def apply_filters(loci, filters, queries):
             if (chain['coverage']>=filters['min_query_coverage'] and chain['identity']>=filters['min_identity']
                     and chain['evalue']<=filters['max_evalue']):
                 passing.append(chain)
-        pool=passing or [c for c in locus['chains'] if not c.get('ambiguous_support')] or locus['chains']
-        best=max(pool,key=lambda c:(c['coverage'],c['bitscore']/len(queries[c['query']]['sequence'])))
+        # Rank the strongest single-reference chain. Do not reward a locus for
+        # many redundant isoforms, and do not change its score when filters move.
+        pool=[c for c in locus['chains'] if not c.get('ambiguous_support')] or locus['chains']
+        best=max(pool,key=lambda c:(c['bitscore'],c['coverage'],c['identity'],c['chain_id']))
         locus.update(best_query=best['query'],coverage=best['coverage'],identity=best['identity'],
-            evalue=best['evalue'],bitscore_per_query_unit=best['bitscore']/len(queries[best['query']]['sequence']),
+            evalue=best['evalue'],bitscore=best['bitscore'],bitscore_per_query_unit=best['bitscore']/len(queries[best['query']]['sequence']),
             pass_filters=bool(passing),filter_reasons='' if passing else 'no_single_chain_passes_all_thresholds')
         locus['flags']=sorted(set(locus['flags']))
+    groups=defaultdict(list)
+    for locus in loci:groups[(locus['genome_id'],locus['gene'])].append(locus)
+    order={key:i for i,key in enumerate(groups)}
+    for group in groups.values():
+        group.sort(key=lambda l:(-l['bitscore'],-l['coverage'],-l['identity'],l['contig'],l['start'],l['locus_id']))
+        for rank,locus in enumerate(group,1):locus['rank_within_genome']=rank
+    loci.sort(key=lambda l:(order[(l['genome_id'],l['gene'])],l['rank_within_genome']))
 
 
 def summary_rows(data):

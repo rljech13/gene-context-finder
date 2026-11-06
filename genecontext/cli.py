@@ -226,7 +226,7 @@ def parser():
     selected.add_argument("--decisions", required=True)
     selected.add_argument("--out", required=True)
     for command, defaults in [(loci, True), (filtered, False)]:
-        command.add_argument("--min-query-coverage", type=fraction, default=0.15 if defaults else None)
+        command.add_argument("--min-query-coverage", type=fraction, default=0.20 if defaults else None)
         command.add_argument("--min-identity", type=fraction, default=0.25 if defaults else None)
         command.add_argument("--max-evalue", type=float, default=1e-5 if defaults else None)
     return parser

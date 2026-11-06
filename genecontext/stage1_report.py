@@ -30,6 +30,10 @@ th{color:var(--muted)}code{overflow-wrap:anywhere}.scroll{overflow-x:auto}.track
 </style></head><body><main>
 <h1 id="title">Stage 1 — candidate loci</h1>
 <p>Review assembled loci, their reference support and proposed intervals. No locus is approved automatically.</p>
+<p>Candidates are ranked within each genome by the strongest single-reference BLAST chain score.
+The chain score sums HSP bit scores with query overlaps counted once. Scores from different query variants are not added.
+Coverage, identity and E-value beside that score describe the same chain; passing filters may be supported by any single reference chain.
+Lower-scoring candidates remain available. Uncheck <strong>Show passing loci only</strong> to see candidates below the display thresholds.</p>
 <div class="notice">Coordinates in this report and exported TSV/BED are <strong>zero-based, half-open</strong>.
 BLAST chains are locus proposals; local miniprot models are predictions. Similarity and filter status do not establish orthology.
 The tracks are alignments of the supplied references, not a general gene annotation.</div>
@@ -40,7 +44,7 @@ The tracks are alignments of the supplied references, not a general gene annotat
 <label>Query coverage ≥<input id="coverage" type="number" min="0" max="1" step="0.05"></label>
 <label>Identity ≥<input id="identity" type="number" min="0" max="1" step="0.05"></label>
 <label>E-value ≤<input id="evalue" type="number" min="0" step="any"></label>
-<label class="check"><input id="passing" type="checkbox">Show passing loci only</label>
+<label class="check"><input id="passing" type="checkbox" checked>Show passing loci only</label>
 <button id="export">Download decisions TSV</button>
 <label>Reload saved decisions<input id="import" type="file" accept=".tsv,.txt"></label>
 </div><p id="counts" class="muted"></p>
@@ -63,7 +67,7 @@ function svgEl(tag,attrs,text){const n=document.createElementNS('http://www.w3.o
 function tracks(l,full=false){
  let chains=l.chains,models=l.models||[];
  if(!full){const best=new Map();for(const c of chains){const member=queries[c.query].members[0],key=(member.species||c.query)+' '+(member.gene_symbol||'');
- if(!best.has(key)||c.coverage>best.get(key).coverage)best.set(key,c)}chains=[...best.values()];models=models.slice(0,1)}
+ if(!best.has(key)||c.bitscore>best.get(key).bitscore)best.set(key,c)}chains=[...best.values()];models=models.slice(0,1)}
  const items=[...chains.map(c=>({kind:'BLAST',query:c.query,blocks:c.blocks,coverage:c.coverage,identity:c.identity})),
  ...models.map(m=>({kind:'CDS?',query:m.query,blocks:m.cds.map(c=>c.slice(0,2)),coverage:m.coverage,identity:m.identity}))];
  const lower=Math.min(l.start,...models.map(m=>m.start)),upper=Math.max(l.end,...models.map(m=>m.end));
@@ -94,21 +98,24 @@ function decision(card,row,l){const box=el('div',undefined,'decision'),choice=el
 $('title').textContent=`${DATA.config.gene} — stage 1 candidate loci`;
 $('coverage').value=DATA.filters.min_query_coverage;$('identity').value=DATA.filters.min_identity;$('evalue').value=DATA.filters.max_evalue;
 $('settings').textContent=JSON.stringify({search_and_assembly:DATA.config,saved_review_filters:DATA.filters,review_id:DATA.review_id},null,2);
-$('genomes').append(table(['Genome','Search status','Raw HSPs','Candidate loci','Expected control overlap / error'],DATA.genomes.map(g=>[
- g.genome_id,g.status,g.raw_hsps||0,DATA.loci.filter(l=>l.genome_id===g.genome_id).length,g.error||(g.refinement_errors?.length?g.refinement_errors.map(e=>e.error).join('; '):String(g.control_overlap??'—'))])));
+$('genomes').append(table(['Genome','Search status','Raw HSPs','Candidate loci (all)','Pass saved filters','Expected control overlap / error'],DATA.genomes.map(g=>[
+ g.genome_id,g.status,g.raw_hsps||0,DATA.loci.filter(l=>l.genome_id===g.genome_id).length,DATA.loci.filter(l=>l.genome_id===g.genome_id&&l.pass_filters).length,g.error||(g.refinement_errors?.length?g.refinement_errors.map(e=>e.error).join('; '):String(g.control_overlap??'—'))])));
 for(const l of DATA.loci){
- const card=el('section',undefined,'card');card.append(el('h2',`${l.genome_id} · ${l.locus_id}`));
+ const card=el('details',undefined,'card');card.id=l.locus_id;card.open=l.rank_within_genome===1;
+ const reference=queries[l.best_query].members.map(m=>m.query).join(', ');
+ card.append(el('summary',`#${l.rank_within_genome} · ${l.genome_id} · score ${l.bitscore.toFixed(1)} · coverage ${percent(l.coverage)} · identity ${percent(l.identity)} · ${l.contig}:${l.start}–${l.end} (${l.strand})`));
+ card.append(el('p',`${l.locus_id} · best-scoring reference: ${reference} · E-value (best HSP): ${l.evalue} · score/query length: ${l.bitscore_per_query_unit.toFixed(3)}`,'muted'));
  card.append(el('p',`${l.contig}:${l.start}–${l.end} (${l.strand}) · ${l.query_variants} variants / ${l.unique_sequences} unique sequences / ${l.support_species} labelled species`));
  const badge=el('span','','badge');card.append(badge);l.flags.forEach(f=>card.append(el('span',f,'badge bad')));
  card.append(el('p',`Proposed synteny window: ${l.contig}:${l.window_start}–${l.window_end}. Anchor boundaries: ${l.boundary_source}.`,'muted'));
  const scroll=el('div',undefined,'scroll');scroll.append(tracks(l));card.append(scroll);
  const toggle=el('button','Show tracks for every query variant','secondary');let fullTracks=false;
  toggle.addEventListener('click',()=>{fullTracks=!fullTracks;scroll.replaceChildren(tracks(l,fullTracks));toggle.textContent=fullTracks?'Show compact tracks':'Show tracks for every query variant'});card.append(toggle);
- card.append(el('p',`Representative BLAST chain: query coverage ${percent(l.coverage)}, identity ${percent(l.identity)}. Compact tracks show one chain per source gene and one predicted CDS model.`,'legend'));
+ card.append(el('p',`Best-scoring BLAST chain: query coverage ${percent(l.coverage)}, identity ${percent(l.identity)}. Compact tracks show the highest-scoring chain per source gene and one predicted CDS model.`,'legend'));
  const detail=el('details');detail.append(el('summary','Reference support and alternative CDS models'));
- const support=[];for(const c of l.chains)for(const member of queries[c.query].members)support.push([
- member.query,member.gene_symbol||'',percent(c.coverage),percent(c.identity),c.evalue,c.hsps.length]);
- const wrap=el('div',undefined,'scroll');wrap.append(table(['Reference variant','Source gene','Query coverage','Identity','E-value','HSPs'],support));detail.append(wrap);
+ const support=[];for(const c of [...l.chains].sort((a,b)=>b.bitscore-a.bitscore))for(const member of queries[c.query].members)support.push([
+ member.query,member.gene_symbol||'',c.bitscore.toFixed(1),percent(c.coverage),percent(c.identity),c.evalue,c.hsps.length]);
+ const wrap=el('div',undefined,'scroll');wrap.append(table(['Reference variant','Source gene','Chain bit score','Query coverage','Identity','Best HSP E-value','HSPs'],support));detail.append(wrap);
  card.append(detail);const row={review_id:DATA.review_id,genome_id:l.genome_id,locus_id:l.locus_id,decision:'',anchor_intervals:`${l.start}:${l.end}`,window_start:'',window_end:'',notes:''};
  const entry=decision(card,row,l);entry.badge=badge;
  for(const m of l.models){const p=el('p',`${m.model_id} · ${m.start}:${m.end} · coverage ${percent(m.coverage)} `),b=el('button','Use these anchor bounds','secondary');
