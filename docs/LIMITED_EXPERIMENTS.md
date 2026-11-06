@@ -26,7 +26,7 @@ This requires Linux cgroup v2 with a usable memory controller and a working user
 
 ```text
 /mnt/data/i.rubinshteyn/gene_context_experiments/
-  current -> source_v052_abdecd3/   immutable source snapshot
+  current -> source_v060_8474646/   immutable source snapshot
   submit.py                       detached, constrained submission
   run_job.py                      in-cgroup verification and run receipt
   resource_policy.json            exact shared budget and tool paths
@@ -60,3 +60,13 @@ A deliberately oversized 256 MiB allocation inside an isolated 64 MiB test servi
 The saved coding-model reference check for all 18 assemblies has also run under the shared budget. The imported review checkpoints remain unapproved, with their evidence and pending decision files unchanged.
 
 The transferred checkpoints include saved windows and sequence exports, not the complete original genomes. Comparisons from those saved windows can resume with the matching `--search-results` exports. New searches and extraction of other loci require the complete assembly inputs. Existing full-genome candidates on host2 are inventoried separately; they must be checked against assembly/source fingerprints before reuse. The host1 transfer attempt timed out, so no complete 18-genome migration is claimed.
+
+## Locus-first stage 1 validation, v0.6.0
+
+The current source snapshot is commit `8474646`. Older snapshots remain immutable for reproducibility and running jobs. The new `stage1` workflow is described in [STAGE1.md](STAGE1.md).
+
+On host2, the POU5 pilot searched six small reference windows from four species in 29.64 seconds. All six expected source genes overlapped recovered loci; the middle frog window retained three separate neighbouring POU5 loci. All 20 stage 1 tests passed, including actual BLAST/miniprot controls, protein/CDS/DNA routes, no-hit/error retention, isoform consolidation, tandem-copy separation, manual interval selection and evidence checks.
+
+Both services ran in the shared 250 GiB slice with swap disabled, verified from inside each job. Outputs are under `results/stage1_pou5_v060/`; run receipts are under `runs/20261106T040220-stage1-pou5-v060-150746/` and `runs/20261106T040221-stage1-tests-v060-bb1225/`. Source files and checksums are recorded in `deployments/v060_8474646.json`.
+
+These are reference-window software controls. This version has not yet searched all 18 complete genomes. Biological decisions remain pending. See the [validation receipt](benchmarks/stage1_pou5_v060_2026-11-06.json).

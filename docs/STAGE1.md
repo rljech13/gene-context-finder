@@ -55,6 +55,8 @@ The initial and model-based grouping rules differ intentionally: model blocks he
 
 This is a heuristic for candidate loci, not a validated gene caller. A wrong or missing spliced model can still leave a split/merged proposal. Miniprot failures preserve BLAST candidates. `--refine miniprot` requires the executable; default `auto` records its absence and leaves BLAST-only proposals. `--refine none` skips this step explicitly.
 
+The [host2 validation receipt](benchmarks/stage1_pou5_v060_2026-11-06.json) records the reference-window outcomes and tests. It is not a complete-genome sensitivity benchmark.
+
 The default anchor is the representative's predicted **coding interval**, not an established full gene/UTR interval. Without reconstruction it is the BLAST-chain envelope. Both can be corrected manually.
 
 ## Review and filters

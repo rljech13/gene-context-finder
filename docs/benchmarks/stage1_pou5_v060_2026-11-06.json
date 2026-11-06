@@ -1,0 +1,54 @@
+{
+  "version": "0.6.0",
+  "source_commit": "8474646a060107fac050e06c54366eb88b3c321d",
+  "scope": "Six small reference windows from four species; not the complete 18 assemblies",
+  "query_variants": 16,
+  "unique_protein_sequences": 15,
+  "reference_source": "NCBI Gene/RefSeq; accession versions and original responses shipped with the panel",
+  "expected_gene_loci_recovered": 6,
+  "total_candidate_loci": 10,
+  "loci_per_input": {
+    "Homo_sapiens__POU5F1": 1,
+    "Danio_rerio__pou5f3": 1,
+    "Gallus_gallus__Pou5f3": 1,
+    "Xenopus_tropicalis__pou5f3": 2,
+    "Xenopus_tropicalis__pou5f3.2": 3,
+    "Xenopus_tropicalis__pou5f3.3": 2
+  },
+  "all_expected_control_overlaps": true,
+  "all_biological_decisions_pending": true,
+  "tools": {
+    "samtools": "samtools 1.22\nUsing htslib 1.22\nCopyright (C) 2025 Genome Research Ltd.",
+    "makeblastdb": "makeblastdb: 2.16.0+\n Package: blast 2.16.0, build Mar 28 2025 16:30:45",
+    "tblastn": "tblastn: 2.16.0+\n Package: blast 2.16.0, build Mar 28 2025 16:30:45",
+    "miniprot": "0.18-r281"
+  },
+  "host2": {
+    "shared_memory_max_bytes": 268435456000,
+    "swap_max_bytes": 0,
+    "search_elapsed_seconds": 29.641536116600037,
+    "tests_elapsed_seconds": 75.53328555077314,
+    "stage1_tests": 20,
+    "tests_returncode": 0,
+    "search_returncode": 0
+  },
+  "unit_suite": {
+    "tests": 95,
+    "skipped_without_external_tools": 34,
+    "returncode": 0
+  },
+  "browser": {
+    "cards": 10,
+    "compact_track_labels": 9,
+    "expanded_track_labels": 39,
+    "exported_decision_rows": 10,
+    "passing_at_full_coverage": 0,
+    "browser": "137.0.7183.69",
+    "javascript_errors": []
+  },
+  "limitations": [
+    "Reference-window controls do not measure genome-wide false positives or sensitivity",
+    "POU5 is a labelled family search panel, not a one-to-one orthology assignment",
+    "Selected TSV/BED regions are not yet accepted directly by legacy contexts"
+  ]
+}
