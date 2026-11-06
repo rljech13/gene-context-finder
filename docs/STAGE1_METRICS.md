@@ -20,17 +20,20 @@ The meaning of local alignment identity, bit scores and E-values follows the [NC
 
 ## Neighbor diagram
 
-- Purple: target gene. Both target genes point right; neighbor arrows show direction relative to it.
-- Gray: displayed neighbor without a retained proposed pair in both visible rows.
-- Colored arrows and dashed links: **proposed protein correspondence, orthology unverified**. Matching names alone do not validate a pair; different names flag possible gene-family/paralog issues.
-- Default: five extracted neighbors per side, equal spacing. This is gene order, not a physical DNA scale. Native coordinates and distances are retained in tooltips and detailed tables.
-- **Change reference or view**: select the reference, genomic-distance scale, ±50 kb window or larger saved neighborhood. The ±50 kb view is measured from each target's edges and contains only the already-extracted neighbor inventory.
-- The caption reports pairs visible in both rows versus all proposed pairs. A pair outside the view is not missing from the evidence.
-- Comparisons with the same locus are self-controls. Other same-assembly comparisons are labeled too. Neither contributes to the cross-species overview.
+The default overview contains the candidate locus once and **all available query-source loci**, one row each. Query variants from the same source gene share a row. Every row preserves its own gene order, with its target pointing right.
+
+- Purple: target gene. Arrows show direction relative to it.
+- Matching colors: proposed protein correspondence to a particular candidate neighbor, **orthology unverified**. Colors are local diagram keys, not confirmed orthogroups. A candidate gene is colored only if a corresponding reference gene is also visible. Gray does not mean the gene is biologically absent.
+- Default: five saved neighbors per side, equal spacing. Native coordinates, distances and linked query IDs are available in tooltips. The count in each reference row distinguishes visible from all retained proposed pairs.
+- Self-control and other same-assembly rows are labeled and do not receive independent-support colors. They are excluded from the cross-species overview count.
+- **How this is checked, missing references and pair details** contains the method, per-query source availability, optional genomic-distance/±50 kb/larger-neighborhood controls and single-reference inspection. Changing the view uses saved evidence only.
+- The detailed two-row inspection retains dashed links, individual protein metrics, and neighbor-selection controls. This display can focus on one reference without hiding other references from the main overview.
+
+A FASTA query has no genomic neighborhood by itself. Its source locus must be resolved in supplied annotation/coding-product datasets. Missing source datasets, identifier/sequence conflicts and unresolved source loci are shown explicitly for each query. An available source neighborhood can be shared by multiple isoforms; neither isoform counts nor reference counts are independent votes for orthology.
 
 ## Detailed neighbor metrics
 
-These measures are collapsed under **Inspect proposed pairs → Matching rules, ambiguity and legacy diagnostic measures**. They describe the proposed correspondences, which may contain mistaken matches.
+These measures are collapsed under **How this is checked, missing references and pair details → Inspect one reference → Inspect proposed pairs → Matching rules, ambiguity and legacy diagnostic measures**. They describe the proposed correspondences, which may contain mistaken matches.
 
 | Metric | Numerator / denominator or rule |
 |---|---|

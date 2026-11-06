@@ -61,4 +61,4 @@ Refresh an existing review into the compact layout without rerunning any search:
 gene-context stage1-report --results results/nanog_stage1 --out results/nanog_compact
 ```
 
-The original evidence and review/decision IDs are retained. The default view shows one candidate locus, a compact support table for every query variant and a small neighbor diagram; detailed evidence and controls expand on demand. See [metric definitions](docs/STAGE1_METRICS.md).
+The original evidence and review/decision IDs are retained. The default view shows one candidate locus, a compact support table for every query variant and a small diagram of the candidate and all available query-source neighborhoods; detailed evidence and controls expand on demand. See [metric definitions](docs/STAGE1_METRICS.md).
