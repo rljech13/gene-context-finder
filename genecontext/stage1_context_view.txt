@@ -91,8 +91,8 @@ function pairSynteny(l){
 function referenceAvailability(l){
  const refs=DATA.early_synteny?.references||[],resolution=new Map((DATA.early_synteny?.source_resolution||[]).map(r=>[r.query,r])),rows=[];
  for(const q of DATA.queries)for(const m of q.members){const resolved=refs.filter(r=>(r.queries||[]).includes(m.query)),record=resolution.get(m.query);let reason;
-  if(resolved.length)reason=resolved.map(r=>`${species(r.genome_id)} · ${r.name||r.gene_id}`).join('; ');
-  else if(record?.status==='identifier_sequence_mismatch')reason='Query identifier is linked, but its sequence differs from the supplied annotation. Source neighborhood not accepted.';
+  if(resolved.length){reason=resolved.map(r=>`${species(r.genome_id)} · ${r.name||r.gene_id}`).join('; ');if(record?.context_binding_only)reason+=' · linked by curated GeneID; query sequence differs from this annotation release.'}
+  else if(record?.status==='identifier_sequence_mismatch')reason='Sequence differs from the supplied annotation; this saved checkpoint did not use a curated GeneID to bind its source locus.';
   else if(record?.status==='coding_reference_unavailable')reason='A coding source reference could not be established for this query.';
   else if(record?.sources?.length)reason='Source locus resolved, but its neighborhood could not be prepared.';
   else reason='No source locus resolved in the supplied source datasets.';

@@ -1,6 +1,6 @@
 # Reading stage 1 evidence
 
-The review unit is a **candidate genomic locus**. Its compact card shows a row for every supplied query variant: query/source, covered positions and percentage, aligned identity, and chain score. A row summarizes that query's best-scoring single query/product chain at this locus. Weak matches stay visible and are marked **Below filters** when no non-ambiguous chain from that query passes the current thresholds. A query without a retained chain is explicitly marked **No retained match**. Identical input sequences retain separate variant names but share evidence; the variant count is not a count of independent votes.
+The review unit is a **candidate genomic locus**. Its compact card shows coordinates and a row for every supplied query variant: query ID, covered positions and percentage, aligned identity, and chain score. Source species/labels are available on hover. **Synteny** and **Details** are collapsed by default; sequence maps, explanations and technical controls live inside **Details**. A row summarizes that query's best-scoring single query/product chain at this locus. Weak matches stay visible and are marked **Below filters** when no non-ambiguous chain from that query passes the current thresholds. A query without a retained chain is explicitly marked **No retained match**. Identical input sequences retain separate variant names but share evidence; the variant count is not a count of independent votes.
 
 More candidate loci appear ten at a time. Open **Sequence matches and metric explanations** for all annotated isoforms and HSPs; the expanded metric cards explicitly describe the single strongest query. Click a metric card or focus a table heading marked ⓘ for its definition.
 
@@ -29,7 +29,7 @@ The default overview contains the candidate locus once and **all available query
 - **How this is checked, missing references and pair details** contains the method, per-query source availability, optional genomic-distance/±50 kb/larger-neighborhood controls and single-reference inspection. Changing the view uses saved evidence only.
 - The detailed two-row inspection retains dashed links, individual protein metrics, and neighbor-selection controls. This display can focus on one reference without hiding other references from the main overview.
 
-A FASTA query has no genomic neighborhood by itself. Its source locus must be resolved in supplied annotation/coding-product datasets. Missing source datasets, identifier/sequence conflicts and unresolved source loci are shown explicitly for each query. An available source neighborhood can be shared by multiple isoforms; neither isoform counts nor reference counts are independent votes for orthology.
+A FASTA query has no genomic neighborhood by itself. Its source locus must be resolved in supplied annotation/coding-product datasets. Missing source datasets and unresolved loci are shown explicitly for each query. A curated numeric GeneID can bind an annotation neighborhood across isoform differences, with the sequence discrepancy retained; it does not verify the query sequence. Without such a GeneID, an identifier/sequence conflict remains unresolved. An available source neighborhood can be shared by multiple isoforms; neither isoform counts nor reference counts are independent votes for orthology.
 
 ## Detailed neighbor metrics
 

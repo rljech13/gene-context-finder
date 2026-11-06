@@ -1,7 +1,7 @@
 """Automatic, cached annotation-supported local context evidence for stage 1.
 
-Reference origin is resolved by versioned identifiers AND exact protein sequence,
-then by exact sequence when identifiers are unavailable. Similarity is never used
+Reference origin is resolved by identifiers and exact protein sequence, or by
+an explicit curated GeneID for neighborhood lookup with sequence conflict retained. Similarity is never used
 to invent a reference origin. All correspondences remain tentative homology.
 """
 from __future__ import annotations
@@ -481,7 +481,7 @@ def resolve_origins(queries, sources):
     for query in queries:
         digest=hashlib.sha256(query['sequence'].encode()).hexdigest()
         for member in query['members']:
-            strong=[];identical=[];mismatches=[]
+            strong=[];identical=[];mismatches=[];gene_linked=[]
             for cat in sources:
                 explicit=member.get('genome_id') or member.get('source_genome_id')
                 accession=member.get('assembly_accession')
@@ -494,22 +494,28 @@ def resolve_origins(queries, sources):
                 ids=origin_tokens(member)
                 linked={gid for name in ids for gid,seqhash in cat['aliases'].get(name,[]) if seqhash==digest}
                 stale={gid for name in ids for gid,seqhash in cat['aliases'].get(name,[]) if seqhash!=digest}
-                # GeneID is an origin hint only when an actual product sequence
-                # also matches. A name/GeneID alone never validates the query.
+                # A curated numeric GeneID identifies an annotation locus even when
+                # the supplied query isoform differs from this annotation release.
+                # This permits context lookup, not sequence validation. Multiple
+                # annotation locations remain explicit rather than choosing one.
                 same=set(cat['sequence_genes'].get(digest,[]))
                 if member.get('gene_id'):
                     hinted=set(cat['ncbi_gene_ids'].get(str(member['gene_id']),[]))
                     linked |= hinted & same
                     stale |= hinted-same
+                    gene_linked.extend((cat['genome_id'],gid) for gid in hinted)
                 strong.extend((cat['genome_id'],gid) for gid in linked)
                 identical.extend((cat['genome_id'],gid) for gid in same)
                 mismatches.extend((cat['genome_id'],gid) for gid in stale-linked)
-            selected=sorted(set(strong or ([] if mismatches else identical)))
+            selected=sorted(set(strong or gene_linked or ([] if mismatches else identical)))
             status=('identifier_and_sequence' if strong and len(selected)==1 else
                     'multiple_source_loci' if len(selected)>1 else
+                    'gene_id_linked_sequence_differs' if gene_linked and not strong else
                     'exact_sequence_only' if selected else
                     'identifier_sequence_mismatch' if mismatches else 'source_locus_unresolved')
             mapping.append(dict(query_id=query['id'],query=member['query'],status=status,
+                                query_sequence_verified=bool(strong or (identical and not gene_linked and not mismatches)),
+                                context_binding_only=bool(gene_linked and not strong),
                                 sources=[dict(genome_id=g,gene_id=gid) for g,gid in selected],
                                 mismatching_sources=[dict(genome_id=g,gene_id=gid) for g,gid in sorted(set(mismatches))]))
             records.extend(dict(genome_id=g,gene_id=gid,query_id=query['id'],query=member['query'],resolution=status) for g,gid in selected)
