@@ -1,0 +1,58 @@
+{
+  "version": "0.5.2",
+  "source_commit": "abdecd39f7fa04ba27048b8e7f533e44e4119f80",
+  "logical_cpus": 256,
+  "physical_memory_bytes": 1081802870784,
+  "shared_memory_max_bytes": 268435456000,
+  "shared_swap_max_bytes": 0,
+  "cap_below_quarter_physical_ram": true,
+  "enforcement_probe": {
+    "status": "passed",
+    "service_cap_mib": 64,
+    "allocation_mib": 256,
+    "result": "oom-kill"
+  },
+  "tests": [
+    {
+      "name": "reference_check",
+      "count": 5,
+      "status": "passed",
+      "skips": 0
+    },
+    {
+      "name": "staged_workflow",
+      "count": 11,
+      "status": "passed",
+      "skips": 0
+    }
+  ],
+  "total_tests": 16,
+  "saved_inputs": {
+    "assemblies": 18,
+    "coding_options": 235,
+    "references": 91,
+    "original_bundle_unchanged": true,
+    "all_decisions_pending": true
+  },
+  "full_original_genomes_migrated": false,
+  "tool_versions": {
+    "samtools": "samtools 1.22\nUsing htslib 1.22\nCopyright (C) 2025 Genome Research Ltd.",
+    "miniprot": "0.18-r281",
+    "blastn": "blastn: 2.16.0+\n Package: blast 2.16.0, build Mar 28 2025 16:30:45",
+    "blastp": "blastp: 2.16.0+\n Package: blast 2.16.0, build Mar 28 2025 16:30:45",
+    "blastx": "blastx: 2.16.0+\n Package: blast 2.16.0, build Mar 28 2025 16:30:45",
+    "tblastn": "tblastn: 2.16.0+\n Package: blast 2.16.0, build Mar 28 2025 16:30:45",
+    "makeblastdb": "makeblastdb: 2.16.0+\n Package: blast 2.16.0, build Mar 28 2025 16:30:45",
+    "mafft": "v7.525 (2024/Mar/13)",
+    "tiberius": {
+      "tiberius": "2.0.9",
+      "tensorflow": "2.20.0",
+      "bricks2marble": "0.1.3",
+      "hidten": "1.0.0",
+      "biopython": "1.88",
+      "numpy": "2.5.4",
+      "keras": "3.15.1"
+    }
+  },
+  "limits": "Saved windows and source exports for all 18 assemblies are available. Complete original genomes were not copied from unreachable host1. Imported biological decisions remain pending."
+}

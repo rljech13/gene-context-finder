@@ -38,6 +38,8 @@ gene-context doctor
 
 Setup creates an isolated CPU runtime and downloads both shared models (66.2 MB compressed in total), plus Swiss-Prot for protein identification. No GPU is required. Allow about 2 GB on macOS or 3 GB on Linux for the predictor installation, in addition to genomes and results. See [setup](docs/SETUP_AND_DOWNLOAD.md) for cache locations and offline use.
 
+For experiments on host2, use the [constrained launcher and shared RAM policy](docs/LIMITED_EXPERIMENTS.md). Thread counts alone do not enforce a memory budget.
+
 ## 1. List your local genomes
 
 Create `genomes.tsv` with **tab-separated** columns. Replace the example paths with your actual filenames:
