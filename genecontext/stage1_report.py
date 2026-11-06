@@ -6,7 +6,18 @@ TEMPLATE = Path(__file__).with_name("stage1_review.txt").read_text().replace(
     "__CONTEXT_VIEW__", Path(__file__).with_name("stage1_context_view.txt").read_text())
 
 def write_report(root, data):
-    payload = json.dumps(data).replace('<', chr(92)+'u003c').replace('&', chr(92)+'u0026')
+    from .locus_ranking import rank_loci
+    from .sequence import write_tsv
+    ranking = rank_loci(data)
+    fields = ['genome_id','locus_id','rank','score','strongest_source_weight','mean_source_weight','represented_sources','supplied_sources','discovery_rank']
+    rows = sorted(ranking['loci'].values(), key=lambda r:(r['genome_id'],r['rank']))
+    write_tsv(root/'review_ranking.tsv', rows, fields)
+    manifest_path = root/'manifest.json'
+    if manifest_path.exists():
+        manifest = json.loads(manifest_path.read_text())
+        manifest['review_ranking'] = dict(artifact='review_ranking.tsv', definition=ranking['definition'])
+        manifest_path.write_text(json.dumps(manifest, indent=2)+'\n')
+    payload = json.dumps(dict(data, review_ranking=ranking)).replace('<', chr(92)+'u003c').replace('&', chr(92)+'u0026')
     (root/'report.html').write_text(TEMPLATE.replace('__DATA__', payload))
 
 
@@ -33,10 +44,10 @@ def refresh(args):
     manifest['presentation'] = dict(version=__version__, created=now(), source_checkpoint=str(source),
         source_evidence_sha256=sha256(source/'evidence.json'), retained_review_id=data['review_id'],
         renderer_sha256={name:sha256(Path(__file__).with_name(name)) for name in
-                         ['stage1_report.py','stage1_review.txt','stage1_context_view.txt']},
+                         ['stage1_report.py','stage1_review.txt','stage1_context_view.txt','locus_ranking.py']},
         note='Presentation revision only; all search evidence, filters, coordinates and review IDs retained.')
     dump(root/'manifest.json', manifest)
     write_report(root, data)
-    dump(root/'seal.json', {name:sha256(root/name) for name in original})
+    dump(root/'seal.json', {name:sha256(root/name) for name in sorted(set(original) | {'review_ranking.tsv'})})
     print('Updated report: '+str(root/'report.html'))
     return 0

@@ -384,7 +384,7 @@ def write_outputs(root, data):
     write_report(root,data)
     files=[p for name in ['raw'] for p in (root/name).rglob('*') if p.is_file()]
     files += [root/name for name in ['evidence.json','manifest.json','queries.fasta','loci.tsv',
-        'passing_loci.tsv','query_support.tsv','genomes.summary.tsv','loci.bed','report.html','loci.fna'] if (root/name).exists()]
+        'passing_loci.tsv','query_support.tsv','genomes.summary.tsv','loci.bed','report.html','loci.fna','review_ranking.tsv'] if (root/name).exists()]
     dump(root/'seal.json',{str(p.relative_to(root)):sha256(p) for p in sorted(files)})
 
 
