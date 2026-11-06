@@ -48,6 +48,8 @@ Open `results/02_contexts/report.html`. It links:
 
 No target protein/CDS alignments or genomic DNA comparisons are run by this stage.
 
+An optional [offline reference check](TARGET_REFERENCE_CHECK.md) can compare `model_options.proteins.faa` against your target/paralog panel before decisions. It runs separately and leaves the sealed checkpoint and all decisions unchanged.
+
 Complete **two** files:
 
 **`models.decisions.tsv`** has one row per original target-group/genome pair. Set `decision=keep` and copy exactly one `option_id`, or set `exclude`/`unresolved` with notes. Choosing a prediction replaces the discovery model's CDS/protein in the final comparison. A `dna_only` option retains DNA/context analysis without inventing a coding sequence. Opposite-strand and disrupted coding models cannot be promoted as the target protein; revisit the locus choice or use DNA-only analysis.

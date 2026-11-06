@@ -191,11 +191,24 @@ def parser():
     reviewed.add_argument("--dna-min-identity", type=fraction)
     reviewed.add_argument("--reference-genome")
     reviewed.add_argument("--max-alignment-bases", type=positive)
+    check = commands.add_parser("check-targets", help="Check saved candidate proteins against a local reference panel; no downloads or decisions")
+    check.add_argument("--proteins", required=True, help="Candidate protein FASTA, e.g. model_options.proteins.faa")
+    check.add_argument("--references", required=True, help="Local reference protein FASTA, including close paralogs")
+    check.add_argument("--reference-labels", help="Optional complete TSV: reference, family; exact reference FASTA IDs")
+    check.add_argument("--out", required=True, help="Separate new/empty directory")
+    check.add_argument("--threads", type=positive, default=4)
     return parser
 
 
 def main(argv=None):
     args = parser().parse_args(argv)
+    if args.command == "check-targets":
+        from .target_check import check_targets
+        try:
+            return check_targets(args)
+        except (OSError, ValueError, RuntimeError) as error:
+            print(f"ERROR: {error}", file=sys.stderr)
+            return 2
     if args.command in {"search", "review-search", "contexts", "compare-reviewed", "review-contexts"}:
         from .review import search, review_search, contexts, compare_reviewed, review_contexts
         function = {"search": search, "review-search": review_search, "contexts": contexts, "compare-reviewed": compare_reviewed, "review-contexts": review_contexts}[args.command]

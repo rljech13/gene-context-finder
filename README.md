@@ -71,6 +71,8 @@ gene-context contexts --review results/01_search/review \
 
 This extracts the selected windows and predicts their genes with Tiberius on CPU, including genomes with GFF3. **Stop 2:** open `results/02_contexts/report.html`. Choose the actual target CDS in `models.decisions.tsv` and review the neighbours in `neighbors.decisions.tsv`. Source isoforms, prediction models, exon tracks and sequence exports are retained separately.
 
+For additional evidence before choosing, `check-targets` compares the saved proteins against a small local reference panel including close paralogs. It reports coverage of both proteins and competing matches without downloading data or changing decisions. See the [reference check](docs/TARGET_REFERENCE_CHECK.md).
+
 ```bash
 gene-context compare-reviewed --review results/02_contexts \
   --models results/02_contexts/models.decisions.tsv \

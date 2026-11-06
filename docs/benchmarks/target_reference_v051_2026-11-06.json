@@ -1,0 +1,32 @@
+{
+  "version": "0.5.1",
+  "tests": [
+    {
+      "log": "gcf-v051-reference-tests.log",
+      "tests": 5,
+      "status": "passed"
+    },
+    {
+      "log": "gcf-v051-core-tests.log",
+      "tests": 15,
+      "status": "passed"
+    },
+    {
+      "log": "gcf-v051-review-unit-tests.log",
+      "tests": 15,
+      "status": "passed"
+    }
+  ],
+  "total_tests": 35,
+  "production_replay": {
+    "coding_options": 235,
+    "assemblies": 18,
+    "references": 91,
+    "reference_symbol_groups": 20,
+    "original_review_bundle_unchanged": true,
+    "prediction_repeated": false,
+    "decisions_changed": false
+  },
+  "wheel_sha256": "1228b548c870a56ebdb6a1aa726d50973577b022a9442dab096f5b6d72f88d11",
+  "limits": "Reference-panel evidence, not orthology or biological target approval"
+}
