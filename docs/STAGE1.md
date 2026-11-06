@@ -117,3 +117,5 @@ This verifies the source checkpoint and copies its sealed artifacts to a separat
 ## Minimal card layout
 
 The default card contains locus coordinates, one compact row per query (coverage, aligned identity, score), and two collapsed entries: **Synteny** and **Details**. Source species/labels are in query tooltips. Sequence evidence, model/coordinate controls and raw data links remain inside **Details**. No synteny diagram or long metric explanation expands automatically.
+
+The v0.7.6 NANOG source-context run verified all five query-source neighborhoods across the 16 available annotated target genomes. Both chicken loci are GeneID-linked with sequence differences retained; human, mouse and zebrafish have exact identifier/sequence bindings. The 2,546 target loci and seven target-discovery exports are unchanged. This was a context recomputation only, under host2's shared 250 GiB / zero-swap limit. See the [actual-run receipt](benchmarks/nanog_sources_v076_2026-11-06.json).

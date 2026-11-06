@@ -1,0 +1,110 @@
+{
+  "source_commit": "b693863",
+  "version": "0.7.6",
+  "genomes": 16,
+  "loci": 2546,
+  "reference_loci": 5,
+  "all_query_origins_resolved": true,
+  "errors": [],
+  "target_search_tables_unchanged": {
+    "queries.fasta": "34b5d3dff92ec0c401731d15f5a271ff008abd0093f4d46d04496d6e2e1545ef",
+    "loci.fna": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "loci.tsv": "8aabc3609c537141074498eb869ec94e317f724b87dd04dd3554902afae6e2fd",
+    "passing_loci.tsv": "3a47787d13caa288ff8825d19e364b86ae4aca4e8e6010f046b4043f77407d74",
+    "query_support.tsv": "3a5eeb1bfdcbb5a2f1e610e0a1a07887fe7e99285f2f428751f3cb39d6963bc1",
+    "loci.bed": "893a9c9f6db79622c7b58626986e9f6c8a729afa0310872d3a4e11e8e75c4539",
+    "genomes.summary.tsv": "c66d3999dd06c551214adb252aa5cdffec2e3336ac79c2166d90c96f35d34eba"
+  },
+  "source_resolution": [
+    {
+      "query_id": "q0001",
+      "query": "Ggal_XP_046762188.1",
+      "status": "gene_id_linked_sequence_differs",
+      "query_sequence_verified": false,
+      "context_binding_only": true,
+      "sources": [
+        {
+          "genome_id": "Gallus_gallus_GCF_016699485.2",
+          "gene_id": "gene-NANOG"
+        }
+      ],
+      "mismatching_sources": [
+        {
+          "genome_id": "Gallus_gallus_GCF_016699485.2",
+          "gene_id": "gene-NANOG"
+        }
+      ]
+    },
+    {
+      "query_id": "q0002",
+      "query": "Ggal_XP_040517415.1",
+      "status": "gene_id_linked_sequence_differs",
+      "query_sequence_verified": false,
+      "context_binding_only": true,
+      "sources": [
+        {
+          "genome_id": "Gallus_gallus_GCF_016699485.2",
+          "gene_id": "gene-LOC101748883"
+        }
+      ],
+      "mismatching_sources": [
+        {
+          "genome_id": "Gallus_gallus_GCF_016699485.2",
+          "gene_id": "gene-LOC101748883"
+        }
+      ]
+    },
+    {
+      "query_id": "q0003",
+      "query": "Hsap_NP_079141.2",
+      "status": "identifier_and_sequence",
+      "query_sequence_verified": true,
+      "context_binding_only": false,
+      "sources": [
+        {
+          "genome_id": "Homo_sapiens_GCF_000001405.40",
+          "gene_id": "gene-NANOG"
+        }
+      ],
+      "mismatching_sources": []
+    },
+    {
+      "query_id": "q0004",
+      "query": "Mmus_NP_082292.1",
+      "status": "identifier_and_sequence",
+      "query_sequence_verified": true,
+      "context_binding_only": false,
+      "sources": [
+        {
+          "genome_id": "Mus_musculus_GCF_000001635.27",
+          "gene_id": "gene-Nanog"
+        }
+      ],
+      "mismatching_sources": []
+    },
+    {
+      "query_id": "q0005",
+      "query": "Drer_NP_001091862.1",
+      "status": "identifier_and_sequence",
+      "query_sequence_verified": true,
+      "context_binding_only": false,
+      "sources": [
+        {
+          "genome_id": "Danio_rerio_GCF_052040795.2",
+          "gene_id": "gene-nanog"
+        }
+      ],
+      "mismatching_sources": []
+    }
+  ],
+  "review_id": "1d1a8ff3-ec99-4990-849c-b24638520585",
+  "parent_review": "465ed4e0-5991-4563-9a85-dacda73576c0",
+  "host2_result": "/mnt/data/i.rubinshteyn/gene_context_experiments/results/nanog_all_sources_v076_20261106",
+  "host2_run": "/mnt/data/i.rubinshteyn/gene_context_experiments/runs/20261106T084054-nanog-all-sources-v076-6d4b49",
+  "resource_policy": {
+    "aggregate_memory_max_bytes": 268435456000,
+    "swap_max_bytes": 0
+  },
+  "elapsed_seconds": 169.28364775702357,
+  "note": "Actual context run, return code 0; no new target-discovery search or gene prediction. All biological decisions remain pending."
+}
