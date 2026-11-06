@@ -35,7 +35,7 @@ Early contexts start with five genes on each side, expanding to ten/twenty when 
 
 ## Read the report
 
-Open `report.html`. Choose a genome or open the overview. Each locus is one row; the first three are displayed by score, with a button to show the rest. Nothing is preselected.
+Open `report.html`. Choose a genome or open the overview. Each locus is one row; the strongest retained candidate is displayed first, with a button to show the next ten. Selected loci remain visible. Nothing is preselected.
 
 **Where this locus matches each query** shows:
 
@@ -47,9 +47,13 @@ Open `report.html`. Choose a genome or open the overview. Each locus is one row;
 
 These are maps of the existing search matches. They do not require new comparisons between candidate proteins. BLASTP also reports coverage of the annotated subject protein, without assuming the annotation is complete. Genomic BLAST does not estimate coverage of an unknown complete candidate gene. The miniprot models, if present, are optional technical evidence within their locus.
 
-**Early synteny** shows the source reference, specific matched neighbors, order diagrams, ambiguity and the actual examined span. Missing annotation, missing proteins, unresolved source loci and insufficient anchors are distinct states. Lack of context support never automatically removes a locus. Gene symbols alone are not evidence of correspondence.
+**Neighbor genes** opens a compact comparison with five extracted neighbors per side. Both target genes point right; arrows show relative direction, and dashed colored links show proposed protein correspondences. Equal spacing is schematic. **Change reference or view** offers a genomic-distance scale and the ±50 kb window or larger extracted-neighbor views. Only pairs present in both displayed rows receive a link; the caption distinguishes visible pairs from all proposed pairs.
 
-Saved display thresholds are coverage 0.20, identity 0.25, E-value 1e-5. One chain must pass all three together; it need not be the highest-scoring chain shown in the locus summary. Initially weak alternatives remain visible among the first three. Check **Hide below-threshold candidates** to narrow the view. Selections remain visible even when below those filters. Browser filters do not delete evidence or change the saved checkpoint.
+Sequence tables, metric explanations, neighbor selection, matching diagnostics and decision controls are collapsed by default. See [metric definitions and worked examples](STAGE1_METRICS.md). **Inspect proposed pairs** also contains individual-neighbor choices (including unmatched genes) and a separate `neighbors.to_inspect.tsv` download. These are follow-up requests, not orthology approvals; they persist in draft JSON and are not yet consumed by `stage1-select`. Same-assembly comparisons are labeled, self-controls are explicitly flagged, and neither counts in the cross-species overview. No heuristic synteny score is shown as an orthology verdict.
+
+The detailed context section retains the source reference, specific matched neighbors, ambiguity and the actual examined span. Missing annotation, missing proteins, unresolved source loci and insufficient anchors are distinct states. Lack of context support never automatically removes a locus. Gene symbols alone are not evidence of correspondence.
+
+Saved display thresholds are coverage 0.20, identity 0.25, E-value 1e-5. One chain must pass all three together; it need not be the highest-scoring chain shown in the locus summary. The strongest candidate remains visible even if below these gates. Further alternatives are available through **Show next candidates**. Check **Hide below-threshold candidates** to narrow the view. Selections remain visible even when below those filters. Browser filters do not delete evidence or change the saved checkpoint.
 
 `loci.tsv` contains every ranked candidate; `passing_loci.tsv` is the saved passing subset; `query_support.tsv` contains per-query/product chains, covered positions and separate subject-protein or genomic intervals. BLASTP loci include original gene/model identifiers and all matched isoforms; `raw/<genome>.annotation/` contains product mappings, matched proteins and cache/provenance receipts. Annotated locus DNA extraction is deferred until selection, so `loci.fna` contains only any genomic-search results; it may be empty for a purely BLASTP run. Genome coordinates are zero-based half-open. Query positions in the report's HSP tables are one-based inclusive; TSV interval fields are zero-based half-open. Chain identity is an estimate from local HSP identities, with overlaps prorated. Chain E-value is the best HSP E-value, not a combined gene-level probability. Ranking and context evidence do not prove orthology.
 
@@ -96,3 +100,12 @@ gene-context stage1-filter --results results/nanog_review \
 Each command creates a new checkpoint and leaves the source untouched. Searches use a more permissive initial E-value ceiling of 1e-3; HSP seed gates and chaining limits are recorded in the manifest. A match omitted by discovery cannot be recovered by display filtering. Source errors and missing data remain explicit; no-hit results do not establish gene absence.
 
 The locus-first selected-window export is not yet connected to the legacy `contexts` model-first interface. Detailed prediction and final conservation comparisons remain separate downstream work.
+
+## Refresh the presentation only
+
+```bash
+gene-context stage1-report --results results/nanog_review \
+  --out results/nanog_compact
+```
+
+This verifies the source checkpoint and copies its sealed artifacts to a separate directory. It preserves the exact scientific evidence, filters, locus IDs and review ID, so existing drafts and decision TSVs remain compatible. Only the report and presentation provenance change; no BLAST or context calculation is run. The source is untouched.

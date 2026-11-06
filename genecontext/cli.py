@@ -240,6 +240,9 @@ def parser():
     annotated.add_argument("--out", required=True)
     annotated.add_argument("--threads", type=positive, default=4)
     early_synteny_options(annotated, disable_option=False)
+    presentation = commands.add_parser("stage1-report", help="Refresh a saved report without searching, changing evidence or invalidating decision IDs")
+    presentation.add_argument("--results", required=True)
+    presentation.add_argument("--out", required=True, help="Separate new/empty report directory")
     filtered = commands.add_parser("stage1-filter", help="Change locus review thresholds without another genome search")
     filtered.add_argument("--results", required=True)
     filtered.add_argument("--out", required=True)
@@ -257,13 +260,14 @@ def parser():
 
 def main(argv=None):
     args = parser().parse_args(argv)
-    if args.command in {"stage1", "stage1-filter", "stage1-select", "stage1-context"}:
+    if args.command in {"stage1", "stage1-filter", "stage1-select", "stage1-context", "stage1-report"}:
         from .stage1 import search, refilter, approve
         from .stage1_context import context
+        from .stage1_report import refresh
         if args.command == "stage1" and args.jobs > 1:
             from .stage1_parallel import search
         try:
-            return {"stage1": search, "stage1-filter": refilter, "stage1-select": approve, "stage1-context": context}[args.command](args)
+            return {"stage1": search, "stage1-filter": refilter, "stage1-select": approve, "stage1-context": context, "stage1-report": refresh}[args.command](args)
         except (OSError, ValueError, RuntimeError, KeyError) as error:
             print(f"ERROR: {error}", file=sys.stderr)
             return 2

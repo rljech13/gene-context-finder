@@ -54,3 +54,11 @@ python -m unittest discover -s tests -v
 ```
 
 Tests use local fixtures. Tool-dependent integration tests skip when executables are unavailable. The POU5 controls check annotated reference windows and neighbouring frog copies; they do not establish all-genome discovery accuracy.
+
+Refresh an existing review into the compact layout without rerunning any search:
+
+```bash
+gene-context stage1-report --results results/nanog_stage1 --out results/nanog_compact
+```
+
+The original evidence and review/decision IDs are retained. The default view shows one candidate, coverage/identity and a small neighbor diagram; detailed evidence and controls expand on demand. See [metric definitions](docs/STAGE1_METRICS.md).
