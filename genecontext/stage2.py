@@ -538,6 +538,7 @@ def _run(args):
 
 def write_outputs(root,data):
     from urllib.parse import quote
+    from .stage2_resume import pending_table, atomic_json
     with (root/'models.gff3').open('w') as out:
         out.write('##gff-version 3\n')
         for m in data['models']:
@@ -561,14 +562,11 @@ def write_outputs(root,data):
         (root/filename).write_text('##gff-version 3\n'+'\n'.join(lines)+'\n')
         mapping.append(dict(genome_id=gid,gff3=filename))
     write_tsv(root/'annotations.tsv',mapping,['genome_id','gff3'])
-    if not (root/'regions.decisions.tsv').exists():
-        write_tsv(root/'regions.decisions.tsv',[dict(review_id=data['review_id'],region_id=r['region_id'],decision='',notes='') for r in data['regions']],['review_id','region_id','decision','notes'])
-    if not (root/'neighbors.decisions.tsv').exists():
-        write_tsv(root/'neighbors.decisions.tsv',[],['review_id','gene_a','gene_b','model_a','model_b','decision'])
+    pending_table(root/'regions.decisions.tsv',[dict(review_id=data['review_id'],region_id=r['region_id'],decision='',notes='') for r in data['regions']],['review_id','region_id','decision','notes'])
+    pending_table(root/'neighbors.decisions.tsv',[],['review_id','gene_a','gene_b','model_a','model_b','decision'])
     write_tsv(root/'regions.tsv',data['regions'],['genome_id','locus_id','region_id','contig','strand','anchor_start','anchor_end','window_start','window_end','boundary_source','window_source'])
-    if not (root/'models.decisions.tsv').exists():
-        write_tsv(root/'models.decisions.tsv',[dict(review_id=data['review_id'],model_id=m['model_id'],decision='',role='',notes='') for m in data['models']],['review_id','model_id','decision','role','notes'])
+    pending_table(root/'models.decisions.tsv',[dict(review_id=data['review_id'],model_id=m['model_id'],decision='',role='',notes='') for m in data['models']],['review_id','model_id','decision','role','notes'])
     write_tsv(root/'models.tsv',[dict(m,proposed_name=m['identification']['proposed_name'],identification_status=m['identification']['status'],issues=';'.join(m['issues'])) for m in data['models']],['model_id','region_id','genome_id','gene_group','original_model','original_gene','source','annotation_name','contig','start','end','strand','coding_status','issues','protein_length','window_edge','proposed_name','identification_status'])
     from .stage2_report import write_report
     write_report(root,data)
-    dump(root/'seal.json',{str(p.relative_to(root)):sha256(p) for p in root.rglob('*') if p.is_file() and p.name not in {'seal.json','models.decisions.tsv','regions.decisions.tsv','neighbors.decisions.tsv'}})
+    atomic_json(root/'seal.json',{str(p.relative_to(root)):sha256(p) for p in root.rglob('*') if p.is_file() and p.name not in {'seal.json','models.decisions.tsv','regions.decisions.tsv','neighbors.decisions.tsv'}})

@@ -1,5 +1,6 @@
 """Explicit stage-2 restart identity, independent extraction checkpoints and lock."""
 import json
+import os
 from pathlib import Path
 import shutil
 from uuid import uuid4
@@ -16,6 +17,22 @@ def atomic_json(path, value):
     try:
         temporary.write_text(json.dumps(value, indent=2)+'\n')
         temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def pending_table(path, rows, columns):
+    """Publish a complete initial decision table without replacing human edits."""
+    from .sequence import write_tsv
+    path = Path(path)
+    if path.exists():return
+    temporary = path.with_name(path.name+'.'+uuid4().hex+'.tmp')
+    try:
+        write_tsv(temporary, rows, columns)
+        try:
+            os.link(temporary, path)
+        except FileExistsError:
+            pass
     finally:
         temporary.unlink(missing_ok=True)
 
