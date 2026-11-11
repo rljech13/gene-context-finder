@@ -46,6 +46,40 @@ python -m genecontext stage2 \
 
 The genomic FASTA is required even if stage 1 searched only annotation proteins. Dataset TSV fields are `genome_id,fasta` and optional matching `gff3,protein,cds,species,assembly_accession,annotation_provenance`. See stage 1 for path resolution. A stage 1 FASTA hash, when present, must match; contig lengths and annotation hashes are checked. For protein-only discoveries without a genomic hash, stage 2 records a **new** genome fingerprint and identifies that weaker cross-stage identity check explicitly. The caller must supply the matching assembly.
 
+## Continue an interrupted run
+
+Repeat the original `stage2` command with `--resume`, including the same `--out`.
+The run checks source evidence, selections, genomic/annotation content hashes,
+protein database, runtime/weights, tools, parameters and implementation before
+reusing an extraction checkpoint or completed protein-search step. Every cache
+artifact is verified by SHA-256. Changed inputs require a new output directory.
+An already sealed run returns its existing status without rewriting the report,
+review ID or decisions. `completed_with_errors` is also sealed: use a new output
+to retry those errors; successful prediction entries remain reusable.
+
+Extraction is saved per genome. Tiberius results are shared under
+`--predictor-cache/predictions/`, keyed by exact DNA and window identifier,
+verified weight content, runtime/source fingerprints, threads, batch size and
+worker mode. Cache hits still undergo the native CDS/protein round trip. A
+failed or incomplete inference is never published. Concurrent requests lock the
+same cache key and publish complete results atomically. Interrupted scratch
+attempts remain under `.stage2/attempts/`; they never become human approvals.
+
+`--tiberius-worker-mode reuse` is optional. One process retains a single neural
+network; an unchanged model avoids loading the weights again. Each request has
+one window, an independently clamped sequence length, a fresh `PredictionGTF`
+and fresh HMM. Switching models clears the retained network. CPU proof and
+model-loading/prediction timings are recorded per window. The compatibility
+mode `isolated` remains the default. A synthetic host2 control compares exact
+GFF3, pre-filter GFF3, CDS and protein exports, including short → long → short
+windows and model switching; this is not a full NANOG performance benchmark.
+
+`compact-report --report RESULT/report.html --out RESULT/report.compact.html`
+creates an optional smaller offline transport beside the original. It restores
+the exact application script at load time; scientific evidence, stylesheet,
+review IDs, labels, zoom and manual decisions are not rewritten. This measures
+file-size reduction, not lower browser memory or visual acceptance.
+
 ## Computation and outputs
 
 1. Validate selections before starting. Preserve the exact region/anchor/window IDs and coordinates, including split anchors and custom windows.

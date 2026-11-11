@@ -40,10 +40,10 @@ def prediction_model(args, entry):
 def validate_prediction_inputs(args, genomes):
     if args.predictor == "tiberius":
         from .tiberius_backend import runtime_info, runtime_python, ensure_model
-        runtime_info(runtime_python(args))
-        for name in sorted({prediction_model(args, g) for g in genomes}):
-            ensure_model(name, args.predictor_cache, args.offline)
-        return
+        runtime = runtime_info(runtime_python(args))
+        models = {name:ensure_model(name, args.predictor_cache, args.offline)
+                  for name in sorted({prediction_model(args, g) for g in genomes})}
+        return dict(runtime=runtime, models=models)
     if not tool_versions(["augustus"])["augustus"]["path"]:
         raise ValueError("Window gene prediction requires AUGUSTUS. Install the updated environment, or use --context-mode annotation for the legacy workflow.")
     missing = [g["genome_id"] for g in genomes if not prediction_model(args, g)]

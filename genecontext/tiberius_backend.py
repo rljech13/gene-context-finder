@@ -1,6 +1,8 @@
 """Pinned shared weights and an optional, isolated native-CPU runtime."""
 from datetime import datetime, timezone
 import json
+import hashlib
+import time
 from pathlib import Path, PurePosixPath
 import shutil
 import subprocess
@@ -35,23 +37,27 @@ def model_name(value):
 
 
 def validate_model(path, expected=None):
+    from .search_cache import fingerprint
     path = Path(path).expanduser().resolve()
     if not (path / "model_config.json").is_file():
         raise ValueError(f"No Tiberius model_config.json in {path}")
     weights = [p for p in (path / "weights.h5", path / "model.weights.h5") if p.is_file()]
     if len(weights) != 1:
         raise ValueError(f"Expected one Tiberius weight file in {path}")
+    paths = [path / "model_config.json", *weights]
+    if (path / "model_layers.json").is_file():paths.append(path / "model_layers.json")
+    snapshots = {p.name:list(fingerprint(p)) for p in paths}
     config = json.loads((path / "model_config.json").read_text())
     if not isinstance(config, dict) or config.get("clamsa") or config.get("hmm"):
         raise ValueError("Use a Tiberius ab initio model without ClaMSA or an embedded HMM")
     if config.get("inp_size") == 6 or config.get("softmasking"):
         raise ValueError("This CPU backend requires an unmasked model; softmasked models are not silently reinterpreted")
-    files = {p.name: sha256(p) for p in [path / "model_config.json", *weights]}
-    if (path / "model_layers.json").is_file():
-        files["model_layers.json"] = sha256(path / "model_layers.json")
+    files = {p.name:sha256(p) for p in paths}
+    if any(list(fingerprint(p)) != snapshots[p.name] for p in paths):
+        raise ValueError('Tiberius weights changed during verification')
     if expected and files != expected:
         raise ValueError(f"Tiberius model fails pinned file checksums; preserved unchanged: {path}")
-    return dict(path=str(path), files_sha256=files)
+    return dict(path=str(path), files_sha256=files, files_fingerprint=snapshots)
 
 
 def ensure_model(name, cache, offline=False):
@@ -173,65 +179,127 @@ def setup_predictor(args):
     return 0
 
 
+def validate_prediction(folder, windows):
+    """Check fresh and cached exports against the exact native window DNA."""
+    output = folder / "predictions.gff3"
+    proof = next((line.split("=", 1)[1] for line in (folder / "stdout.log").read_text().splitlines()
+                  if line.startswith("GENE_CONTEXT_CPU=")), None)
+    cpu = json.loads(proof) if proof else {}
+    if (not cpu.get("visible_devices") or cpu.get("input_windows") != 1 or
+            any("GPU" in device for device in cpu["visible_devices"])):
+        raise ValueError("Tiberius did not confirm isolated CPU-only execution")
+    models, _ = read_gff(output, source="tiberius")
+    if any(m.contig not in windows for m in models):
+        raise ValueError("Tiberius returned an unknown window identifier")
+    # Empty predictions still require complete exports, not a truncated worker.
+    def exported(suffix):
+        path = Path(str(output)+suffix)
+        return read_fasta(path) if path.stat().st_size else {}
+    exported_cds = exported('.cds.fna')
+    exported_proteins = exported('.proteins.faa')
+    coding = {key.split("|")[1]: seq for key, seq in exported_cds.items()}
+    proteins = {key.split("|")[1]: seq for key, seq in exported_proteins.items()}
+    if (len(coding) != len(exported_cds) or len(proteins) != len(exported_proteins) or
+            set(coding) != {m.id for m in models} or set(proteins) != set(coding)):
+        raise ValueError("Tiberius GFF3/CDS/protein identifiers disagree")
+    for model in models:
+        if not model.cds or any(not 0 <= a < b <= len(windows[model.contig]) for a,b,_ in model.cds):
+            raise ValueError("Tiberius CDS outside its input window")
+        sequence = "".join(windows[model.contig][a:b] if model.strand == "+" else
+            reverse_complement(windows[model.contig][a:b]) for a,b,_ in model.cds).upper()
+        sequence = sequence[model.cds[0][2] or 0:]
+        if sequence != coding[model.id] or translate(sequence).rstrip("*") != proteins[model.id].rstrip("*"):
+            raise ValueError("Tiberius output fails native CDS/protein roundtrip")
+    if not (folder / 'predictions.gff3.raw.gff3').is_file():
+        raise ValueError("Tiberius pre-filter evidence is missing")
+    return models, cpu
+
+
 def predict_batches(args, root, rows, windows, runner, errors):
+    from .artifact_cache import cached
+    from .tiberius_session import WorkerSession
+    from .search_cache import fingerprint
     python = runtime_python(args)
-    provenance = dict(predictor="tiberius", cpu_only=True, runtime=runtime_info(python), batches=[],
-                      window_isolation="one window per worker; independent upstream sequence-length clamping",
-                      method="DNA-only prediction before protein identification; no annotation/protein hints")
-    result = {}
-    # Upstream clamps inference length to the longest sequence in its input.
-    # A longer unrelated window must not change another locus's neural/HMM
-    # chunking. Shared weight files remain cached; inference is per window.
-    for index, row in enumerate(rows, 1):
-        name, loci = row["context_predictor_model"], [row]
-        for row in loci:
-            if row["window_bp"] < 1000:
-                row["context_status"] = "prediction_window_too_short"
-        loci = [row for row in loci if row["window_bp"] >= 1000]
-        if not loci:
-            continue
-        folder = root / "context_prediction" / f"tiberius_{index:03d}"
-        folder.mkdir(parents=True)
-        batch = dict(model=name, loci=[r["locus_id"] for r in loci], status="running")
-        provenance["batches"].append(batch)
-        try:
-            info = ensure_model(name, args.predictor_cache, args.offline)
-            batch["weights"] = info
-            fasta = folder / "windows.fna"
-            write_fasta(fasta, [(r["locus_id"], windows[r["locus_id"]]) for r in loci])
-            output = folder / "predictions.gff3"
-            print(f"[predictor] Tiberius CPU: {len(loci)} windows, model {name}", file=sys.stderr, flush=True)
-            runner.run([python, WORKER, "--threads", args.threads, "--batch-size", args.tiberius_batch_size,
-                        "--model", info["path"], "--fasta", fasta, "--out", output], folder / "stdout.log", folder / "stderr.log")
-            proof = next((line.split("=", 1)[1] for line in (folder / "stdout.log").read_text().splitlines()
-                          if line.startswith("GENE_CONTEXT_CPU=")), None)
-            batch["cpu_execution"] = json.loads(proof) if proof else {}
-            if not batch["cpu_execution"].get("visible_devices") or any("GPU" in device for device in batch["cpu_execution"]["visible_devices"]):
-                raise ValueError("Tiberius did not confirm CPU-only execution")
-            models, _ = read_gff(output, source="tiberius")
-            ids = {r["locus_id"] for r in loci}
-            if any(m.contig not in ids for m in models):
-                raise ValueError("Tiberius returned an unknown window identifier")
-            exported_cds = read_fasta(str(output) + ".cds.fna") if models else {}
-            exported_proteins = read_fasta(str(output) + ".proteins.faa") if models else {}
-            coding = {key.split("|")[1]: seq for key, seq in exported_cds.items()}
-            proteins = {key.split("|")[1]: seq for key, seq in exported_proteins.items()}
-            if set(coding) != {m.id for m in models} or set(proteins) != set(coding):
-                raise ValueError("Tiberius GFF3/CDS/protein identifiers disagree")
-            for model in models:
-                sequence = "".join(windows[model.contig][a:b] if model.strand == "+" else
-                    reverse_complement(windows[model.contig][a:b])
-                    for a, b, _ in model.cds).upper()
-                phase = model.cds[0][2] or 0
-                sequence = sequence[phase:]
-                if sequence != coding[model.id] or translate(sequence).rstrip("*") != proteins[model.id].rstrip("*"):
-                    raise ValueError("Tiberius output fails native CDS/protein roundtrip")
-            for row in loci:
-                result[row["locus_id"]] = [m for m in models if m.contig == row["locus_id"]]
-            batch.update(status="completed", coding_models=len(models), raw_gff3=str(output.relative_to(root)))
-        except (OSError, ValueError, RuntimeError, IndexError) as error:
-            batch.update(status="error", error=str(error))
-            for row in loci:
-                row["context_status"] = "context_inference_error"
-                errors.append(dict(stage="context_prediction", locus_id=row["locus_id"], error=str(error)))
+    runtime = runtime_info(python)
+    mode = getattr(args, 'tiberius_worker_mode', 'isolated')
+    provenance = dict(predictor="tiberius", cpu_only=True, runtime=runtime, batches=[],
+        worker_mode=mode, window_isolation="independent upstream sequence-length clamping and fresh per-window HMM",
+        method="DNA-only prediction before protein identification; no annotation/protein hints")
+    implementation = {name:sha256(Path(__file__).with_name(name)) for name in
+                      ['tiberius_backend.py','tiberius_worker.py','sequence.py','tiberius_session.py']}
+    result = {}; weights = {}
+    session = WorkerSession(python, WORKER, args, root, runner)
+    try:
+        for index, row in enumerate(rows, 1):
+            name, locus = row['context_predictor_model'], row['locus_id']
+            if row['window_bp'] < 1000:
+                row['context_status'] = 'prediction_window_too_short'
+                continue
+            folder = root / 'context_prediction' / f'tiberius_{index:03d}'
+            folder.mkdir(parents=True, exist_ok=True)
+            batch = dict(model=name, loci=[locus], status='running')
+            provenance['batches'].append(batch)
+            started = time.perf_counter()
+            commands_start = len(runner.commands)
+            try:
+                if name not in weights:
+                    weights[name] = ensure_model(name, args.predictor_cache, args.offline)
+                info = weights[name]; batch['weights'] = info
+                def check_weights():
+                    if any(list(fingerprint(Path(info['path'])/file)) != before
+                           for file,before in info.get('files_fingerprint', {}).items()):
+                        raise ValueError('Tiberius weights changed after verification')
+                check_weights()
+                own = {locus: windows[locus]}
+                identity = dict(schema='gcf_tiberius_prediction_v1',
+                    window_id=locus, dna_sha256=hashlib.sha256(windows[locus].encode()).hexdigest(),
+                    weights_sha256=info['files_sha256'], runtime=runtime, implementation_sha256=implementation,
+                    threads=args.threads, batch_size=args.tiberius_batch_size, worker_mode=mode,
+                    requested_seq_len=400050, no_softmasking=True)
+
+                def build(staging):
+                    fasta = staging/'windows.fna'; output = staging/'predictions.gff3'
+                    write_fasta(fasta, own.items())
+                    print(f'[predictor] Tiberius CPU: {locus}, model {name}', file=sys.stderr, flush=True)
+                    before = len(runner.commands)
+                    try:
+                        if mode == 'reuse':
+                            session.predict(info['path'], fasta, output, staging/'stdout.log', staging/'stderr.log')
+                        else:
+                            runner.run([python, WORKER, '--threads', args.threads, '--batch-size', args.tiberius_batch_size,
+                                        '--model', info['path'], '--fasta', fasta, '--out', output],
+                                       staging/'stdout.log', staging/'stderr.log')
+                        validate_prediction(staging, own)
+                        check_weights()
+                    except BaseException:
+                        # Failed evidence is useful for diagnosis, but is never
+                        # published as a reusable scientific prediction.
+                        for file in staging.iterdir():
+                            if file.is_file():shutil.copyfile(file, folder/file.name)
+                        raise
+                    # Keep actual invocation and timing with the cached evidence.
+                    (staging/'execution.json').write_text(json.dumps(runner.commands[before:], indent=2)+'\n')
+
+                stored, receipt = cached(Path(args.predictor_cache)/'predictions', identity, build)
+                check_weights()
+                for file in stored.iterdir():
+                    if file.name != 'cache.json':
+                        shutil.copyfile(file, folder/file.name)
+                models, cpu = validate_prediction(folder, own)
+                timing = next((line.split('=', 1)[1] for line in (folder/'stdout.log').read_text().splitlines()
+                               if line.startswith('GENE_CONTEXT_TIMING=')), '{}')
+                result[locus] = models
+                batch.update(status='completed', coding_models=len(models), cpu_execution=cpu,
+                    cache=receipt, execution_timing=json.loads(timing),
+                    raw_gff3=str((folder/'predictions.gff3').relative_to(root)))
+            except (OSError, ValueError, RuntimeError, IndexError) as error:
+                batch.update(status='error', error=str(error))
+                row['context_status'] = 'context_inference_error'
+                errors.append(dict(stage='context_prediction', locus_id=locus, error=str(error)))
+            for command in runner.commands[commands_start:]:
+                for field in ['output', 'stderr']:
+                    if command.get(field):command[field] = str(folder/Path(command[field]).name)
+            batch['elapsed_seconds'] = time.perf_counter()-started
+    finally:
+        session.close()
     return result, provenance

@@ -76,6 +76,8 @@ def predictor_options(command):
     command.add_argument("--prediction-models", help="Optional TSV: genome_id, model; overrides models for new or saved searches")
     command.add_argument("--predictor-cache", default=DEFAULT_PREDICTOR_CACHE)
     command.add_argument("--tiberius-python", help="Optional Python executable of an existing Tiberius 2.0.9 CPU environment")
+    command.add_argument("--tiberius-worker-mode", choices=["isolated", "reuse"], default="isolated",
+                         help="Reuse neural weights across independent windows, or start one process per window")
     command.add_argument("--tiberius-batch-size", type=positive, default=1,
                          help="Neural inference batch size; 1 limits CPU memory")
 
@@ -284,6 +286,7 @@ def parser():
         command.add_argument("--window-policy", choices=["pre-synteny","fixed"], default="pre-synteny", help="Default: full preliminary gene envelope; fixed retains configured flanks. Explicit manual windows take precedence.")
         command.add_argument("--max-window-bases", type=positive, default=2000000)
         command.add_argument("--out", required=True)
+    s2.add_argument("--resume", action="store_true", help="Continue an interrupted stage2 output with identical inputs and parameters")
     s2.add_argument("--genomes", required=True, help="Dataset TSV with local genomic FASTA and optional matching GFF3")
     s2.add_argument("--protein-db", required=True, help="Verified local prepare-stage2-db output; no downloads during analysis")
     s2.add_argument("--threads", type=positive, default=4)
@@ -294,6 +297,9 @@ def parser():
     predictor_options(s2)
     s2.set_defaults(predictor_cache=None)
     next(a for a in s2._actions if a.dest=="predictor").choices=["tiberius"]
+    compact = commands.add_parser("compact-report", help="Create a smaller standalone HTML beside an existing report; retain the original")
+    compact.add_argument("--report", required=True, help="Existing report.html")
+    compact.add_argument("--out", required=True, help="New HTML filename in the same directory")
     s2r = commands.add_parser("stage2-report", help="Refresh STOP 2 presentation without prediction or protein searches")
     s2r.add_argument("--results", required=True)
     s2r.add_argument("--out", required=True)
@@ -340,6 +346,13 @@ def parser():
 
 def main(argv=None):
     args = parser().parse_args(argv)
+    if args.command == 'compact-report':
+        from .compact_report import run as compact
+        try:
+            return compact(args)
+        except (OSError, ValueError) as error:
+            print(f"ERROR: {error}", file=sys.stderr)
+            return 2
     if args.command in {"stage3","stage3-report","stage3-finalize"}:
         from .stage3 import run as stage3
         from .stage3_report import refresh

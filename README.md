@@ -69,6 +69,26 @@ gene-context stage2 --results results/pou5_stage1 --selection results/pou5_selec
 
 Open `results/pou5_stage2/report.html` for **STOP 2**: compare provided annotation and DNA-only predictions, inspect broad-database naming alternatives and target-query support, and choose target models/neighbors. No model is pre-approved. Overlapping selected windows share one bounded prediction interval. The downloadable draft/decisions preserve exact stage 2 IDs. Full details, draft-input rules and host2 memory limits are in [the stage 2 guide](docs/STAGE2.md). Analysis is offline; reference/model preparation is explicit.
 
+Interrupted stage 2 runs can continue with the **same command plus `--resume`**.
+Completed genome extraction, verified per-window predictions and completed protein
+searches are reused. Use the same `--predictor-cache` across genes for prediction
+reuse. Inputs, decisions, parameters and method identity must match; completed
+review choices are retained. `--tiberius-worker-mode reuse` optionally keeps one
+neural network in memory while each window gets independent chunking and a fresh
+HMM. The default remains one process per uncached window.
+
+For a smaller standalone HTML, keep the original and create a sibling file:
+
+```bash
+gene-context compact-report --report results/pou5_stage2/report.html \
+  --out results/pou5_stage2/report.compact.html
+```
+
+This preserves the application script, coordinates, labels and zoom. It reduces
+file size; it does not reduce the hydrated evidence or demonstrate lower browser
+memory use. The compact file uses native browser gzip decompression and offers a
+link to the original if that capability is unavailable.
+
 After saving the review, download `stage2.decisions.json` and run:
 
 ```bash

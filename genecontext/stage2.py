@@ -357,7 +357,58 @@ def neighbor_pairs(models, hits, args):
     return out
 
 
+
+def extract_genome(gid, own, entry, prediction_intervals, lmap, source_genomes, digest):
+    receipt=dict(genome_id=gid)
+    fasta=Path(entry['fasta']);before=fasta.stat()
+    known=source_genomes[gid].get('fasta_sha256')
+    if known and known!=digest:raise ValueError('FASTA differs from stage 1 discovery input')
+    requests={r['region_id']:(r['contig'],r['window_start'],r['window_end']) for r in own}
+    for c in prediction_intervals:
+        if c['genome_id']==gid:
+            requests[c['region_id']]=(c['contig'],c['window_start'],c['window_end'])
+    gene_names={};annotation=[];staged=[];staged_features=[]
+    if entry.get('gff3'):
+        genes,parsed,_=parse_annotation(entry['gff3']);gene_names={g:rec['name'] for g,rec in genes.items()}
+        for r in own:
+            for item in parsed.values():
+                m=item['model']
+                if m.contig==r['contig'] and max(m.start,r['window_start'])<min(m.end,r['window_end']):
+                    annotation.append((r,m))
+                    for a,b,_ in m.cds:requests['C'+ident(m.contig,a,b)]=(m.contig,a,b)
+                    for a,b in m.stops:requests['C'+ident(m.contig,a,b)]=(m.contig,a,b)
+        receipt['annotation_sha256']=sha256(entry['gff3'])
+        expected=source_genomes[gid].get('annotation_inputs',{}).get('gff3',{}).get('sha256')
+        if expected and expected!=receipt['annotation_sha256']:raise ValueError('Annotation differs from stage 1 dataset; use its matching release')
+        from .annotation_context import read_features
+        staged_features=read_features(entry['gff3'],own)
+        del genes,parsed
+    pieces,lengths=extract_intervals(fasta,requests)
+    if (fasta.stat().st_size,fasta.stat().st_mtime_ns)!=(before.st_size,before.st_mtime_ns):raise ValueError('FASTA changed during extraction')
+    extracted={}
+    for r in own:
+        if lengths[r['contig']]!=lmap[r['locus_id']]['contig_length']:raise ValueError('Contig length differs from stage 1')
+        extracted[r['region_id']]=pieces[r['region_id']]
+    for c in prediction_intervals:
+        if c['genome_id']==gid:extracted[c['region_id']]=pieces[c['region_id']]
+    genome=Sequences(pieces,requests)
+    for r,m in annotation:
+        cds,protein,status,issues=coding_sequence(m,genome)
+        record=model_record(m,r,'annotation',cds,protein,status,issues,gene_names.get(m.gene,''))
+        staged.append((record,cds,protein))
+    receipt.update(status='completed',fasta_sha256=digest,fasta_bytes=before.st_size,
+        identity_check='exact_stage1_sha256' if known else 'new_genomic_fingerprint; stage1_protein_search_did_not_hash_genome',
+        windows=len(own),annotation_models=len(annotation))
+    return dict(receipt=receipt, windows=extracted, staged=staged, annotation_features=staged_features)
+
 def run(args):
+    from .early_synteny import cache_lock
+    from .stage2_resume import lock_path
+    with cache_lock(lock_path(args.out)):
+        return _run(args)
+
+
+def _run(args):
     started=time.perf_counter();source,data=verify(args.results)
     if args.predictor!='tiberius':raise ValueError('The new stage2 command requires Tiberius')
     regions,selection,decision_rows,prediction_intervals=planned_regions(source,data,args)
@@ -370,10 +421,17 @@ def run(args):
     args.offline=True;args.predictor='tiberius'
     inputs=datasets(args.genomes);by_genome={r['genome_id']:r for r in inputs}
     if set(r['genome_id'] for r in regions)-set(by_genome):raise ValueError('Selected genome absent from --genomes')
-    validate_prediction_inputs(args,[by_genome[g] for g in sorted({r['genome_id'] for r in regions})])
+    predictor_identity=validate_prediction_inputs(args,[by_genome[g] for g in sorted({r['genome_id'] for r in regions})])
     from .stage2_intervals import project_model
-    root=new_output(args.out);runner=TimedRunner(root);errors=[];models=[];coding={};proteins={};windows={};receipts=[];annotation_features=[]
-    dump(root/'window_plan.json',window_plan(source,data,args,regions,selection,prediction_intervals))
+    from .stage2_resume import prepare as prepare_resume
+    from .artifact_cache import cached
+    plan_data=window_plan(source,data,args,regions,selection,prediction_intervals)
+    root,run_record,input_hashes,input_stats,completed=prepare_resume(args,plan_data,by_genome,db_info,versions,predictor_identity)
+    if completed is not None:
+        print('STOP 2 already complete — '+str(root/'report.html'))
+        return 1 if completed['errors'] else 0
+    runner=TimedRunner(root);errors=[];models=[];coding={};proteins={};windows={};receipts=[];annotation_features=[]
+    dump(root/'window_plan.json',plan_data)
     # Manual window/anchor overrides may appear only in later decision rows.
     columns=list(dict.fromkeys(key for row in decision_rows for key in row))
     write_tsv(root/'selection.snapshot.tsv',decision_rows,columns)
@@ -385,48 +443,27 @@ def run(args):
         own=[r for r in regions if r['genome_id']==gid];entry=by_genome[gid];t0=time.perf_counter()
         receipt=dict(genome_id=gid,status='running');receipts.append(receipt)
         try:
-            fasta=Path(entry['fasta']);before=fasta.stat();digest=sha256(fasta)
-            known=source_genomes[gid].get('fasta_sha256')
-            if known and known!=digest:raise ValueError('FASTA differs from stage 1 discovery input')
-            requests={r['region_id']:(r['contig'],r['window_start'],r['window_end']) for r in own}
-            for c in prediction_intervals:
-                if c['genome_id']==gid:
-                    requests[c['region_id']]=(c['contig'],c['window_start'],c['window_end'])
-            gene_names={};annotation=[];staged=[];staged_features=[]
-            if entry.get('gff3'):
-                genes,parsed,_=parse_annotation(entry['gff3']);gene_names={g:rec['name'] for g,rec in genes.items()}
-                for r in own:
-                    for item in parsed.values():
-                        m=item['model']
-                        if m.contig==r['contig'] and max(m.start,r['window_start'])<min(m.end,r['window_end']):
-                            annotation.append((r,m))
-                            for a,b,_ in m.cds:requests['C'+ident(m.contig,a,b)]=(m.contig,a,b)
-                            for a,b in m.stops:requests['C'+ident(m.contig,a,b)]=(m.contig,a,b)
-                receipt['annotation_sha256']=sha256(entry['gff3'])
-                expected=source_genomes[gid].get('annotation_inputs',{}).get('gff3',{}).get('sha256')
-                if expected and expected!=receipt['annotation_sha256']:raise ValueError('Annotation differs from stage 1 dataset; use its matching release')
-                from .annotation_context import read_features
-                staged_features=read_features(entry['gff3'],own)
-                del genes,parsed
-            pieces,lengths=extract_intervals(fasta,requests)
-            if (fasta.stat().st_size,fasta.stat().st_mtime_ns)!=(before.st_size,before.st_mtime_ns):raise ValueError('FASTA changed during extraction')
-            for r in own:
-                if lengths[r['contig']]!=lmap[r['locus_id']]['contig_length']:raise ValueError('Contig length differs from stage 1')
-                windows[r['region_id']]=pieces[r['region_id']]
-            for c in prediction_intervals:
-                if c['genome_id']==gid:windows[c['region_id']]=pieces[c['region_id']]
-            genome=Sequences(pieces,requests)
-            for r,m in annotation:
-                cds,protein,status,issues=coding_sequence(m,genome)
-                record=model_record(m,r,'annotation',cds,protein,status,issues,gene_names.get(m.gene,''))
-                staged.append((record,cds,protein))
-            for record,cds,protein in staged:
+            from .search_cache import fingerprint
+            def check_inputs():
+                for field,before in input_stats[gid].items():
+                    if fingerprint(entry[field])!=before:raise ValueError('Input changed after hashing: '+field)
+            check_inputs()
+            identity=dict(schema='gcf_stage2_extraction_v1',genome_id=gid,inputs=input_hashes[gid],
+                regions=own,prediction_intervals=[c for c in prediction_intervals if c['genome_id']==gid],
+                source_evidence_sha256=plan_data['source_evidence_sha256'],
+                implementation=run_record['identity']['implementation_sha256'])
+            def build_extraction(folder):
+                value=extract_genome(gid,own,entry,prediction_intervals,lmap,source_genomes,input_hashes[gid]['fasta'])
+                check_inputs()
+                dump(folder/'extracted.json',value)
+            stored,checkpoint=cached(root/'.stage2'/'extraction',identity,build_extraction)
+            value=json.loads((stored/'extracted.json').read_text())
+            check_inputs()
+            receipt.update(value['receipt'],checkpoint=checkpoint)
+            windows.update(value['windows']);annotation_features.extend(value['annotation_features'])
+            for record,cds,protein in value['staged']:
                 models.append(record);coding[record['model_id']]=cds
                 if protein and '*' not in protein:proteins[record['model_id']]=protein
-            annotation_features.extend(staged_features)
-            receipt.update(status='completed',fasta_sha256=digest,fasta_bytes=before.st_size,
-                identity_check='exact_stage1_sha256' if known else 'new_genomic_fingerprint; stage1_protein_search_did_not_hash_genome',
-                windows=len(own),annotation_models=len(annotation))
         except (OSError,ValueError,KeyError,EOFError) as error:
             receipt.update(status='error',error=str(error));errors.append(dict(stage='extraction',genome_id=gid,error=str(error)))
             for r in own:windows.pop(r['region_id'],None)
@@ -441,7 +478,7 @@ def run(args):
         rows.append(dict(r,locus_id=r['region_id'],source_locus_id=r['locus_id'],window_bp=len(windows[r['region_id']]),
             context_predictor_model=prediction_model(args,by_genome[r['genome_id']]),context_status='prediction_pending'))
     from .tiberius_backend import predict_batches
-    (root/'context_prediction').mkdir()
+    (root/'context_prediction').mkdir(exist_ok=True)
     predictions,prediction_receipt=predict_batches(args,root,rows,windows,runner,errors) if rows else ({},dict(status='no_extracted_windows'))
     winseq=WindowSequence(windows);region_lookup={r['region_id']:r for r in regions}
     canonical_lookup={r['region_id']:r for r in prediction_intervals}
@@ -457,29 +494,37 @@ def run(args):
                 models.append(record);coding[record['model_id']]=cds
                 if protein and '*' not in protein:proteins[record['model_id']]=protein
     write_fasta(root/'cds.fna',sorted(coding.items()));write_fasta(root/'proteins.faa',sorted(proteins.items()))
+    from .stage2_resume import protein_step
+    steps={}
+    step_identity=dict(schema='gcf_stage2_protein_step_v1',run=run_record['identity'],
+        proteins_sha256=sha256(root/'proteins.faa'))
     identification={};id_hits=[];target_hits=[];pairs=[]
-    try:identification,id_hits=identify(runner,root/'identification',proteins,db,db_info,args)
+    try:
+        (identification,id_hits),steps['identification']=protein_step(root,'identification',step_identity,runner,
+            lambda folder:identify(runner,folder,proteins,db,db_info,args))
     except (OSError,ValueError,RuntimeError) as error:errors.append(dict(stage='identification',error=str(error)))
     try:
         queries={q['id']:q['sequence'] for q in data['queries']} if data['config']['query_type']!='dna' else {}
-        target_hits=blast_pairs(runner,root/'target_support',proteins,queries,args.threads,args.identification_evalue)
+        target_hits,steps['target_support']=protein_step(root,'target_support',step_identity,runner,
+            lambda folder:blast_pairs(runner,folder,proteins,queries,args.threads,args.identification_evalue))
         assign_groups(models)
-        local=blast_pairs(runner,root/'neighbor_support',proteins,proteins,args.threads,args.identification_evalue)
+        local,steps['neighbor_support']=protein_step(root,'neighbor_support',step_identity,runner,
+            lambda folder:blast_pairs(runner,folder,proteins,proteins,args.threads,args.identification_evalue))
         pairs=neighbor_pairs(models,local,args)
     except (OSError,ValueError,RuntimeError) as error:errors.append(dict(stage='local_protein_comparison',error=str(error)))
     for m in models:
         m['identification']=identification.get(m['model_id'],dict(status='identification_error' if m['model_id'] in proteins else 'no_usable_protein',proposed_name='',near_best=[]))
         m['target_support']=sorted([h for h in target_hits if h['query']==m['model_id']],key=lambda h:(-h['bitscore'],h['subject']))
-    payload=dict(schema='stage2_review_v1',version=__version__,review_id=str(uuid4()),created=now(),
+    payload=dict(schema='stage2_review_v1',version=__version__,review_id=run_record['review_id'],created=now(),
         source_review_id=data['review_id'],source_checkpoint=str(source),source_evidence_sha256=sha256(source/'evidence.json'),
         selection=selection,regions=regions,models=models,neighbor_pairs=pairs,errors=errors,annotation_features=annotation_features,
         input_genomes=[{k:g[k] for k in ['genome_id','species'] if k in g} for g in data['genomes']],
         prediction_intervals=prediction_intervals,
         query_members={q['id']:q['members'] for q in data['queries']},
-        provenance=dict(genomes=receipts,prediction=prediction_receipt,protein_db=db_info,protein_db_path=str(db),commands=runner.commands,
+        provenance=dict(genomes=receipts,prediction=prediction_receipt,protein_steps=steps,protein_db=db_info,protein_db_path=str(db),commands=runner.commands,
             input_manifest_sha256=sha256(args.genomes),
             prediction_models_sha256=sha256(args.prediction_models) if args.prediction_models else None,
-            source_files_sha256={name:sha256(Path(__file__).with_name(name)) for name in ['stage2.py','stage2_windows.py','annotation_context.py','stage2_intervals.py','stage2_db.py','stage2_quality.py','stage2_display.py','stage2_reconstruct.py','stage2_prior_context.py','stage2_choices.py','stage2_report.py','stage2_review.txt','stage2_neighborhood.txt','stage2_cluster.txt','stage2_review_queue.txt','tiberius_backend.py','tiberius_worker.py','sequence.py']},parameters=dict({k:getattr(args,k) for k in ['identification_identity','identification_coverage','identification_evalue','competing_ratio','threads']},window_policy=selection['window_policy'],max_window_bases=args.max_window_bases),
+            source_files_sha256={name:sha256(Path(__file__).with_name(name)) for name in ['artifact_cache.py','stage2_resume.py','tiberius_session.py','stage2.py','stage2_windows.py','annotation_context.py','stage2_intervals.py','stage2_db.py','stage2_quality.py','stage2_display.py','stage2_reconstruct.py','stage2_prior_context.py','stage2_choices.py','stage2_report.py','stage2_review.txt','stage2_neighborhood.txt','stage2_cluster.txt','stage2_review_queue.txt','tiberius_backend.py','tiberius_worker.py','sequence.py']},parameters=dict({k:getattr(args,k) for k in ['identification_identity','identification_coverage','identification_evalue','competing_ratio','threads']},window_policy=selection['window_policy'],max_window_bases=args.max_window_bases),
             elapsed_seconds=time.perf_counter()-started),
         status='completed_with_errors' if errors else 'awaiting_manual_review',
         note='No model or neighbor is automatically approved. No DNA/MSA alignment is run before STOP 2.')
@@ -516,10 +561,13 @@ def write_outputs(root,data):
         (root/filename).write_text('##gff-version 3\n'+'\n'.join(lines)+'\n')
         mapping.append(dict(genome_id=gid,gff3=filename))
     write_tsv(root/'annotations.tsv',mapping,['genome_id','gff3'])
-    write_tsv(root/'regions.decisions.tsv',[dict(review_id=data['review_id'],region_id=r['region_id'],decision='',notes='') for r in data['regions']],['review_id','region_id','decision','notes'])
-    write_tsv(root/'neighbors.decisions.tsv',[],['review_id','gene_a','gene_b','model_a','model_b','decision'])
+    if not (root/'regions.decisions.tsv').exists():
+        write_tsv(root/'regions.decisions.tsv',[dict(review_id=data['review_id'],region_id=r['region_id'],decision='',notes='') for r in data['regions']],['review_id','region_id','decision','notes'])
+    if not (root/'neighbors.decisions.tsv').exists():
+        write_tsv(root/'neighbors.decisions.tsv',[],['review_id','gene_a','gene_b','model_a','model_b','decision'])
     write_tsv(root/'regions.tsv',data['regions'],['genome_id','locus_id','region_id','contig','strand','anchor_start','anchor_end','window_start','window_end','boundary_source','window_source'])
-    write_tsv(root/'models.decisions.tsv',[dict(review_id=data['review_id'],model_id=m['model_id'],decision='',role='',notes='') for m in data['models']],['review_id','model_id','decision','role','notes'])
+    if not (root/'models.decisions.tsv').exists():
+        write_tsv(root/'models.decisions.tsv',[dict(review_id=data['review_id'],model_id=m['model_id'],decision='',role='',notes='') for m in data['models']],['review_id','model_id','decision','role','notes'])
     write_tsv(root/'models.tsv',[dict(m,proposed_name=m['identification']['proposed_name'],identification_status=m['identification']['status'],issues=';'.join(m['issues'])) for m in data['models']],['model_id','region_id','genome_id','gene_group','original_model','original_gene','source','annotation_name','contig','start','end','strand','coding_status','issues','protein_length','window_edge','proposed_name','identification_status'])
     from .stage2_report import write_report
     write_report(root,data)

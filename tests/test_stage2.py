@@ -103,13 +103,50 @@ class RealBlastStage2(unittest.TestCase):
             args=parser().parse_args(['stage2','--results',str(source),'--decisions',str(root/'decisions.tsv'),'--genomes',str(root/'genomes.tsv'),'--protein-db',str(root/'db'),'--out',str(root/'result')])
             def predictor(args,out,rows,windows,runner,errors):
                 rid=rows[0]['locus_id'];return {rid:[Model('p',rid,'+',cds=[(500,500+len(cds),0)],gene='p')]},dict(test_double=True)
-            with patch('genecontext.stage2.verify',return_value=(source,data)),patch('genecontext.stage2.validate_prediction_inputs'),patch('genecontext.tiberius_backend.predict_batches',side_effect=predictor):
+            with patch('genecontext.stage2.verify',return_value=(source,data)),patch('genecontext.stage2.validate_prediction_inputs',return_value=None),patch('genecontext.tiberius_backend.predict_batches',side_effect=predictor):
                 self.assertEqual(run(args),0)
             result=json.loads((root/'result/evidence.json').read_text());self.assertEqual(len(result['models']),1)
             m=result['models'][0];self.assertEqual(m['coding_status'],'complete_predicted');self.assertEqual(m['identification']['status'],'ambiguous_family_assignment');self.assertEqual(m['identification']['proposed_name'],'');self.assertEqual(len(m['identification']['near_best']),2)
             self.assertTrue(m['target_support']);self.assertTrue((root/'result/report.html').exists());self.assertFalse((root/'result/protein_msa.faa').exists())
             seal=json.loads((root/'result/seal.json').read_text());self.assertNotIn('models.decisions.tsv',seal)
             self.assertTrue(all(sha256(root/'result'/name)==value for name,value in seal.items()))
+            # Kill after completed extraction. Resuming must skip the genome
+            # scan, produce the same science and retain later manual choices.
+            args.out=str(root/'resumed')
+            with patch('genecontext.stage2.verify',return_value=(source,data)),patch('genecontext.stage2.validate_prediction_inputs',return_value=None),patch('genecontext.tiberius_backend.predict_batches',side_effect=KeyboardInterrupt):
+                with self.assertRaises(KeyboardInterrupt):run(args)
+            self.assertFalse((root/'resumed/seal.json').exists())
+            args.resume=True
+            with patch('genecontext.stage2.verify',return_value=(source,data)),patch('genecontext.stage2.validate_prediction_inputs',return_value=None),patch('genecontext.stage2.extract_intervals',side_effect=AssertionError('Repeated extraction')),patch('genecontext.tiberius_backend.predict_batches',side_effect=predictor):
+                self.assertEqual(run(args),0)
+            resumed=json.loads((root/'resumed/evidence.json').read_text())
+            self.assertTrue(resumed['provenance']['genomes'][0]['checkpoint']['reused'])
+            self.assertEqual(resumed['models'],result['models'])
+            for name in ['windows.fna','prediction_windows.fna','cds.fna','proteins.faa','models.gff3']:
+                self.assertEqual(sha256(root/'result'/name),sha256(root/'resumed'/name),name)
+            choices=root/'resumed/models.decisions.tsv';choices.write_text(choices.read_text()+'# user choice control\n')
+            before={str(p.relative_to(root/'resumed')):sha256(p) for p in (root/'resumed').rglob('*') if p.is_file()}
+            with patch('genecontext.stage2.verify',return_value=(source,data)),patch('genecontext.stage2.validate_prediction_inputs',return_value=None),patch('genecontext.tiberius_backend.predict_batches',side_effect=AssertionError('Completed run repeated')):
+                self.assertEqual(run(args),0)
+                args.threads+=1
+                with self.assertRaisesRegex(ValueError,'resume inputs'):run(args)
+            after={str(p.relative_to(root/'resumed')):sha256(p) for p in (root/'resumed').rglob('*') if p.is_file()}
+            self.assertEqual(before,after)
+            # Interruption after all protein searches: resume must reuse them,
+            # keep the review identity and leave an existing choice untouched.
+            args.out=str(root/'resume_search');args.resume=False;args.threads-=1
+            with patch('genecontext.stage2.verify',return_value=(source,data)),patch('genecontext.stage2.validate_prediction_inputs',return_value=None),patch('genecontext.tiberius_backend.predict_batches',side_effect=predictor),patch('genecontext.stage2.write_outputs',side_effect=KeyboardInterrupt):
+                with self.assertRaises(KeyboardInterrupt):run(args)
+            pending=json.loads((root/'resume_search/evidence.json').read_text())
+            choice=root/'resume_search/models.decisions.tsv';choice.write_text('manual choice control\n')
+            args.resume=True
+            with patch('genecontext.stage2.verify',return_value=(source,data)),patch('genecontext.stage2.validate_prediction_inputs',return_value=None),patch('genecontext.tiberius_backend.predict_batches',side_effect=predictor),patch('genecontext.tools.Runner.run',side_effect=AssertionError('Repeated protein search')):
+                self.assertEqual(run(args),0)
+            resumed=json.loads((root/'resume_search/evidence.json').read_text())
+            self.assertEqual(resumed['review_id'],pending['review_id'])
+            self.assertEqual(resumed['models'],result['models'])
+            self.assertTrue(all(s['reused'] for s in resumed['provenance']['protein_steps'].values()))
+            self.assertEqual(choice.read_text(),'manual choice control\n')
             # Repeat only identification; none of the prediction or sequence
             # outputs may be recomputed, changed, or auto-approved.
             context_feature=dict(feature_id='rna',region_id='l',genome_id='g',original_gene='rna',name='TEST_RNA',kind='gene',biotype='lncRNA',contig='chr',start=600,end=650,strand='+')

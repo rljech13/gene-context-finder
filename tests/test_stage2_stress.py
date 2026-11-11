@@ -122,7 +122,7 @@ class FailureAndIntegrity(unittest.TestCase):
             def failed(args,out,rows,windows,runner,errors):
                 errors.append(dict(stage='context_prediction',locus_id='l',error='Deliberate software failure control'))
                 return {},dict(batches=[dict(loci=['l'],status='error')])
-            with patch('genecontext.stage2.verify',return_value=(source,data)),patch('genecontext.stage2.validate_prediction_inputs'),patch('genecontext.tiberius_backend.predict_batches',side_effect=failed):
+            with patch('genecontext.stage2.verify',return_value=(source,data)),patch('genecontext.stage2.validate_prediction_inputs',return_value=None),patch('genecontext.tiberius_backend.predict_batches',side_effect=failed):
                 self.assertEqual(run(args),1)
             result=json.loads((root/'result/evidence.json').read_text())
             self.assertEqual(result['status'],'completed_with_errors');self.assertEqual(len(result['models']),1)
@@ -135,7 +135,7 @@ class FailureAndIntegrity(unittest.TestCase):
             data['genomes'][0].pop('fasta_sha256')
             write_tsv(root/'datasets.tsv',[dict(genome_id='a',fasta=str(root/'truncated.fa.gz'),gff3=str(root/'genes.gff'))],['genome_id','fasta','gff3'])
             args.out=str(root/'truncated_result')
-            with patch('genecontext.stage2.verify',return_value=(source,data)),patch('genecontext.stage2.validate_prediction_inputs'),patch('genecontext.tiberius_backend.predict_batches') as predictor:
+            with patch('genecontext.stage2.verify',return_value=(source,data)),patch('genecontext.stage2.validate_prediction_inputs',return_value=None),patch('genecontext.tiberius_backend.predict_batches') as predictor:
                 self.assertEqual(run(args),1);predictor.assert_not_called()
             bad=json.loads((root/'truncated_result/evidence.json').read_text())
             self.assertEqual(bad['status'],'completed_with_errors');self.assertEqual(bad['models'],[])
