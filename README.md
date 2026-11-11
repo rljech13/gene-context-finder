@@ -33,6 +33,16 @@ This searches six small reference windows from four species, **not complete geno
 
 With annotated datasets the default search is BLASTP over all available protein isoforms, grouped by their annotated gene loci. `--discovery genome` requests whole-genome TBLASTN for rescue. DNA queries use BLASTN.
 
+Stage 1 shares prepared search inputs across query panels. Reuse the same
+`--neighbor-cache` directory for different genes: annotation-product BLAST databases,
+expanded genomic FASTA/faidx and nucleotide BLAST databases are built once per exact
+input/tool version. Without this option, serial and parallel runs use the same
+default cache beside the result directory. Cache publication is locked and atomic;
+all cached output hashes are checked before reuse. Corrupted entries are reported
+and preserved. `genomes.summary.tsv` records reuse and database preparation time.
+This changes preparation only; search parameters, locus IDs and manual review
+stops retain their existing meaning. See [the optimization plan](docs/OPTIMIZATION_PLAN.md).
+
 Open `results/pou5_stage1/report.html`. Inspect the ranked loci, query tracks and available early-synteny evidence. Select loci, choose a short reason and save each pair decision. Validate and download the decision TSV. The next stage does not start automatically. The small control-window example does not include full annotation/proteome datasets, so its early context is explicitly unavailable; for study assemblies, include `gff3` and `protein` or `cds` in the genome TSV. Additional reference datasets can be supplied with `--source-datasets`.
 
 ```bash

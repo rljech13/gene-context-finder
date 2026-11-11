@@ -326,6 +326,9 @@ def summary_rows(data):
             searched_unique_products=genome.get('searched_unique_products',''),
             annotation_models=genome.get('all_product_models',''),unavailable_products=genome.get('unavailable_product_models',''),
             catalog_seconds=genome.get('catalog_seconds',''),blast_seconds=genome.get('blast_seconds',''),
+            search_database_reused=genome.get('search_database_cache',{}).get('reused',''),
+            search_database_seconds=genome.get('search_database_cache',{}).get('elapsed_seconds',''),
+            genome_index_reused=genome.get('genome_index_cache',{}).get('reused',''),
             raw_hsps=genome.get('raw_hsps',0), loci=len(loci),passing_loci=sum(l['pass_filters'] for l in loci),
             refinement_errors=len(genome.get('refinement_errors',[])),
             control_expected=genome.get('control_expected',''),control_overlap=genome.get('control_overlap',''),
@@ -434,7 +437,7 @@ def search(args):
         try:
             record['discovery_engine']=engine_for(row,args)
             if record['discovery_engine']=='blastp':
-                loci=search_annotated(row,args,config,qmap,root,work,runner,record)
+                loci=search_annotated(row,args,config,qmap,root,work,runner,record,versions=tools)
                 data['loci'].extend(loci)
                 record['status']='completed' if loci else 'no_candidate'
                 record['rescue_available']='Repeat this genome with --discovery genome if annotation support is absent or weak'
@@ -442,9 +445,13 @@ def search(args):
             initial_stat=Path(row['fasta']).stat()
             record.update(fasta_sha256=sha256(row['fasta']),fasta_bytes=initial_stat.st_size,
                           fasta_mtime_ns=initial_stat.st_mtime_ns)
-            genome=Genome(row['fasta'],work,runner)
-            database=work/'genome_db'
-            runner.run(['makeblastdb','-in',genome.path,'-dbtype','nucl','-out',database],work/'makeblastdb.stdout')
+            from .search_cache import cache_root, prepare_blast_db, prepare_genome
+            shared=cache_root(args)
+            genome,record['genome_index_cache']=prepare_genome(
+                row['fasta'],shared,runner,source_sha256=record['fasta_sha256'],versions=tools)
+            database,record['search_database_cache']=prepare_blast_db(
+                genome.path,shared,runner,'nucl',
+                source_sha256=record['genome_index_cache']['fasta_sha256'],versions=tools)
             command=['blastn' if args.query_type=='dna' else 'tblastn','-query',root/'queries.fasta',
                 '-db',database,'-evalue',args.search_evalue,'-num_threads',args.threads,
                 '-max_target_seqs',max(1,len(genome.index)),'-outfmt',OUTFMT]

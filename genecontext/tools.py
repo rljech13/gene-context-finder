@@ -54,26 +54,37 @@ class Genome:
         else:
             self.path.symlink_to(source)
         runner.run(["samtools", "faidx", self.path], self.path.parent / "faidx.stdout")
+        self._open_index()
+
+    @classmethod
+    def from_index(cls, path):
+        """Open a verified shared FASTA/faidx without rebuilding either."""
+        instance = cls.__new__(cls)
+        instance.path = Path(path)
+        instance._open_index()
+        return instance
+
+    def _open_index(self):
         self.index = {}
         with open(str(self.path) + ".fai") as handle:
             for line in handle:
                 name, length, offset, bases, width = line.rstrip().split("\t")[:5]
                 if name in self.index:
-                    raise ValueError(f"Duplicate contig {name}: {source}")
+                    raise ValueError(f"Duplicate contig {name}: {self.path}")
                 self.index[name] = tuple(map(int, (length, offset, bases, width)))
         if not self.index:
-            raise ValueError(f"No contigs: {source}")
+            raise ValueError(f"No contigs: {self.path}")
         # samtools warns and ignores duplicate names; detect this rather than
         # allowing an ambiguous coordinate lookup to silently select a sequence.
         with open(self.path.parent / "faidx.stdout.log") as handle:
             if "duplicate sequence" in handle.read().lower():
-                raise ValueError(f"Duplicate contig identifier in {source}")
+                raise ValueError(f"Duplicate contig identifier in {self.path}")
         self.handle = open(self.path, "rb")
         first = next(iter(self.index))
         sampled = self.fetch(first, 0, min(self.length(first), 4096))
         if not set(sampled) <= set("ACGTRYMKSWBDHVN"):
             self.handle.close()
-            raise ValueError(f"Genome FASTA contains non-nucleotide symbols in its first contig: {source}")
+            raise ValueError(f"Genome FASTA contains non-nucleotide symbols in its first contig: {self.path}")
 
     def close(self):
         self.handle.close()

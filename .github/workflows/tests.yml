@@ -13,3 +13,10 @@ jobs:
           python-version: '${{ matrix.python }}'
       - run: python -m unittest discover -s tests -v
       - run: python -m genecontext --help
+      - name: Check clean package installation
+        run: |
+          python -m pip wheel . --no-deps --wheel-dir "$RUNNER_TEMP/gcf-wheel"
+          python -m venv "$RUNNER_TEMP/gcf-install"
+          "$RUNNER_TEMP/gcf-install/bin/python" -m pip install --no-index --no-deps "$RUNNER_TEMP/gcf-wheel/"*.whl
+          cd "$RUNNER_TEMP"
+          "$RUNNER_TEMP/gcf-install/bin/gene-context" --help

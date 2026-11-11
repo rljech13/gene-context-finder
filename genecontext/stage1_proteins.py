@@ -55,7 +55,7 @@ def parse_protein_hits(path, queries, subjects):
     return hits
 
 
-def search_annotated(row, args, config, queries, root, work, runner, record):
+def search_annotated(row, args, config, queries, root, work, runner, record, versions=None):
     """One annotated gene is one locus, including every matched transcript."""
     from .early_synteny import build_catalog, fasta_records, iter_products
     from .stage1 import OUTFMT, dump
@@ -78,8 +78,9 @@ def search_annotated(row, args, config, queries, root, work, runner, record):
         all_product_models=catalog['all_product_models'], unavailable_product_models=catalog['unavailable_product_models'],
         fasta_read=catalog['fasta_read'],
         dna_extraction='deferred_until_locus_selection')
-    database = work/'protein_db'
-    runner.run(['makeblastdb', '-in', fasta, '-dbtype', 'prot', '-out', database], work/'makeblastdb.stdout')
+    from .search_cache import prepare_blast_db
+    database, record['search_database_cache'] = prepare_blast_db(
+        fasta, cache, runner, 'prot', versions=versions)
     output = root/'raw'/(row['genome_id']+'.blast.tsv')
     blast_start = time.perf_counter()
     runner.run(['blastp', '-query', root/'queries.fasta', '-db', database,
