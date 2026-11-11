@@ -1,0 +1,890 @@
+{
+  "status": "passed",
+  "scope": "All 25 saved candidate loci, 13 species; STOP 2; no biological approvals",
+  "review_id": "eeffea88-6c60-4617-ac4e-ffd318fdd405",
+  "model_sources": {
+    "annotation": 158,
+    "tiberius": 102
+  },
+  "coding_status": {
+    "complete_predicted": 259,
+    "partial": 1
+  },
+  "identification_status": {
+    "homology_assignment": 195,
+    "no_passing_match": 49,
+    "ambiguous_family_assignment": 16
+  },
+  "candidate_gene_groups": 81,
+  "regions_with_prediction_over_seed": 23,
+  "neighbor_proposals": {
+    "directed": 161,
+    "unordered": 88
+  },
+  "timings": {
+    "full_stage_seconds": 1471.8419764842838,
+    "genome_hash_annotation_parse_extraction_and_CDS_seconds": 395.28745915926993,
+    "tiberius_seconds": 997.8139245081693,
+    "original_broad_blast_seconds": 71.97287774458528,
+    "reidentification_seconds": 74.96270348876715,
+    "independent_core_audit_seconds": 105.78063653409481,
+    "final_audit_seconds": 3.5157704539597034,
+    "regression_seconds": 263.5701812580228
+  },
+  "tests": {
+    "run": 117,
+    "passed": 116,
+    "skipped": 1,
+    "skipped_reason": "Optional LASTZ reverse-alignment integration; not used in stage 2",
+    "bounded_stress": {
+      "intervals": 8192,
+      "genome_mib": 16,
+      "isoform_hits": 76800,
+      "gene_pair_results": 48,
+      "random_spliced_CDS": 256
+    }
+  },
+  "audit_checks": [
+    {
+      "name": "selection_and_native_window_bounds",
+      "status": "passed",
+      "details": {
+        "regions": 25,
+        "genomes": 13,
+        "omitted_unsaved_genomes": [
+          "Danio_rerio_GCF_052040795.2",
+          "Scyliorhinus_canicula_GCF_902713615.2",
+          "Protopterus_annectens_GCF_019279795.1",
+          "Ambystoma_mexicanum_GCF_040938575.1",
+          "Lethenteron_camtschaticum_GCA_018977245.1"
+        ]
+      },
+      "elapsed_seconds": 0.1150018535554409
+    },
+    {
+      "name": "seals_finite_values_and_pending_decisions",
+      "status": "passed",
+      "details": {
+        "sealed_files": 232,
+        "no_automatic_approvals": true
+      },
+      "elapsed_seconds": 0.061125265434384346
+    },
+    {
+      "name": "independent_genomic_windows_CDS_and_protein_roundtrips",
+      "status": "passed",
+      "details": {
+        "method": "Reused independently verified native roundtrips after exact model/sequence/GFF/input/prediction identity checks",
+        "original_audit_sha256": "286c043ea607e16967bfc237325a394f9300db5532cf4a373f164fc93a30787e",
+        "original_proof": {
+          "name": "independent_genomic_windows_CDS_and_protein_roundtrips",
+          "status": "passed",
+          "details": {
+            "genomes": [
+              {
+                "genome_id": "Alligator_mississippiensis_GCF_030867095.1",
+                "windows": 2,
+                "models": 12,
+                "input_identity": "new_genomic_fingerprint; stage1_protein_search_did_not_hash_genome"
+              },
+              {
+                "genome_id": "Anas_platyrhynchos_GCF_047663525.1",
+                "windows": 2,
+                "models": 23,
+                "input_identity": "new_genomic_fingerprint; stage1_protein_search_did_not_hash_genome"
+              },
+              {
+                "genome_id": "Anolis_carolinensis_GCF_035594765.1",
+                "windows": 1,
+                "models": 11,
+                "input_identity": "new_genomic_fingerprint; stage1_protein_search_did_not_hash_genome"
+              },
+              {
+                "genome_id": "Chelonia_mydas_GCF_015237465.2",
+                "windows": 2,
+                "models": 17,
+                "input_identity": "new_genomic_fingerprint; stage1_protein_search_did_not_hash_genome"
+              },
+              {
+                "genome_id": "Coturnix_japonica_GCF_054131305.1",
+                "windows": 2,
+                "models": 34,
+                "input_identity": "new_genomic_fingerprint; stage1_protein_search_did_not_hash_genome"
+              },
+              {
+                "genome_id": "Dromaius_novaehollandiae_GCF_036370855.1",
+                "windows": 2,
+                "models": 17,
+                "input_identity": "new_genomic_fingerprint; stage1_protein_search_did_not_hash_genome"
+              },
+              {
+                "genome_id": "Gallus_gallus_GCF_016699485.2",
+                "windows": 2,
+                "models": 18,
+                "input_identity": "new_genomic_fingerprint; stage1_protein_search_did_not_hash_genome"
+              },
+              {
+                "genome_id": "Homo_sapiens_GCF_000001405.40",
+                "windows": 1,
+                "models": 15,
+                "input_identity": "new_genomic_fingerprint; stage1_protein_search_did_not_hash_genome"
+              },
+              {
+                "genome_id": "Lepisosteus_oculatus_GCF_040954835.1",
+                "windows": 2,
+                "models": 55,
+                "input_identity": "new_genomic_fingerprint; stage1_protein_search_did_not_hash_genome"
+              },
+              {
+                "genome_id": "Meleagris_gallopavo_GCF_905368555.1",
+                "windows": 1,
+                "models": 7,
+                "input_identity": "new_genomic_fingerprint; stage1_protein_search_did_not_hash_genome"
+              },
+              {
+                "genome_id": "Monodelphis_domestica_GCF_027887165.2",
+                "windows": 1,
+                "models": 6,
+                "input_identity": "new_genomic_fingerprint; stage1_protein_search_did_not_hash_genome"
+              },
+              {
+                "genome_id": "Pavo_cristatus_GCA_045791835.1",
+                "windows": 5,
+                "models": 28,
+                "input_identity": "exact_stage1_sha256"
+              },
+              {
+                "genome_id": "Taeniopygia_guttata_GCF_048771995.1",
+                "windows": 2,
+                "models": 17,
+                "input_identity": "new_genomic_fingerprint; stage1_protein_search_did_not_hash_genome"
+              }
+            ],
+            "model_roundtrips": 260,
+            "usable_proteins": 260,
+            "method": "BioPython FASTA/strand handling/translation; original native genomic coordinates"
+          },
+          "elapsed_seconds": 102.01993633620441
+        }
+      },
+      "elapsed_seconds": 0.014949804171919823
+    },
+    {
+      "name": "exported_GFF3_roundtrip",
+      "status": "passed",
+      "details": {
+        "models": 260,
+        "native_genome_gff_files": 13
+      },
+      "elapsed_seconds": 0.009223934262990952
+    },
+    {
+      "name": "all_prediction_workers_and_CPU_proofs",
+      "status": "passed",
+      "details": {
+        "batches": 25,
+        "coding_models": 102,
+        "cpu_only": true
+      },
+      "elapsed_seconds": 0.0005003474652767181
+    },
+    {
+      "name": "raw_BLASTP_statistics_DB_naming_and_all_query_support",
+      "status": "passed",
+      "details": {
+        "reference_proteins": 121120,
+        "database_pairs": 64478,
+        "query_sequences": 5,
+        "target_support_pairs": 469,
+        "database_release": "2026_04"
+      },
+      "elapsed_seconds": 2.2045392114669085
+    },
+    {
+      "name": "isoform_collapse_neighbor_competition_and_target_exclusion",
+      "status": "passed",
+      "details": {
+        "raw_model_pairs": 12439,
+        "directed_gene_proposals": 378,
+        "unordered_gene_proposals": 223
+      },
+      "elapsed_seconds": 0.09935969486832619
+    },
+    {
+      "name": "independent_window_replay_against_original_pilot",
+      "status": "passed",
+      "details": {
+        "unchanged_pilot_model_roundtrips": 33
+      },
+      "elapsed_seconds": 0.0007515158504247665
+    }
+  ],
+  "resource_policy": {
+    "memory_max_bytes": 268435456000,
+    "swap_max_bytes": 0,
+    "events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\n",
+    "largest_production_child_rss_kib": 1179472,
+    "note": "Largest child RSS is not aggregate peak memory; shared slice also contains download filesystem cache."
+  },
+  "database": {
+    "schema": "stage2_protein_db_v1",
+    "created": "2026-11-09T01:37:09.325259+00:00",
+    "proteins": 121120,
+    "skipped_invalid": 146,
+    "source": "/mnt/data/i.rubinshteyn/gene_context_experiments/cache/stage2_vertebrate_reviewed_20261109/download.fasta.gz",
+    "source_sha256": "cec0bd15be60f84b429c6c43115661c19dfa1cbb47b710efc4dcbb12b0fd6611",
+    "source_scope": "reviewed vertebrate UniProtKB + available isoforms",
+    "download": {
+      "url": "https://rest.uniprot.org/uniprotkb/stream?query=%28taxonomy_id%3A7742%29+AND+%28reviewed%3Atrue%29&format=fasta&compressed=true&includeIsoform=true",
+      "query": "(taxonomy_id:7742) AND (reviewed:true)",
+      "release": "2026_04",
+      "release_date": "04-November-2026",
+      "total_results": "",
+      "include_isoforms": true
+    },
+    "commands": [
+      {
+        "argv": [
+          "makeblastdb",
+          "-in",
+          "/mnt/data/i.rubinshteyn/gene_context_experiments/cache/stage2_vertebrate_reviewed_20261109/proteins.faa",
+          "-dbtype",
+          "prot",
+          "-out",
+          "/mnt/data/i.rubinshteyn/gene_context_experiments/cache/stage2_vertebrate_reviewed_20261109/blastdb"
+        ],
+        "output": "/mnt/data/i.rubinshteyn/gene_context_experiments/cache/stage2_vertebrate_reviewed_20261109/makeblastdb.stdout",
+        "stderr": "/mnt/data/i.rubinshteyn/gene_context_experiments/cache/stage2_vertebrate_reviewed_20261109/makeblastdb.stdout.log",
+        "returncode": 0
+      }
+    ],
+    "files": {
+      "blastdb.pto": "6c155e1e7817d53e4b154210daa760c12e0cadfce474307a79fa89a1c5efea68",
+      "blastdb.pdb": "a5c5dfb0e3fed4af190d017ceb9e5e35605e1abda376aa99a7b0c984c0db627e",
+      "blastdb.pot": "e81b35aa0ec2aa51b7769a746f13553ceefebd6b1a3b5dc2ec9d8a23aa13864c",
+      "blastdb.ptf": "67982e4d7b1490b09cce06e7c29175c6bd011cd542cfacb1a1c310084a50821a",
+      "blastdb.psq": "af36ba4d711fb966ba1b440856fd07c07ed13987404afd649bf770a1f76077ae",
+      "proteins.faa": "cd772e954309ebd9d5f976aa99e084c88041c422f1fea6caa04d7eb7819a5353",
+      "blastdb.pjs": "76a44219648c2c7b83b461cabc41a57d37eadf27e938a91334ab0bd8d3f711e5",
+      "blastdb.pin": "3c77b02a638bf5d95822b1675256f38426cda24e76c74d7b359826f486923198",
+      "blastdb.phr": "3fc340610a36cd75b3d2dd5f1869bfe3c49ff145fd70ec299337f6255e75620d",
+      "metadata.sqlite": "852d39f7971e24659ce8f40a666e4a5b6189ae83852cbdf6c4a942536f92d21d"
+    }
+  },
+  "regions": [
+    {
+      "genome_id": "Gallus_gallus_GCF_016699485.2",
+      "locus_id": "locus_4563bf8945a9762e",
+      "region_id": "locus_4563bf8945a9762e",
+      "gene": "NANOG",
+      "contig": "NC_052532.1",
+      "strand": "-",
+      "anchor_start": 75876511,
+      "anchor_end": 75881095,
+      "window_start": 75826511,
+      "window_end": 75931095,
+      "boundary_source": "annotated_gene",
+      "reason": "check_context",
+      "notes": [],
+      "annotation_models": 6,
+      "predicted_models": 3,
+      "annotation_over_seed": 1,
+      "predictions_over_seed": 1,
+      "predicted_names": [
+        "NANOG"
+      ],
+      "best_query_coverage": 0.5746102449888641
+    },
+    {
+      "genome_id": "Gallus_gallus_GCF_016699485.2",
+      "locus_id": "locus_f6c19f86fb9951eb",
+      "region_id": "locus_f6c19f86fb9951eb",
+      "gene": "NANOG",
+      "contig": "NC_052532.1",
+      "strand": "+",
+      "anchor_start": 75862731,
+      "anchor_end": 75873033,
+      "window_start": 75812731,
+      "window_end": 75923033,
+      "boundary_source": "annotated_gene",
+      "reason": "check_context",
+      "notes": [
+        "No ab initio model over seed; annotated alternatives retained"
+      ],
+      "annotation_models": 6,
+      "predicted_models": 3,
+      "annotation_over_seed": 2,
+      "predictions_over_seed": 0,
+      "predicted_names": [],
+      "best_query_coverage": null
+    },
+    {
+      "genome_id": "Homo_sapiens_GCF_000001405.40",
+      "locus_id": "locus_0b4eb3c52dbfe7c8",
+      "region_id": "locus_0b4eb3c52dbfe7c8",
+      "gene": "NANOG",
+      "contig": "NC_000012.12",
+      "strand": "+",
+      "anchor_start": 7789401,
+      "anchor_end": 7799146,
+      "window_start": 7739401,
+      "window_end": 7849146,
+      "boundary_source": "annotated_gene",
+      "reason": "check_context",
+      "notes": [],
+      "annotation_models": 14,
+      "predicted_models": 1,
+      "annotation_over_seed": 2,
+      "predictions_over_seed": 1,
+      "predicted_names": [
+        "NANOG",
+        "NANOGP8"
+      ],
+      "best_query_coverage": 1.0
+    },
+    {
+      "genome_id": "Alligator_mississippiensis_GCF_030867095.1",
+      "locus_id": "locus_7976ae58fc7c759f",
+      "region_id": "locus_7976ae58fc7c759f",
+      "gene": "NANOG",
+      "contig": "NC_081827.1",
+      "strand": "+",
+      "anchor_start": 147950322,
+      "anchor_end": 147955825,
+      "window_start": 147900322,
+      "window_end": 148005825,
+      "boundary_source": "annotated_gene",
+      "reason": "check_context",
+      "notes": [],
+      "annotation_models": 3,
+      "predicted_models": 3,
+      "annotation_over_seed": 1,
+      "predictions_over_seed": 1,
+      "predicted_names": [
+        "NANOG"
+      ],
+      "best_query_coverage": 0.5746102449888641
+    },
+    {
+      "genome_id": "Alligator_mississippiensis_GCF_030867095.1",
+      "locus_id": "locus_7406913ef1011698",
+      "region_id": "locus_7406913ef1011698",
+      "gene": "NANOG",
+      "contig": "NC_081827.1",
+      "strand": "-",
+      "anchor_start": 147961650,
+      "anchor_end": 147966021,
+      "window_start": 147911650,
+      "window_end": 148016021,
+      "boundary_source": "annotated_gene",
+      "reason": "check_context",
+      "notes": [],
+      "annotation_models": 3,
+      "predicted_models": 3,
+      "annotation_over_seed": 1,
+      "predictions_over_seed": 1,
+      "predicted_names": [
+        "NANOG"
+      ],
+      "best_query_coverage": 0.5412026726057907
+    },
+    {
+      "genome_id": "Anas_platyrhynchos_GCF_047663525.1",
+      "locus_id": "locus_66f47eec132b42cb",
+      "region_id": "locus_66f47eec132b42cb",
+      "gene": "NANOG",
+      "contig": "NC_092587.1",
+      "strand": "+",
+      "anchor_start": 80338380,
+      "anchor_end": 80343079,
+      "window_start": 80288380,
+      "window_end": 80393079,
+      "boundary_source": "annotated_gene",
+      "reason": "check_context",
+      "notes": [],
+      "annotation_models": 8,
+      "predicted_models": 4,
+      "annotation_over_seed": 2,
+      "predictions_over_seed": 1,
+      "predicted_names": [
+        "NANOG"
+      ],
+      "best_query_coverage": 0.688195991091314
+    },
+    {
+      "genome_id": "Anas_platyrhynchos_GCF_047663525.1",
+      "locus_id": "locus_3057e38726d20c82",
+      "region_id": "locus_3057e38726d20c82",
+      "gene": "NANOG",
+      "contig": "NC_092587.1",
+      "strand": "-",
+      "anchor_start": 80347852,
+      "anchor_end": 80352871,
+      "window_start": 80297852,
+      "window_end": 80402871,
+      "boundary_source": "annotated_gene",
+      "reason": "check_context",
+      "notes": [],
+      "annotation_models": 7,
+      "predicted_models": 4,
+      "annotation_over_seed": 1,
+      "predictions_over_seed": 1,
+      "predicted_names": [
+        "NANOG"
+      ],
+      "best_query_coverage": 0.8518518518518519
+    },
+    {
+      "genome_id": "Anolis_carolinensis_GCF_035594765.1",
+      "locus_id": "locus_79510857289034d3",
+      "region_id": "locus_79510857289034d3",
+      "gene": "NANOG",
+      "contig": "NC_085842.1",
+      "strand": "+",
+      "anchor_start": 191358806,
+      "anchor_end": 191369734,
+      "window_start": 191308806,
+      "window_end": 191419734,
+      "boundary_source": "annotated_gene",
+      "reason": "check_context",
+      "notes": [],
+      "annotation_models": 8,
+      "predicted_models": 3,
+      "annotation_over_seed": 1,
+      "predictions_over_seed": 1,
+      "predicted_names": [
+        "NANOG"
+      ],
+      "best_query_coverage": 0.5634743875278396
+    },
+    {
+      "genome_id": "Chelonia_mydas_GCF_015237465.2",
+      "locus_id": "locus_01217fa462e7dfb5",
+      "region_id": "locus_01217fa462e7dfb5",
+      "gene": "NANOG",
+      "contig": "NC_057849.1",
+      "strand": "+",
+      "anchor_start": 215361985,
+      "anchor_end": 215368153,
+      "window_start": 215311985,
+      "window_end": 215418153,
+      "boundary_source": "annotated_gene",
+      "reason": "check_context",
+      "notes": [],
+      "annotation_models": 4,
+      "predicted_models": 5,
+      "annotation_over_seed": 1,
+      "predictions_over_seed": 1,
+      "predicted_names": [
+        "NANOG"
+      ],
+      "best_query_coverage": 0.5835189309576837
+    },
+    {
+      "genome_id": "Chelonia_mydas_GCF_015237465.2",
+      "locus_id": "locus_72556e5873ad2c9f",
+      "region_id": "locus_72556e5873ad2c9f",
+      "gene": "NANOG",
+      "contig": "NC_057849.1",
+      "strand": "-",
+      "anchor_start": 215371221,
+      "anchor_end": 215386558,
+      "window_start": 215321221,
+      "window_end": 215436558,
+      "boundary_source": "annotated_gene",
+      "reason": "check_context",
+      "notes": [],
+      "annotation_models": 4,
+      "predicted_models": 4,
+      "annotation_over_seed": 1,
+      "predictions_over_seed": 1,
+      "predicted_names": [
+        "NANOG"
+      ],
+      "best_query_coverage": 0.5412026726057907
+    },
+    {
+      "genome_id": "Coturnix_japonica_GCF_054131305.1",
+      "locus_id": "locus_a7acf33399eed00e",
+      "region_id": "locus_a7acf33399eed00e",
+      "gene": "NANOG",
+      "contig": "NC_140663.1",
+      "strand": "-",
+      "anchor_start": 70087056,
+      "anchor_end": 70091269,
+      "window_start": 70037056,
+      "window_end": 70141269,
+      "boundary_source": "annotated_gene",
+      "reason": "check_context",
+      "notes": [],
+      "annotation_models": 13,
+      "predicted_models": 4,
+      "annotation_over_seed": 1,
+      "predictions_over_seed": 1,
+      "predicted_names": [
+        "NANOG"
+      ],
+      "best_query_coverage": 0.688195991091314
+    },
+    {
+      "genome_id": "Coturnix_japonica_GCF_054131305.1",
+      "locus_id": "locus_966b22c7b00b3570",
+      "region_id": "locus_966b22c7b00b3570",
+      "gene": "NANOG",
+      "contig": "NC_140663.1",
+      "strand": "+",
+      "anchor_start": 70077835,
+      "anchor_end": 70084245,
+      "window_start": 70027835,
+      "window_end": 70134245,
+      "boundary_source": "annotated_gene",
+      "reason": "check_context",
+      "notes": [
+        "No ab initio model over seed; annotated alternatives retained"
+      ],
+      "annotation_models": 13,
+      "predicted_models": 4,
+      "annotation_over_seed": 1,
+      "predictions_over_seed": 0,
+      "predicted_names": [],
+      "best_query_coverage": null
+    },
+    {
+      "genome_id": "Dromaius_novaehollandiae_GCF_036370855.1",
+      "locus_id": "locus_871d75a5b027d8be",
+      "region_id": "locus_871d75a5b027d8be",
+      "gene": "NANOG",
+      "contig": "NC_088098.1",
+      "strand": "-",
+      "anchor_start": 85432970,
+      "anchor_end": 85437655,
+      "window_start": 85382970,
+      "window_end": 85487655,
+      "boundary_source": "annotated_gene",
+      "reason": "check_context",
+      "notes": [],
+      "annotation_models": 5,
+      "predicted_models": 4,
+      "annotation_over_seed": 1,
+      "predictions_over_seed": 1,
+      "predicted_names": [
+        "NANOG"
+      ],
+      "best_query_coverage": 0.688195991091314
+    },
+    {
+      "genome_id": "Dromaius_novaehollandiae_GCF_036370855.1",
+      "locus_id": "locus_fb29486e933484fa",
+      "region_id": "locus_fb29486e933484fa",
+      "gene": "NANOG",
+      "contig": "NC_088098.1",
+      "strand": "+",
+      "anchor_start": 85421418,
+      "anchor_end": 85427085,
+      "window_start": 85371418,
+      "window_end": 85477085,
+      "boundary_source": "annotated_gene",
+      "reason": "check_context",
+      "notes": [],
+      "annotation_models": 5,
+      "predicted_models": 3,
+      "annotation_over_seed": 1,
+      "predictions_over_seed": 1,
+      "predicted_names": [
+        "NANOG"
+      ],
+      "best_query_coverage": 0.5456570155902004
+    },
+    {
+      "genome_id": "Lepisosteus_oculatus_GCF_040954835.1",
+      "locus_id": "locus_ae01e82ea7dd3e1d",
+      "region_id": "locus_ae01e82ea7dd3e1d",
+      "gene": "NANOG",
+      "contig": "NC_090699.1",
+      "strand": "+",
+      "anchor_start": 14289173,
+      "anchor_end": 14294722,
+      "window_start": 14239173,
+      "window_end": 14344722,
+      "boundary_source": "annotated_gene",
+      "reason": "check_context",
+      "notes": [],
+      "annotation_models": 18,
+      "predicted_models": 5,
+      "annotation_over_seed": 3,
+      "predictions_over_seed": 1,
+      "predicted_names": [],
+      "best_query_coverage": 0.6640625
+    },
+    {
+      "genome_id": "Lepisosteus_oculatus_GCF_040954835.1",
+      "locus_id": "locus_2fb92248f35a489a",
+      "region_id": "locus_2fb92248f35a489a",
+      "gene": "NANOG",
+      "contig": "NC_090699.1",
+      "strand": "+",
+      "anchor_start": 14301529,
+      "anchor_end": 14306172,
+      "window_start": 14251529,
+      "window_end": 14356172,
+      "boundary_source": "annotated_gene",
+      "reason": "check_context",
+      "notes": [],
+      "annotation_models": 26,
+      "predicted_models": 6,
+      "annotation_over_seed": 2,
+      "predictions_over_seed": 1,
+      "predicted_names": [],
+      "best_query_coverage": 0.6979166666666666
+    },
+    {
+      "genome_id": "Meleagris_gallopavo_GCF_905368555.1",
+      "locus_id": "locus_4e37f0f96e65bc29",
+      "region_id": "locus_4e37f0f96e65bc29",
+      "gene": "NANOG",
+      "contig": "NC_139404.1",
+      "strand": "-",
+      "anchor_start": 74791453,
+      "anchor_end": 74793911,
+      "window_start": 74741453,
+      "window_end": 74843911,
+      "boundary_source": "annotated_gene",
+      "reason": "check_context",
+      "notes": [
+        "One partial annotation model in window"
+      ],
+      "annotation_models": 4,
+      "predicted_models": 3,
+      "annotation_over_seed": 1,
+      "predictions_over_seed": 1,
+      "predicted_names": [
+        "NANOG"
+      ],
+      "best_query_coverage": 0.688195991091314
+    },
+    {
+      "genome_id": "Monodelphis_domestica_GCF_027887165.2",
+      "locus_id": "locus_0188c55e49ed8541",
+      "region_id": "locus_0188c55e49ed8541",
+      "gene": "NANOG",
+      "contig": "NC_077234.2",
+      "strand": "+",
+      "anchor_start": 125046151,
+      "anchor_end": 125051077,
+      "window_start": 124996151,
+      "window_end": 125101077,
+      "boundary_source": "annotated_gene",
+      "reason": "check_context",
+      "notes": [],
+      "annotation_models": 3,
+      "predicted_models": 3,
+      "annotation_over_seed": 1,
+      "predictions_over_seed": 1,
+      "predicted_names": [
+        "NANOG",
+        "NANOGP8"
+      ],
+      "best_query_coverage": 0.8
+    },
+    {
+      "genome_id": "Taeniopygia_guttata_GCF_048771995.1",
+      "locus_id": "locus_885736efab882bd7",
+      "region_id": "locus_885736efab882bd7",
+      "gene": "NANOG",
+      "contig": "NC_133024.1",
+      "strand": "-",
+      "anchor_start": 29855336,
+      "anchor_end": 29858475,
+      "window_start": 29805336,
+      "window_end": 29908475,
+      "boundary_source": "annotated_gene",
+      "reason": "check_context",
+      "notes": [],
+      "annotation_models": 4,
+      "predicted_models": 5,
+      "annotation_over_seed": 1,
+      "predictions_over_seed": 1,
+      "predicted_names": [
+        "NANOG"
+      ],
+      "best_query_coverage": 0.5701559020044543
+    },
+    {
+      "genome_id": "Taeniopygia_guttata_GCF_048771995.1",
+      "locus_id": "locus_06cfe1513747fb0e",
+      "region_id": "locus_06cfe1513747fb0e",
+      "gene": "NANOG",
+      "contig": "NC_133024.1",
+      "strand": "+",
+      "anchor_start": 29844119,
+      "anchor_end": 29850518,
+      "window_start": 29794119,
+      "window_end": 29900518,
+      "boundary_source": "annotated_gene",
+      "reason": "check_context",
+      "notes": [],
+      "annotation_models": 4,
+      "predicted_models": 4,
+      "annotation_over_seed": 1,
+      "predictions_over_seed": 1,
+      "predicted_names": [
+        "NANOG"
+      ],
+      "best_query_coverage": 0.5412026726057907
+    },
+    {
+      "genome_id": "Pavo_cristatus_GCA_045791835.1",
+      "locus_id": "locus_09b5824e2f013565",
+      "region_id": "locus_09b5824e2f013565",
+      "gene": "NANOG",
+      "contig": "CM099175.1",
+      "strand": "-",
+      "anchor_start": 76913131,
+      "anchor_end": 76915810,
+      "window_start": 76863131,
+      "window_end": 76965810,
+      "boundary_source": "blast_chain_envelope",
+      "reason": "check_context",
+      "notes": [],
+      "annotation_models": 0,
+      "predicted_models": 4,
+      "annotation_over_seed": 0,
+      "predictions_over_seed": 1,
+      "predicted_names": [
+        "NANOG"
+      ],
+      "best_query_coverage": 0.5746102449888641
+    },
+    {
+      "genome_id": "Pavo_cristatus_GCA_045791835.1",
+      "locus_id": "locus_1ac19b6ff832833f",
+      "region_id": "locus_1ac19b6ff832833f",
+      "gene": "NANOG",
+      "contig": "CM099175.1",
+      "strand": "+",
+      "anchor_start": 76904063,
+      "anchor_end": 76906393,
+      "window_start": 76854063,
+      "window_end": 76956393,
+      "boundary_source": "blast_chain_envelope",
+      "reason": "check_context",
+      "notes": [],
+      "annotation_models": 0,
+      "predicted_models": 3,
+      "annotation_over_seed": 0,
+      "predictions_over_seed": 1,
+      "predicted_names": [
+        "NANOG"
+      ],
+      "best_query_coverage": 0.8518518518518519
+    },
+    {
+      "genome_id": "Pavo_cristatus_GCA_045791835.1",
+      "locus_id": "locus_b5532e29f2aa44d7",
+      "region_id": "locus_b5532e29f2aa44d7",
+      "gene": "NANOG",
+      "contig": "CM099180.1",
+      "strand": "-",
+      "anchor_start": 21931920,
+      "anchor_end": 21932172,
+      "window_start": 21881920,
+      "window_end": 21982172,
+      "boundary_source": "blast_chain_envelope",
+      "reason": "check_context",
+      "notes": [
+        "Non-NANOG homeobox-family candidate; inspect/reject"
+      ],
+      "annotation_models": 0,
+      "predicted_models": 10,
+      "annotation_over_seed": 0,
+      "predictions_over_seed": 1,
+      "predicted_names": [
+        "NKX2-3"
+      ],
+      "best_query_coverage": 0.659016393442623
+    },
+    {
+      "genome_id": "Pavo_cristatus_GCA_045791835.1",
+      "locus_id": "locus_bc0a0ae2f253daca",
+      "region_id": "locus_bc0a0ae2f253daca",
+      "gene": "NANOG",
+      "contig": "CM099181.1",
+      "strand": "-",
+      "anchor_start": 16153070,
+      "anchor_end": 16153511,
+      "window_start": 16103070,
+      "window_end": 16203511,
+      "boundary_source": "blast_chain_envelope",
+      "reason": "check_context",
+      "notes": [
+        "Non-NANOG homeobox-family candidate; inspect/reject"
+      ],
+      "annotation_models": 0,
+      "predicted_models": 7,
+      "annotation_over_seed": 0,
+      "predictions_over_seed": 1,
+      "predicted_names": [
+        "HOXD3",
+        "Hoxd3",
+        "hoxd3",
+        "hoxd3a"
+      ],
+      "best_query_coverage": 0.4426229508196721
+    },
+    {
+      "genome_id": "Pavo_cristatus_GCA_045791835.1",
+      "locus_id": "locus_23830a361185651e",
+      "region_id": "locus_23830a361185651e",
+      "gene": "NANOG",
+      "contig": "CM099180.1",
+      "strand": "+",
+      "anchor_start": 31418259,
+      "anchor_end": 31418673,
+      "window_start": 31368259,
+      "window_end": 31468673,
+      "boundary_source": "blast_chain_envelope",
+      "reason": "check_context",
+      "notes": [
+        "Non-NANOG homeobox-family candidate; inspect/reject"
+      ],
+      "annotation_models": 0,
+      "predicted_models": 4,
+      "annotation_over_seed": 0,
+      "predictions_over_seed": 1,
+      "predicted_names": [
+        "HMX3"
+      ],
+      "best_query_coverage": 0.3836065573770492
+    }
+  ],
+  "source_archives": {
+    "production": {
+      "archive": "/tmp/gcf_stage2_full_20261109.tar.gz",
+      "sha256": "01f739fa283c43ae5358b1ca787534c7b6d0c2323ca98f0158849e228766bfc2",
+      "snapshot": "source_v090_full_01f739fa283c",
+      "parent_commit": "401698635e1b9612d318ef7634f6f47e07bebed5",
+      "dirty_working_tree": true
+    },
+    "final": {
+      "archive": "/tmp/gcf_stage2_final_20261109.tar.gz",
+      "sha256": "5ca9b9692f46b4981f06920f209dc6c28d76458e1babfe2e9025c10a540e0bac",
+      "snapshot": "source_v090_final_5ca9b9692f46",
+      "parent_commit": "401698635e1b9612d318ef7634f6f47e07bebed5",
+      "dirty_working_tree": true,
+      "production_source": "source_v090_full_01f739fa283c",
+      "changes": "Reference symbol-case normalization; stage2-reidentify preserves native prediction evidence; stress tests and corrected independent equal-score isoform audit."
+    }
+  },
+  "repairs": [
+    "Reject non-finite/out-of-range BLAST statistics",
+    "Reject non-boolean committed draft states",
+    "Preserve explicit error reports for truncated gzip and predictor failures",
+    "Do not treat symbol case conventions as separate genes; preserve accession case and paralog suffixes",
+    "Audit selected tied isoform pair against its own raw alignment instead of imposing an alternative tie order"
+  ],
+  "limitations": [
+    "Structural and software verification does not establish expression, function, orthology or biological completeness.",
+    "The broad reviewed vertebrate database is not an exhaustive proteome.",
+    "A missing ab initio prediction does not establish gene absence."
+  ]
+}

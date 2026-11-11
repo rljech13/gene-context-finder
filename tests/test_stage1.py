@@ -60,8 +60,8 @@ class Chains(unittest.TestCase):
 
     def test_thresholds_must_pass_in_one_chain(self):
         queries={'a':dict(sequence='M'*100),'b':dict(sequence='M'*100)}
-        locus=dict(chains=[dict(query='a',coverage=.9,identity=.2,evalue=1e-20,bitscore=100),
-                          dict(query='b',coverage=.2,identity=.9,evalue=1e-20,bitscore=100)],flags=[])
+        locus=dict(genome_id='g',gene='TEST',contig='chr',start=100,locus_id='test',chains=[dict(chain_id='a',query='a',coverage=.9,identity=.2,evalue=1e-20,bitscore=100),
+                          dict(chain_id='b',query='b',coverage=.2,identity=.9,evalue=1e-20,bitscore=100)],flags=[])
         apply_filters([locus],dict(min_query_coverage=.5,min_identity=.5,max_evalue=1e-5),queries)
         self.assertFalse(locus['pass_filters'])
 
@@ -148,7 +148,7 @@ class Stage1Integration(unittest.TestCase):
     def test_pending_decisions_block_before_output_creation(self):
         out=self.root/'pending_out'
         args=parser().parse_args(['stage1-select','--results',str(self.output),'--decisions',str(self.output/'loci.decisions.tsv'),'--out',str(out)])
-        with self.assertRaisesRegex(ValueError,'Pending'):approve(args)
+        with self.assertRaisesRegex(ValueError,'(?i)pending'):approve(args)
         self.assertFalse(out.exists())
 
     def test_manual_windows_and_split_anchors_are_exported(self):

@@ -1,0 +1,160 @@
+{
+  "version": "0.9.0",
+  "source_parent_commit": "4016986",
+  "pilot_source_snapshot": "source_v090_stage2_d15e62151413",
+  "pilot_source_archive_sha256": "d15e62151413dccb51e95b8f5650d9ad2e92b1a0dde2e5be76e1abd44151b97c",
+  "scope": "Actual saved stage 1 selections; 3 windows from chicken and human only; NOT all 18 genomes",
+  "stage2_review_id": "91e815ae-565d-4aeb-81b0-484112d290cf",
+  "source_review_id": "cea54ba2-2312-4baa-b9b4-821586309e47",
+  "regions": [
+    {
+      "genome_id": "Gallus_gallus_GCF_016699485.2",
+      "region_id": "locus_4563bf8945a9762e",
+      "window_bases": 104584,
+      "model_alternatives": {
+        "annotation": 6,
+        "tiberius": 3
+      },
+      "annotation_gene_groups": 4,
+      "prediction_gene_groups": 3,
+      "annotation_groups_without_prediction": 1
+    },
+    {
+      "genome_id": "Gallus_gallus_GCF_016699485.2",
+      "region_id": "locus_f6c19f86fb9951eb",
+      "window_bases": 110302,
+      "model_alternatives": {
+        "annotation": 6,
+        "tiberius": 3
+      },
+      "annotation_gene_groups": 4,
+      "prediction_gene_groups": 3,
+      "annotation_groups_without_prediction": 1
+    },
+    {
+      "genome_id": "Homo_sapiens_GCF_000001405.40",
+      "region_id": "locus_0b4eb3c52dbfe7c8",
+      "window_bases": 109745,
+      "model_alternatives": {
+        "annotation": 14,
+        "tiberius": 1
+      },
+      "annotation_gene_groups": 4,
+      "prediction_gene_groups": 1,
+      "annotation_groups_without_prediction": 3
+    }
+  ],
+  "model_alternatives": {
+    "annotation": 26,
+    "tiberius": 7
+  },
+  "unique_candidate_gene_groups": 8,
+  "identification_status": {
+    "homology_assignment": 22,
+    "no_passing_match": 4,
+    "ambiguous_family_assignment": 7
+  },
+  "errors": [],
+  "neighbor_proposals": {
+    "directed_rows": 2,
+    "unique_unordered_gene_pairs": 1
+  },
+  "protein_database": {
+    "proteins": 121120,
+    "scope": "reviewed vertebrate UniProtKB + available isoforms",
+    "download": {
+      "url": "https://rest.uniprot.org/uniprotkb/stream?query=%28taxonomy_id%3A7742%29+AND+%28reviewed%3Atrue%29&format=fasta&compressed=true&includeIsoform=true",
+      "query": "(taxonomy_id:7742) AND (reviewed:true)",
+      "release": "2026_04",
+      "release_date": "04-November-2026",
+      "total_results": "",
+      "include_isoforms": true
+    },
+    "source_sha256": "cec0bd15be60f84b429c6c43115661c19dfa1cbb47b710efc4dcbb12b0fd6611",
+    "preparation_elapsed_seconds": 40.15429756976664
+  },
+  "execution": {
+    "started": "2026-11-09T01:38:36.373210+00:00",
+    "command": [
+      "/usr/bin/env",
+      "--chdir=/mnt/data/i.rubinshteyn/gene_context_experiments/source_v090_stage2_d15e62151413",
+      "PYTHONPATH=/mnt/data/i.rubinshteyn/gene_context_experiments/source_v090_stage2_d15e62151413",
+      "TMPDIR=/mnt/data/i.rubinshteyn/gene_context_experiments/tmp",
+      "/usr/bin/python3",
+      "-m",
+      "genecontext",
+      "stage2",
+      "--results",
+      "/mnt/data/i.rubinshteyn/gene_context_experiments/results/nanog_stage1_clean_20261106",
+      "--draft",
+      "/mnt/data/i.rubinshteyn/gene_context_experiments/inputs/stage2_v090_20261109/user_test_review_20261106.json",
+      "--committed-only",
+      "--only-genomes",
+      "Gallus_gallus_GCF_016699485.2",
+      "Homo_sapiens_GCF_000001405.40",
+      "--genomes",
+      "/mnt/data/i.rubinshteyn/gene_context_experiments/inputs/nanog_clean_20261106/genomes.tsv",
+      "--protein-db",
+      "/mnt/data/i.rubinshteyn/gene_context_experiments/cache/stage2_vertebrate_reviewed_20261109",
+      "--predictor-cache",
+      "/mnt/data/i.rubinshteyn/gene_context_experiments/cache/tiberius",
+      "--prediction-models",
+      "/mnt/data/i.rubinshteyn/gene_context_experiments/inputs/stage2_v090_20261109/models.tsv",
+      "--out",
+      "/mnt/data/i.rubinshteyn/gene_context_experiments/results/nanog_stage2_pilot_20261109",
+      "--threads",
+      "8"
+    ],
+    "cgroup": "/sys/fs/cgroup/user.slice/user-1018.slice/user@1018.service/gcfexperiments.slice/gcf-20261109t013836-stage2-nanog-pilot-4109ba.service",
+    "shared_cgroup": "/sys/fs/cgroup/user.slice/user-1018.slice/user@1018.service/gcfexperiments.slice",
+    "memory_max_bytes": 268435456000,
+    "swap_max_bytes": 0,
+    "finished": "2026-11-09T01:42:13.498020+00:00",
+    "elapsed_seconds": 217.12460365518928,
+    "returncode": 0,
+    "max_child_rss_kib": 1449760
+  },
+  "command_elapsed_seconds": [
+    {
+      "command": "/mnt/data/i.rubinshteyn/gene_context_experiments/cache/tiberius/runtime/bin/python",
+      "seconds": 38.16746734827757
+    },
+    {
+      "command": "/mnt/data/i.rubinshteyn/gene_context_experiments/cache/tiberius/runtime/bin/python",
+      "seconds": 40.00692353211343
+    },
+    {
+      "command": "/mnt/data/i.rubinshteyn/gene_context_experiments/cache/tiberius/runtime/bin/python",
+      "seconds": 46.76201810501516
+    },
+    {
+      "command": "blastp",
+      "seconds": 2.8707911167293787
+    },
+    {
+      "command": "makeblastdb",
+      "seconds": 0.07824667356908321
+    },
+    {
+      "command": "blastp",
+      "seconds": 0.12214088067412376
+    },
+    {
+      "command": "makeblastdb",
+      "seconds": 0.07855191640555859
+    },
+    {
+      "command": "blastp",
+      "seconds": 0.1371401846408844
+    }
+  ],
+  "limitations": [
+    "Overlapping chicken windows repeat models of the same physical genes; model counts are not distinct gene counts.",
+    "A structurally complete CDS is not a biologically validated model.",
+    "Prediction misses some annotated gene groups; this pilot does not measure genome-wide sensitivity.",
+    "Reciprocal protein similarity within selected windows does not prove orthology or conserved synteny.",
+    "max_child_rss_kib measures the largest child RSS, not aggregate cgroup peak.",
+    "Pilot used the recorded immutable source snapshot; later presentation/guard improvements are covered by local tests, not a repeated neural run.",
+    "No biological STOP-2 decisions have been preselected."
+  ]
+}

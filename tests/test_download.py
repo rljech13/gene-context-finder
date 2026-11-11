@@ -106,6 +106,18 @@ class DownloadTests(unittest.TestCase):
         self.assertEqual(len(parsed), 3)
         self.assertEqual(parsed["genomic.fna.gz"], "c"*32)
 
+    def test_annotation_only_does_not_fetch_genome_and_keeps_protein_input(self):
+        protein=b">NP_1.1 protein\nMAAA\n"
+        (self.web/'proteins.faa').write_bytes(protein)
+        with (self.web/'md5checksums.txt').open('a') as handle:handle.write(hashlib.md5(protein).hexdigest()+"  ./proteins.faa\n")
+        self.manifest.write_text('genome_id\taccession\tspecies\tgff_url\tprotein_url\n'+f"source\tGCF_123.1\tSpecies one\t{self.base}/genomic.gff\t{self.base}/proteins.faa\n")
+        args=self.args(annotation_only=True);args.include_reference=True
+        self.assertEqual(run_download(args),0)
+        with (Path(args.out)/'genomes.tsv').open() as handle:row=next(csv.DictReader(handle,delimiter='\t'))
+        self.assertEqual(row['fasta'],'');self.assertEqual(row['species'],'Species one');self.assertEqual(row['assembly_accession'],'GCF_123.1')
+        self.assertEqual((Path(args.out)/row['protein']).read_bytes(),protein)
+        receipt=json.loads((Path(args.out)/'download_receipt.json').read_text());self.assertEqual({f['kind'] for f in receipt['genomes'][0]['files']},{'gff','protein'})
+
     def test_dry_run_does_not_create_output(self):
         args = self.args()
         args.dry_run = True

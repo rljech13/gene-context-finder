@@ -1,0 +1,20 @@
+const fs=require('node:fs'),assert=require('node:assert/strict');
+module.exports=function(report,{JSDOM,VirtualConsole}=require('jsdom')){
+ const errors=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));
+ const dom=new JSDOM(fs.readFileSync(report,'utf8'),{runScripts:'dangerously',url:'http://localhost/',virtualConsole:vc}),w=dom.window,d=w.document,before=w.eval('JSON.stringify(DATA.models)');
+ const change=(id,value)=>{d.getElementById(id).value=value;d.getElementById(id).dispatchEvent(new w.Event('change'))};
+ change('region','locus_a327fb5153453624');change('other','all');change('modelSource','all');change('scale','distance');
+ const notice=d.getElementById('diagramStatus');assert.equal(notice.hidden,false);assert.ok(notice.closest('details')&&!notice.closest('details').open,'Detailed notices must be collapsed initially');assert.match(notice.textContent,/214.5 kb genomic span, 1.389 kb CDS in 5 segments/);assert.match(notice.textContent,/local synteny cannot be assessed/);
+ for(const link of d.querySelectorAll('[data-link-kind="target"]')){assert.equal(link.getAttribute('fill'),'#c56861');assert.ok(link.getAttribute('d').endsWith('Z'));assert.match(link.textContent,/not a neighbor anchor/)}assert.equal(d.getElementById('priorContext').hidden,false);assert.match(d.getElementById('priorContextBody').textContent,/NPDC1/);assert.match(d.getElementById('priorContextBody').textContent,/202.4 kb left/);assert.match(d.getElementById('priorContextBody').textContent,/50.2% identity/);
+ let widths=[];
+ for(const zoom of [.25,.5,1,2,4]){
+  change('genomeZoom',String(zoom));const svg=d.querySelector('#links svg'),px=Number(svg.dataset.pxPerBp);
+  assert.equal(Number(svg.dataset.rowHeight),112);assert.ok(svg.querySelector('.cluster-row-ruler'),'Each original-style track needs its own ruler');assert.equal(svg.querySelectorAll('.cluster-cds-block').length,0,'Exon structures belong in the detailed view');const model=svg.querySelector('.cluster-model-span[data-includes-introns="true"]');assert.notEqual(model.getAttribute('fill'),'none','NANOG overview uses full-span arrows');assert.notEqual(model.getAttribute('stroke'),'none');const selected=[...svg.querySelectorAll('[data-selected-interval="0"]')];assert.ok(selected.reduce((sum,n)=>sum+Number(n.dataset.end)-Number(n.dataset.start),0)<2000,'Target coding highlight must not fill the 215-kb intron span');
+  assert.equal(svg.querySelectorAll('.cluster-gene-label').length,svg.querySelectorAll('.gene-arrow').length,'Every gene needs a short visible label');for(const label of svg.querySelectorAll('.cluster-gene-label')){const name=label.querySelector('text').firstChild.textContent;assert.ok(name.length>0&&name.length<=18);assert.ok(!/family candidate| \/ |LOC\d{5}/.test(name),'Long descriptions and IDs belong in the cards')}for(const arrow of svg.querySelectorAll('.gene-arrow')){assert.ok(arrow.getAttribute('aria-label'));assert.ok(arrow.querySelector('title').textContent.length)}
+  widths.push({zoom,pxPerBp:px});
+ }
+ change('region','locus_bbe164c8ccf3c592');assert.ok(!d.getElementById('diagramStatus').textContent.includes('local synteny cannot be assessed'));
+ w.HTMLElement.prototype.scrollIntoView=function(){};const next=w.eval('comparisonRows()[1].region_id'),clickTarget=d.querySelector('.gene-arrow[data-row="1"][data-match-type="target"]');assert.ok(clickTarget);clickTarget.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));assert.equal(d.getElementById('region').value,next,'Comparison-row arrow must focus its own locus before opening the card');assert.ok(d.querySelector('.gene-focus'),'The corresponding model card must be exposed');
+ assert.equal(w.eval('JSON.stringify(DATA.models)'),before);assert.equal(w.eval('Object.keys(state.models).length'),0);assert.deepEqual(errors,[]);dom.window.close();
+ return {status:'passed',native_spans_in_overview:true,details_collapsed:true,no_local_anchors_explained:true,prior_npdc1_evidence_retained:true,shared_zoom:widths,scientific_models_unchanged:true};
+};

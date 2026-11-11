@@ -51,7 +51,20 @@ def main():
           visible_devices=[str(device) for device in tf.config.get_visible_devices()],
           intraop_threads=args.threads, interop_threads=1, input_windows=input_windows,
           requested_seq_len=settings.seq_len, effective_seq_len=effective)), flush=True)
-    run_tiberius(settings)
+    # Preserve the predictor output before its own length/ORF filters.
+    import bricks2marble as b2m
+    raw_path = args.out + '.raw.gff3'
+    with open(raw_path, 'w'):
+        pass
+    original_filter = b2m.tools.check_min_coding_length
+    def capture_before_filter(annotation, *values, **options):
+        annotation.to_gff3(raw_path, source='Tiberius', append=True)
+        return original_filter(annotation, *values, **options)
+    b2m.tools.check_min_coding_length = capture_before_filter
+    try:
+        run_tiberius(settings)
+    finally:
+        b2m.tools.check_min_coding_length = original_filter
 
 
 if __name__ == "__main__":

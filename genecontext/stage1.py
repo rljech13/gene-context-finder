@@ -1,6 +1,7 @@
 """One-gene, multi-reference BLAST discovery with a locus-first review stop.
 
-Independent of the legacy model-first search. No predictor/reference downloads,
+Independent of the legacy model-first search. No predictor/model downloads;
+small versioned source-provenance lookups are cached and sequence-verified.
 no orthology calls, and no automatic transition into context analysis.
 """
 from collections import defaultdict
@@ -49,6 +50,8 @@ def dump(path, value):
 
 def panel(args):
     originals = load_queries(args)
+    from .query_metadata import fasta_metadata
+    header_metadata=fasta_metadata(args.query)
     metadata = {}
     if args.query_metadata:
         for row in table(Path(args.query_metadata)):
@@ -65,7 +68,8 @@ def panel(args):
         # CDS route translates annotation-derived CDS before TBLASTn; DNA route
         # is strictly BLASTN, without automatic alphabet/type inference.
         sequence = q['protein'] if args.query_type in {'protein', 'cds'} else q['sequence']
-        entry = dict(metadata.get(q['name'], {}), query=q['name'])
+        entry = dict(header_metadata.get(q['name'], {}), **metadata.get(q['name'], {}))
+        entry['query']=q['name']
         if sequence not in unique:
             qid = f'q{len(unique)+1:04d}'
             unique[sequence] = dict(id=qid, sequence=sequence, members=[])
@@ -384,7 +388,7 @@ def write_outputs(root, data):
     write_report(root,data)
     files=[p for name in ['raw'] for p in (root/name).rglob('*') if p.is_file()]
     files += [root/name for name in ['evidence.json','manifest.json','queries.fasta','loci.tsv',
-        'passing_loci.tsv','query_support.tsv','genomes.summary.tsv','loci.bed','report.html','loci.fna','review_ranking.tsv'] if (root/name).exists()]
+        'passing_loci.tsv','query_support.tsv','genomes.summary.tsv','loci.bed','report.html','loci.fna','review_ranking.tsv','gene_identities.tsv'] if (root/name).exists()]
     dump(root/'seal.json',{str(p.relative_to(root)):sha256(p) for p in sorted(files)})
 
 

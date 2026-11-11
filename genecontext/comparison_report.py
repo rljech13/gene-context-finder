@@ -90,8 +90,8 @@ def _color(group):
     return "#94a3b8" if not group else "#" + hashlib.sha256(group.encode()).hexdigest()[:6]
 
 
-def _protein_svg(path, rows):
-    shapes = _svg(1500, 240, "Protein conservation across recovered loci (query references excluded)")
+def _protein_svg(path, rows, title="Protein conservation across recovered loci (query references excluded)", unit="locus"):
+    shapes = _svg(1500, 240, title)
     shapes.append('<path d="M50 180H1460M50 50V180" stroke="#64748b" fill="none"/>')
     bin_size = max(1, (len(rows)+1199)//1200)
     coverage_points = []
@@ -105,7 +105,7 @@ def _protein_svg(path, rows):
         if coverage:
             coverage_points.append(f'{x:.2f},{180-120*sum(coverage)/len(coverage):.2f}')
     shapes.append('<polyline points="'+' '.join(coverage_points)+'" fill="none" stroke="#ea580c" stroke-width="2"/>')
-    shapes += ['<text x="50" y="210">Alignment column →; blue: consensus fraction; orange: locus coverage. Blank consensus: fewer than two observed loci.</text>', '</svg>']
+    shapes += [f'<text x="50" y="210">Alignment column →; blue: consensus fraction; orange: {escape(unit)} coverage. Blank consensus: fewer than two observed {escape(unit)} units.</text>', '</svg>']
     path.write_text("\n".join(shapes))
 
 
@@ -125,7 +125,7 @@ def synteny_svg(path, title, loci, context):
     for i, row in enumerate(loci):
         y = 75+i*100
         x = lambda position: 300+(position-row["target_relative_start"]+left)*scale
-        shapes += [f'<text x="20" y="{y}">{escape(row["genome_id"][:38])}</text>',
+        shapes += [f'<text x="20" y="{y}">{escape(row.get("display_label",row["genome_id"][:38]))}</text>',
                    f'<text x="20" y="{y+18}" style="font-size:10px">{escape(row["locus_id"]+" · "+row["selection_status"])}</text>',
                    f'<path d="M{x(0):.2f} {y}H{x(row["window_bp"]):.2f}" stroke="#cbd5e1"/>']
         features = sorted(by_locus[row["locus_id"]], key=lambda f: f["relative_start"])
@@ -179,7 +179,7 @@ def dna_svg(path, title, loci, blocks, reference_id):
     scale = 1270/max(1, reference["window_bp"])
     for i, row in enumerate(loci):
         y = 65+i*55
-        shapes += [f'<text x="20" y="{y+12}">{escape(row["genome_id"][:38])}</text>',
+        shapes += [f'<text x="20" y="{y+12}">{escape(row.get("display_label",row["genome_id"][:38]))}</text>',
                    f'<rect x="300" y="{y}" width="1270" height="18" fill="#e2e8f0"/>']
         for block in blocks:
             if block["status"] != "accepted" or {block["locus_a"], block["locus_b"]} != {row["locus_id"], reference_id}:

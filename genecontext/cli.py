@@ -35,6 +35,13 @@ def nonnegative(value):
     return value
 
 
+def neighbor_limit(value):
+    value = positive(value)
+    if value > 10:
+        raise argparse.ArgumentTypeError("must be between 1 and 10 genes per side")
+    return value
+
+
 def comparison_options(command):
     command.add_argument("--context-mode", choices=["predict", "annotation"], default="predict",
                          help="predict: predict genes in every window, then identify proteins; annotation: legacy GFF3/reference-supported contexts")
@@ -74,6 +81,7 @@ def predictor_options(command):
 
 
 def early_synteny_options(command, disable_option=True):
+    command.add_argument("--query-metadata-lookup", choices=["auto", "off"], default="auto", help="Resolve missing source GeneIDs from exact versioned RefSeq records; cached, sequence-verified, no query replacement")
     if disable_option:
         command.add_argument("--early-synteny", choices=["auto", "off"], default="auto",
                              help="Automatically check annotated neighbor contexts before STOP 1")
@@ -82,8 +90,9 @@ def early_synteny_options(command, disable_option=True):
     command.add_argument("--datasets", help="Optional complete datasets TSV; default: the search genome list")
     command.add_argument("--source-datasets", help="Optional source-reference datasets TSV; query-to-gene mapping is automatic")
     command.add_argument("--neighbor-cache", help="Reusable context/proteome cache; default: _genecontext_cache beside the output")
-    command.add_argument("--synteny-neighbors", type=positive, default=5)
-    command.add_argument("--synteny-max-neighbors", type=positive, default=20)
+    command.add_argument("--synteny-neighbors", type=neighbor_limit, default=5)
+    command.add_argument("--synteny-max-neighbors", type=neighbor_limit, default=10,
+                         help="Maximum neighboring genes per side (1–10; hard upper bound 10)")
     command.add_argument("--synteny-max-distance", type=positive, default=1000000)
 
 
@@ -153,6 +162,7 @@ def parser():
     download.add_argument("--manifest", required=True, help="TSV: genome_id, genome_url, optional gff_url and reference URLs")
     download.add_argument("--out", required=True, help="Managed download directory; produces genomes.tsv")
     download.add_argument("--only", nargs="+", help="Select genome IDs or exact assembly accessions")
+    download.add_argument("--annotation-only", action="store_true", help="Fetch source GFF/proteins/CDS without the full genome; suitable for preliminary source contexts")
     download.add_argument("--include-reference", action="store_true", help="Also fetch listed reference CDS/proteomes")
     download.add_argument("--dry-run", action="store_true", help="Print plan without network calls or filesystem changes")
     align = commands.add_parser("align", help="Re-align saved extraction without repeating genome searches")
@@ -238,6 +248,7 @@ def parser():
     annotated = commands.add_parser("stage1-context", help="Add automatic early synteny to a saved locus search without repeating BLAST")
     annotated.add_argument("--results", required=True)
     annotated.add_argument("--out", required=True)
+    annotated.add_argument("--query-source-fasta", help="Restore explicit source metadata from the unchanged original FASTA in an older checkpoint")
     annotated.add_argument("--threads", type=positive, default=4)
     early_synteny_options(annotated, disable_option=False)
     presentation = commands.add_parser("stage1-report", help="Refresh a saved report without searching, changing evidence or invalidating decision IDs")
@@ -255,11 +266,107 @@ def parser():
         command.add_argument("--min-query-coverage", type=fraction, default=0.20 if defaults else None)
         command.add_argument("--min-identity", type=fraction, default=0.25 if defaults else None)
         command.add_argument("--max-evalue", type=float, default=1e-5 if defaults else None)
+    db = commands.add_parser("prepare-stage2-db", help="Prepare a pinned local BLASTP catalogue for window protein identification")
+    source = db.add_mutually_exclusive_group(required=True)
+    source.add_argument("--fasta", help="Local protein FASTA, plain or gzip; UniProt GN/OX metadata retained")
+    source.add_argument("--download-vertebrates", action="store_true", help="Explicitly download reviewed UniProt vertebrate proteins and isoforms")
+    db.add_argument("--out", required=True)
+    s2 = commands.add_parser("stage2", help="Reannotate approved genomic windows and STOP for model/neighbor review")
+    s2p = commands.add_parser("stage2-plan", help="Resolve preliminary-neighborhood window bounds without extraction or prediction")
+    for command in [s2,s2p]:
+        command.add_argument("--results", required=True, help="Sealed locus-first stage 1 checkpoint")
+        choice = command.add_mutually_exclusive_group(required=True)
+        choice.add_argument("--decisions", help="Completed stage 1 decisions TSV")
+        choice.add_argument("--selection", help="Approved output directory from stage1-select")
+        choice.add_argument("--draft", help="Portable stage 1 draft; unsaved pairs are rejected unless --committed-only")
+        command.add_argument("--committed-only", action="store_true", help="Explicitly process saved draft pairs only; never process unsaved checkboxes")
+        command.add_argument("--only-genomes", nargs="+", help="Explicit subset of approved genome IDs, for a pilot")
+        command.add_argument("--window-policy", choices=["pre-synteny","fixed"], default="pre-synteny", help="Default: full preliminary gene envelope; fixed retains configured flanks. Explicit manual windows take precedence.")
+        command.add_argument("--max-window-bases", type=positive, default=2000000)
+        command.add_argument("--out", required=True)
+    s2.add_argument("--genomes", required=True, help="Dataset TSV with local genomic FASTA and optional matching GFF3")
+    s2.add_argument("--protein-db", required=True, help="Verified local prepare-stage2-db output; no downloads during analysis")
+    s2.add_argument("--threads", type=positive, default=4)
+    s2.add_argument("--identification-coverage", type=fraction, default=.5)
+    s2.add_argument("--identification-identity", type=fraction, default=.3)
+    s2.add_argument("--identification-evalue", type=float, default=1e-5)
+    s2.add_argument("--competing-ratio", type=fraction, default=.95)
+    predictor_options(s2)
+    s2.set_defaults(predictor_cache=None)
+    next(a for a in s2._actions if a.dest=="predictor").choices=["tiberius"]
+    s2r = commands.add_parser("stage2-report", help="Refresh STOP 2 presentation without prediction or protein searches")
+    s2r.add_argument("--results", required=True)
+    s2r.add_argument("--out", required=True)
+    s2r.add_argument("--genomes", help="Add all gene-level annotation features from the original, hash-matched GFF3 files; no prediction/search")
+    s2q = commands.add_parser("stage2-quality", help="Collect hash-matched original annotation flags for an existing STOP-2 checkpoint; no prediction")
+    s2q.add_argument("--results", required=True)
+    s2q.add_argument("--genomes", required=True)
+    s2q.add_argument("--out", required=True)
+    s2t = commands.add_parser("stage2-reconstruct", help="Reconstruct existing annotation CDS from exact splice-aware reference-transcript mapping")
+    s2t.add_argument("--results", required=True)
+    s2t.add_argument("--transcripts", required=True, help="Offline GenBank XML transcript records, including CDS coordinates")
+    s2t.add_argument("--mapping", required=True, help="TSV with model_id and accession columns")
+    s2t.add_argument("--out", required=True)
+    s2t.add_argument("--minimap2", default="minimap2")
+    s2t.add_argument("--threads", type=positive, default=4)
+    s2t.add_argument("--max-intron", type=positive, default=1000000)
+    s2t.add_argument("--attach", action="store_true", help="Attach verified supplement and FASTA/GFF exports; keep models, review ID and decisions unchanged")
+    s2i = commands.add_parser("stage2-reidentify", help="Repeat broad protein identification from a sealed STOP 2 result, keeping predictions unchanged")
+    s2i.add_argument("--results", required=True)
+    s2i.add_argument("--protein-db", required=True)
+    s2i.add_argument("--out", required=True)
+    s2i.add_argument("--threads", type=positive, default=4)
+    s3 = commands.add_parser("stage3", help="Compare models explicitly chosen in the new STOP-2 review; export selected sequences")
+    s3.add_argument("--results", required=True, help="Sealed locus-first stage2 result")
+    s3.add_argument("--decisions", required=True, help="Exported stage2.decisions.json (or a fully saved portable draft)")
+    s3.add_argument("--out", required=True)
+    s3.add_argument("--validate-only", action="store_true", help="Check decisions and sequence integrity without creating output or running aligners")
+    s3.add_argument("--threads", type=positive, default=4)
+    s3.add_argument("--include-partial", action="store_true")
+    s3.add_argument("--dna-engine", choices=["blastn", "lastz"], default="blastn")
+    s3.add_argument("--dna-min-block", type=positive, default=50)
+    s3.add_argument("--dna-min-identity", type=fraction, default=.6)
+    s3.add_argument("--max-alignment-bases", type=positive, default=2000000)
+    s3.add_argument("--control-run", action="store_true", help="Mark all outputs as a software control, not a biological approval")
+    s3report=commands.add_parser("stage3-report",help="Refresh a sealed stage-3 report without repeating alignments")
+    s3report.add_argument("--results",required=True)
+    s3report.add_argument("--out",required=True)
+    final=commands.add_parser("stage3-finalize",help="Apply exported primary-target/special-case choices without repeating alignments")
+    final.add_argument("--results",required=True)
+    final.add_argument("--decisions",required=True,help="Exported stage3.final.decisions.json")
+    final.add_argument("--out",required=True)
     return parser
 
 
 def main(argv=None):
     args = parser().parse_args(argv)
+    if args.command in {"stage3","stage3-report","stage3-finalize"}:
+        from .stage3 import run as stage3
+        from .stage3_report import refresh
+        try:
+            return (stage3 if args.command=="stage3" else refresh)(args)
+        except (OSError, ValueError, RuntimeError, KeyError) as error:
+            print(f"ERROR: {error}", file=sys.stderr)
+            return 2
+    if args.command in {'stage2-quality','stage2-reconstruct'}:
+        if args.command=='stage2-quality':
+            from .stage2_quality import run
+        else:
+            from .stage2_reconstruct import run
+        try:
+            return run(args)
+        except (OSError, ValueError, RuntimeError, KeyError) as error:
+            print(f"ERROR: {error}", file=sys.stderr)
+            return 2
+    if args.command in {"stage2", "stage2-plan", "stage2-report", "stage2-reidentify", "prepare-stage2-db"}:
+        from .stage2 import run as stage2, reidentify, plan
+        from .stage2_db import prepare
+        from .stage2_report import refresh
+        try:
+            return {"stage2":stage2,"stage2-plan":plan,"stage2-report":refresh,"stage2-reidentify":reidentify,"prepare-stage2-db":prepare}[args.command](args)
+        except (OSError, ValueError, RuntimeError, KeyError) as error:
+            print(f"ERROR: {error}", file=sys.stderr)
+            return 2
     if args.command in {"stage1", "stage1-filter", "stage1-select", "stage1-context", "stage1-report"}:
         from .stage1 import search, refilter, approve
         from .stage1_context import context

@@ -21,13 +21,24 @@ def attach(args, root, data, runner=None):
         fields=['genome_id','fasta','gff3','protein','cds','annotation_provenance','species','assembly_accession']
         write_tsv(manifest,data['genomes'],fields)
     cache=getattr(args,'neighbor_cache',None) or root.parent/'_genecontext_cache'/'early_synteny'
+    if data['config']['query_type']!='dna':
+        from .query_source_lookup import enrich
+        lookup=enrich(data['queries'],Path(cache)/'query_source_records',root/'raw'/'query_source_metadata',getattr(args,'query_metadata_lookup','auto'))
+        data['query_provenance']['source_metadata_lookup']=dict(artifact='raw/query_source_metadata/receipt.json',**lookup)
+        qmap={q['id']:q for q in data['queries']}
+        for locus in data['loci']:
+            species=sorted({m['species'] for qid in locus['query_ids'] for m in qmap[qid]['members'] if m.get('species')})
+            locus.update(species=species,support_species=len(species))
+    source_manifest=getattr(args,'source_datasets',None)
+    registered=Path(cache)/'source_datasets.tsv'
+    if not source_manifest and registered.is_file():source_manifest=registered
     output=root/'raw'/'early_synteny'
     print('[stage 1] automatic early synteny',file=sys.stderr,flush=True)
     try:
         inputs={}
         receipts=root/'raw'/('context_inputs_'+data['review_id'])
         receipts.mkdir()
-        for name,value in [('datasets',manifest),('source_datasets',getattr(args,'source_datasets',None))]:
+        for name,value in [('datasets',manifest),('source_datasets',source_manifest)]:
             if value:
                 path=Path(value).resolve()
                 digest=sha256(path)
@@ -35,7 +46,7 @@ def attach(args, root, data, runner=None):
                 if sha256(receipts/(name+'.tsv'))!=digest:raise ValueError('Dataset manifest changed while copying: '+str(path))
                 inputs[name]=dict(path=str(path),sha256=digest,snapshot=str((receipts/(name+'.tsv')).relative_to(root)))
         result=run_early_synteny(data,genomes_manifest=manifest,
-            source_genomes_manifest=getattr(args,'source_datasets',None),cache_dir=cache,
+            source_genomes_manifest=source_manifest,cache_dir=cache,
             out_dir=output,threads=args.threads,config=settings(args),runner=runner)
         known={(l['genome_id'],l['locus_id']) for l in data['loci']};seen=set()
         for item in result['loci']:
@@ -46,6 +57,9 @@ def attach(args, root, data, runner=None):
         for item in inputs.values():
             if sha256(item['path'])!=item['sha256']:raise ValueError('Dataset manifest changed during context analysis: '+item['path'])
         result['inputs']=inputs
+        lookup_by_query={row['query']:row for row in data['query_provenance'].get('source_metadata_lookup',{}).get('records',[])}
+        for row in result.get('source_resolution',[]):
+            if row['query'] in lookup_by_query:row['metadata_lookup']=lookup_by_query[row['query']]
     except (OSError,ValueError,RuntimeError) as error:
         print('[early synteny] '+str(error),file=sys.stderr)
         result=dict(schema='early_synteny_v1',status='failed',parameters=settings(args),references=[],source_resolution=[],datasets=[],
@@ -64,6 +78,9 @@ def attach(args, root, data, runner=None):
 
 def context(args):
     source,data=verify(args.results)
+    if getattr(args,'query_source_fasta',None):
+        from .query_metadata import restore_headers
+        restore_headers(data,args.query_source_fasta)
     root=new_output(args.out)
     if source in root.parents or root in source.parents:raise ValueError('Context report must be separate from its source')
     for name in ['queries.fasta','loci.fna']:

@@ -39,7 +39,7 @@ def save(path, value):
 
 def settings(args):
     return dict(neighbors=getattr(args, 'synteny_neighbors', 5),
-                max_neighbors=getattr(args, 'synteny_max_neighbors', 20),
+                max_neighbors=getattr(args, 'synteny_max_neighbors', 10),
                 max_distance=getattr(args, 'synteny_max_distance', 1000000),
                 min_coverage=.5, min_identity=.3, competing_ratio=.95, evalue=1e-5)
 
@@ -90,6 +90,8 @@ def attributes(raw):
 
 def parse_annotation(path):
     genes, meta, models, protein_ids, regions = {}, {}, {}, defaultdict(set), {}
+    from .stage2_quality import annotation_flags
+    quality_flags = defaultdict(set)
     with open_text(path) as handle:
         for number, line in enumerate(handle, 1):
             if line.startswith('##FASTA'):
@@ -132,6 +134,7 @@ def parse_annotation(path):
             if value not in {None, 0, 1, 2}:
                 raise ValueError('Invalid GFF3 phase')
             for parent in parents:
+                quality_flags[parent].update(annotation_flags(attrs))
                 model = models.setdefault(parent, Model(parent, contig, strand))
                 if (model.contig, model.strand) != (contig, strand):
                     raise ValueError('Transcript spans contigs or strands: '+parent)
@@ -157,7 +160,8 @@ def parse_annotation(path):
             raise ValueError('Transcript/gene coordinate identity differs: '+mid)
         if any(a < gene['start'] or b > gene['end'] for a, b, _ in model.cds):
             raise ValueError('CDS outside parent gene: '+mid)
-        model.gene = parent; model.attrs = attrs
+        model.gene = parent; model.attrs = dict(attrs, _quality_flags=sorted(
+            quality_flags[mid] | set(annotation_flags(attrs)) | set(annotation_flags(meta.get(parent, {})))))
         gene['models'].append(mid)
         retained[mid] = dict(model=model,
             protein_ids=sorted(protein_ids[mid] | ({attrs['protein_id']} if attrs.get('protein_id') else set())),
@@ -446,7 +450,7 @@ class GeneIndex:
             self.starts[contig] = ([g['start'] for g in by_start],by_start)
             self.ends[contig] = ([g['end'] for g in by_end],by_end)
 
-    def neighbors(self, contig, start, end, strand, n, cap, exclude=()):
+    def neighbors(self, contig, start, end, strand, n, cap, exclude=(), anchor_gene=None):
         excluded = set(exclude); result = []; limits = {}
         # All overlapping genes are omitted from neighbour anchors, including
         # alternative target models and nested/antisense genes.
@@ -466,7 +470,30 @@ class GeneIndex:
                     relative_strand='+' if gene['strand']==strand else '-',
                     distance_bp=start-gene['end'] if side=='left' else gene['start']-end))
             limits[side]='enough_genes' if count==n else limited
-        return dict(neighbors=result,limits=limits,
+        # Keep annotations omitted from independent anchors visible. Other
+        # query-source copies and overlapping genes do not consume neighbour
+        # slots, enter the protein panel, or count as synteny support.
+        visible = []
+        positions, values = self.starts.get(contig, ([], []))
+        overlapping = values[:bisect_left(positions, end)]
+        extras = {g['gene_id']: g for g in overlapping if g['end'] > start}
+        extras.update({gid: self.genes[gid] for gid in excluded if gid in self.genes
+                       and self.genes[gid]['contig'] == contig
+                       and self.genes[gid]['end'] > start-cap
+                       and self.genes[gid]['start'] < end+cap})
+        for gid, gene in sorted(extras.items()):
+            is_anchor = gid == anchor_gene if anchor_gene else (
+                gene['start'] == start and gene['end'] == end and gene['strand'] == strand)
+            if is_anchor:
+                continue
+            side = 'left' if gene['start']+gene['end'] < start+end else 'right'
+            visible.append(dict(gene, side=side, side_rank=0,
+                target_side=('upstream' if side=='left' else 'downstream') if strand=='+' else ('downstream' if side=='left' else 'upstream'),
+                relative_strand='+' if gene['strand']==strand else '-',
+                distance_bp=max(0, start-gene['end'], gene['start']-end),
+                display_only=True,
+                display_reason='other_query_source' if gid in excluded else 'overlapping_annotation'))
+        return dict(neighbors=result,display_only_genes=visible,limits=limits,
                     window_start=min([start]+[g['start'] for g in result]),
                     window_end=max([end]+[g['end'] for g in result]))
 
@@ -486,7 +513,7 @@ def resolve_origins(queries, sources):
     for query in queries:
         digest=hashlib.sha256(query['sequence'].encode()).hexdigest()
         for member in query['members']:
-            strong=[];identical=[];mismatches=[];gene_linked=[]
+            strong=[];identical=[];mismatches=[];gene_linked=[];accession_linked=[]
             for cat in sources:
                 explicit=member.get('genome_id') or member.get('source_genome_id')
                 accession=member.get('assembly_accession')
@@ -497,6 +524,8 @@ def resolve_origins(queries, sources):
                 if member.get('species') and cat['species'] and member['species']!=cat['species']:
                     continue
                 ids=origin_tokens(member)
+                explicit_accessions={v for v in ids if ACCESSION.fullmatch(v)}
+                accession_linked.extend((cat['genome_id'],gid) for value in explicit_accessions for gid,seqhash in cat['aliases'].get(value,[]) if seqhash!=digest)
                 linked={gid for name in ids for gid,seqhash in cat['aliases'].get(name,[]) if seqhash==digest}
                 stale={gid for name in ids for gid,seqhash in cat['aliases'].get(name,[]) if seqhash!=digest}
                 # A curated numeric GeneID identifies an annotation locus even when
@@ -512,15 +541,19 @@ def resolve_origins(queries, sources):
                 strong.extend((cat['genome_id'],gid) for gid in linked)
                 identical.extend((cat['genome_id'],gid) for gid in same)
                 mismatches.extend((cat['genome_id'],gid) for gid in stale-linked)
-            selected=sorted(set(strong or gene_linked or ([] if mismatches else identical)))
+            unique_accession=sorted(set(accession_linked))
+            identifier_context=unique_accession if len(unique_accession)==1 else []
+            selected=sorted(set(strong or gene_linked or identifier_context or ([] if mismatches else identical)))
             status=('identifier_and_sequence' if strong and len(selected)==1 else
                     'multiple_source_loci' if len(selected)>1 else
                     'gene_id_linked_sequence_differs' if gene_linked and not strong else
+                    'identifier_linked_sequence_differs' if identifier_context and not strong and not gene_linked else
                     'exact_sequence_only' if selected else
                     'identifier_sequence_mismatch' if mismatches else 'source_locus_unresolved')
             mapping.append(dict(query_id=query['id'],query=member['query'],status=status,
                                 query_sequence_verified=bool(strong or (identical and not gene_linked and not mismatches)),
-                                context_binding_only=bool(gene_linked and not strong),
+                                context_binding_only=bool((gene_linked or identifier_context) and not strong),
+                                binding_basis='identifier_and_sequence' if strong else 'explicit_gene_id' if gene_linked else 'exact_versioned_accession' if identifier_context else 'exact_sequence' if selected else 'unresolved',
                                 sources=[dict(genome_id=g,gene_id=gid) for g,gid in selected],
                                 mismatching_sources=[dict(genome_id=g,gene_id=gid) for g,gid in sorted(set(mismatches))]))
             records.extend(dict(genome_id=g,gene_id=gid,query_id=query['id'],query=member['query'],resolution=status) for g,gid in selected)
@@ -651,10 +684,10 @@ def run_early_synteny(data, *, genomes_manifest, source_genomes_manifest=None,
     if cache==out.resolve() or cache in out.resolve().parents or out.resolve() in cache.parents:
         raise ValueError('Cache and evidence output must be separate directories')
     cache.mkdir(parents=True,exist_ok=True)
-    cfg=dict(neighbors=5,max_neighbors=20,max_distance=1000000,min_coverage=.5,min_identity=.3,competing_ratio=.95,evalue=1e-5)
+    cfg=dict(neighbors=5,max_neighbors=10,max_distance=1000000,min_coverage=.5,min_identity=.3,competing_ratio=.95,evalue=1e-5)
     cfg.update(config or {})
-    if not (0<cfg['neighbors']<=cfg['max_neighbors'] and cfg['max_distance']>0):
-        raise ValueError('Require 0 < neighbors <= max_neighbors and positive max_distance')
+    if not (0<cfg['neighbors']<=cfg['max_neighbors']<=10 and cfg['max_distance']>0):
+        raise ValueError('Require 0 < neighbors <= max_neighbors <= 10 genes per side and positive max_distance')
     if not (0<cfg['min_coverage']<=1 and 0<cfg['min_identity']<=1 and 0<cfg['competing_ratio']<=1 and cfg['evalue']>0):
         raise ValueError('Invalid preliminary homology thresholds')
     runner=runner or Runner(out)
@@ -713,7 +746,7 @@ def run_early_synteny(data, *, genomes_manifest, source_genomes_manifest=None,
         for ref in origins:
             gid=ref['genome_id'];cat=catalogs[gid];gene=indexes[gid].genes[ref['gene_id']]
             ref.update({k:gene[k] for k in ['name','contig','start','end','strand']})
-            context=indexes[gid].neighbors(gene['contig'],gene['start'],gene['end'],gene['strand'],cfg['max_neighbors'],cfg['max_distance'],target_genes[gid])
+            context=indexes[gid].neighbors(gene['contig'],gene['start'],gene['end'],gene['strand'],cfg['max_neighbors'],cfg['max_distance'],target_genes[gid], gene['gene_id'])
             # Protein sequences are loaded only for the small neighbourhood panel.
             required={g['protein_id'] for g in context['neighbors'] if g['protein_id']}
             protein_sequences={header.split()[0]:seq for header,seq in fasta_records(Path(cat['cache'])/'proteins.faa') if header.split()[0] in required}
@@ -722,7 +755,7 @@ def run_early_synteny(data, *, genomes_manifest, source_genomes_manifest=None,
                 neighbor['panel_protein_id']='P'+hashlib.sha256(protein_sequences[pid].encode()).hexdigest()[:24] if pid else ''
                 if pid:
                     panel[neighbor['panel_protein_id']]=protein_sequences[pid]
-            ref.update(neighbors=context['neighbors'],limits=context['limits'],window_start=context['window_start'],window_end=context['window_end'])
+            ref.update(neighbors=context['neighbors'],display_only_genes=context['display_only_genes'],limits=context['limits'],window_start=context['window_start'],window_end=context['window_end'])
             result['references'].append(ref);reference_contexts[ref['reference_id']]=context
         versions=tool_versions(['blastp','makeblastdb']);matches={}
         if panel and all(v['path'] for v in versions.values()):
@@ -754,26 +787,33 @@ def run_early_synteny(data, *, genomes_manifest, source_genomes_manifest=None,
             else:
                 n=cfg['neighbors']
                 while True:
-                    context=indexes[gid].neighbors(locus['contig'],locus['start'],locus['end'],locus['strand'],n,cfg['max_distance'],target_genes[gid])
+                    context=indexes[gid].neighbors(locus['contig'],locus['start'],locus['end'],locus['strand'],n,cfg['max_distance'],target_genes[gid], locus.get('annotation_gene_id'))
                     comparisons=[]
                     for ref in result['references']:
                         ref_neighbors=[g for g in ref['neighbors'] if g['side_rank']<=n]
-                        comparisons.append(compare_context(dict(ref,_target_strand=locus['strand']),ref_neighbors,context['neighbors'],matches.get(gid,{})))
+                        comparison=compare_context(dict(ref,_target_strand=locus['strand']),ref_neighbors,context['neighbors'],matches.get(gid,{}))
+                        comparison['comparison_role']='cross_species' if ref['genome_id']!=gid else 'within_assembly_control'
+                        comparisons.append(comparison)
+                    independent=[c for c in comparisons if c['comparison_role']=='cross_species']
                     # Adaptive expansion is an annotation lookup, not another
                     # BLAST run. All reserve neighbours were searched in one panel.
-                    if not comparisons or any(c['status']=='two_sided_context_support' for c in comparisons) or n>=cfg['max_neighbors']:
+                    # Controls stay visible but cannot establish cross-species
+                    # support or stop expansion when other species are present.
+                    if not independent or any(c['status']=='two_sided_context_support' for c in independent) or n>=cfg['max_neighbors']:
                         break
                     n=min(cfg['max_neighbors'],n*2)
-                entry.update(neighbors_used=n,window_start=context['window_start'],window_end=context['window_end'],neighbors=context['neighbors'],comparisons=comparisons,limits=context['limits'])
+                entry.update(neighbors_used=n,window_start=context['window_start'],window_end=context['window_end'],neighbors=context['neighbors'],display_only_genes=context['display_only_genes'],comparisons=comparisons,limits=context['limits'])
                 if not result['references']:
                     entry['status']='source_locus_unresolved'
                 elif gid not in matches:
                     entry['status']='protein_matching_unavailable'
-                elif any(c['status']=='two_sided_context_support' for c in comparisons):
+                elif not independent:
+                    entry['status']='within_assembly_controls_only'
+                elif any(c['status']=='two_sided_context_support' for c in independent):
                     entry['status']='two_sided_context_support'
-                elif any(c['status']=='one_sided_context_support' for c in comparisons):
+                elif any(c['status']=='one_sided_context_support' for c in independent):
                     entry['status']='one_sided_context_support'
-                elif any(c['shared_anchors']>=2 for c in comparisons):
+                elif any(c['shared_anchors']>=2 for c in independent):
                     entry['status']='order_or_orientation_differs'
                 else:
                     entry['status']='insufficient_anchors'
@@ -787,7 +827,7 @@ def run_early_synteny(data, *, genomes_manifest, source_genomes_manifest=None,
     result.update(status='completed_with_errors' if result['errors'] else 'completed',commands=runner.commands[initial_commands:],
                   elapsed_seconds=time.perf_counter()-started,tools=tool_versions(['blastp','makeblastdb']))
     save(out/'evidence.json',result)
-    rows=[dict(genome_id=l['genome_id'],locus_id=l['locus_id'],status=l['status'],neighbors_requested=l['neighbors_requested'],neighbors_used=l['neighbors_used'],window_start=l['window_start'],window_end=l['window_end'],best_shared_anchors=max([c['shared_anchors'] for c in l['comparisons']] or [0]),flags=';'.join(l['flags'])) for l in result['loci']]
+    rows=[dict(genome_id=l['genome_id'],locus_id=l['locus_id'],status=l['status'],neighbors_requested=l['neighbors_requested'],neighbors_used=l['neighbors_used'],window_start=l['window_start'],window_end=l['window_end'],best_shared_anchors=max([c['shared_anchors'] for c in l['comparisons'] if c.get('comparison_role')=='cross_species'] or [0]),flags=';'.join(l['flags'])) for l in result['loci']]
     write_tsv(out/'summary.tsv',rows,['genome_id','locus_id','status','neighbors_requested','neighbors_used','window_start','window_end','best_shared_anchors','flags'])
     write_fasta(out/'reference_neighbors.faa',sorted(panel.items()) if data['config'].get('query_type')!='dna' else [])
     return result
@@ -805,7 +845,7 @@ def main(argv=None):
     ap.add_argument('--out',required=True,help='New output directory, outside the saved checkpoint')
     ap.add_argument('--threads',type=int,default=4)
     ap.add_argument('--neighbors',type=int,default=5)
-    ap.add_argument('--max-neighbors',type=int,default=20)
+    ap.add_argument('--max-neighbors',type=int,default=10)
     ap.add_argument('--max-distance',type=int,default=1000000)
     args=ap.parse_args(argv)
     source,data=verify(args.results);out=Path(args.out).resolve()

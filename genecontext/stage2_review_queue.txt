@@ -1,0 +1,132 @@
+// Display proposals never become scientific decisions until the user saves.
+function copyLabel(m,c={}){return c.copy_label?.trim()||`${modelIdentity(m)?.display_name||m.original_gene||m.model_id} · ${m.contig}:${m.start}–${m.end} (${m.strand})`}
+function targetWarnings(m,c={}){return modelConstraint(m).target_warnings.filter(w=>c.selection_kind!=='additional_copy'||w!=='Outside selected interval')}
+function rankedModels(values){
+ const score=m=>Math.max(0,...m.target_support.map(h=>h.bitscore));
+ return [...values].sort((a,b)=>modelConstraint(a).target_warnings.length-modelConstraint(b).target_warnings.length||Number(a.coding_status!=='complete_predicted')-Number(b.coding_status!=='complete_predicted')||Number(a.window_edge)-Number(b.window_edge)||score(b)-score(a)||Number(a.source!=='annotation')-Number(b.source!=='annotation')||a.model_id.localeCompare(b.model_id));
+}
+function mainCandidates(r){return rankedModels(own(r).filter(m=>m.overlaps_anchor&&m.strand===r.strand))}
+function reviewPlan(r){
+ const saved=state.review_plan[r.region_id]||{},kept=own(r).filter(m=>state.models[m.model_id]?.decision==='inspect');
+ const primary=models.get(saved.primary_model)||kept.find(m=>state.models[m.model_id].role==='target')||mainCandidates(r)[0]||null;
+ const additional=[...(saved.additional||[])];
+ for(const m of kept)if(m!==primary&&!additional.includes(m.model_id))additional.push(m.model_id);
+ return {...saved,primary_model:primary?.model_id||'',additional:additional.filter(id=>id!==primary?.model_id)};
+}
+function storeReviewPlan(r,p){state.review_plan[r.region_id]=p;const s=state.regions[r.region_id];if(s)s.saved=false;persisted()}
+function validateReviewPlan(value){
+ if(!value||typeof value!=='object'||Array.isArray(value))throw Error('Invalid gene-review plan');
+ for(const[rid,p]of Object.entries(value)){
+  if(!regions.has(rid)||!p||typeof p.primary_model!=='string'||!Array.isArray(p.additional)||new Set(p.additional).size!==p.additional.length)throw Error('Invalid gene-review plan');
+  for(const id of [p.primary_model,...p.additional].filter(Boolean))if(!models.has(id)||models.get(id).region_id!==rid)throw Error('Gene-review model belongs to another locus');
+  if(p.additional_roles!==undefined){if(!p.additional_roles||typeof p.additional_roles!=='object'||Array.isArray(p.additional_roles))throw Error('Invalid added-gene roles');for(const[id,role]of Object.entries(p.additional_roles))if(models.get(id)?.region_id!==rid||!['copy','target','neighbor'].includes(role))throw Error('Invalid added-gene role')}
+  if(p.form_drafts!==undefined){
+   if(!p.form_drafts||typeof p.form_drafts!=='object'||Array.isArray(p.form_drafts))throw Error('Invalid pending gene review');
+   for(const[key,c]of Object.entries(p.form_drafts))if(!c||typeof c.model_id!=='string'||c.model_id&&models.get(c.model_id)?.region_id!==rid||key!=='primary'&&key!==c.model_id||!['','inspect','exclude','unresolved'].includes(c.decision)||!['copy','target','neighbor'].includes(c.role)||typeof c.notes!=='string'||typeof c.comparison_group!=='string'||c.copy_label!==undefined&&typeof c.copy_label!=='string'||typeof c.target_override!=='boolean')throw Error('Invalid pending gene review');
+  }
+ }
+}
+function queueItems(r){const p=reviewPlan(r);return [{primary:true,model:models.get(p.primary_model)||null},...p.additional.map(id=>({primary:false,model:models.get(id)}))]}
+function visitReviewLocus(r){$('region').value=r.region_id;render();document.querySelector('.comparison-heading').scrollIntoView({behavior:'smooth',block:'start'})}
+function modelQualityNotice(m){
+ const q=modelConstraint(m).quality||{};
+ if(q.reconstruction&&q.warnings?.length)return q.warnings[0];
+ if(q.reconstruction?.resolves_boundary_conflict)return `Full CDS reconstructed: ${q.reconstruction.protein_length} aa · ${q.reconstruction.cds_blocks.length} coding exons · exact reference-transcript match`;
+ if(q.full_reconstruction_model&&m.source==='tiberius')return 'Fragmentary Tiberius prediction; a full annotation + transcript model is available';
+ if(q.split_models?.length)return `Conflicting gene boundaries: one annotated transcript versus ${q.split_models.length} Tiberius ORFs`;
+ if(q.warnings?.length)return q.warnings[0];
+ return '';
+}
+function queueModelLabel(m){return `${m.reconstruction?'Annotation + transcript':m.source==='tiberius'?'Tiberius':'Annotation'} · ${m.original_model} · ${m.protein_length} aa`}
+function queueOptions(r,item){
+ let candidates=item.primary?mainCandidates(r):rankedModels(own(r).filter(m=>modelConstraint(m).physical_id===modelConstraint(item.model).physical_id));
+ if(item.model&&!candidates.some(m=>m.model_id===item.model.model_id))candidates=[item.model,...candidates];
+ return candidates;
+}
+function clearModelChoice(m){if(m&&state.models[m.model_id]?.decision==='inspect')state.models[m.model_id]={...state.models[m.model_id],decision:'not_selected',role:''}}
+function changeQueueModel(r,item,id){
+ const p=reviewPlan(r),old=item.model;
+ if(item.primary)p.primary_model=id;else p.additional=p.additional.map(mid=>mid===old.model_id?id:mid);
+ if(p.additional_roles?.[old?.model_id]){p.additional_roles[id]=p.additional_roles[old.model_id];delete p.additional_roles[old.model_id]}
+ if(p.form_drafts)delete p.form_drafts[item.primary?'primary':old.model_id];
+ clearModelChoice(old);storeReviewPlan(r,p);renderModelLibrary(current());renderReviewQueue();
+}
+function queueIssueText(r){return reviewIssues().filter(x=>x.region_id===r.region_id).map(x=>x.message).filter((x,i,a)=>a.indexOf(x)===i).join('; ')}
+function saveQueueDecision(r,item,form){
+ const m=item.model,decision=form.decision.value;
+ if(!decision){form.status.textContent='Choose a decision first.';return}
+ if(item.primary&&decision==='inspect'&&!m){form.status.textContent='No main CDS model is available. Leave unresolved or choose a model in advanced review.';return}
+ const notes=form.notes.value.trim()||(decision==='inspect'?'Confirmed by visual review':decision==='exclude'?'Excluded after visual review':'Unresolved after visual review');
+ if(item.primary){
+  if(decision!=='inspect'){
+   for(const other of own(r))clearModelChoice(other);
+   for(const[key,p]of Object.entries(state.pairs))if([p.model_a,p.model_b].some(id=>models.get(id)?.region_id===r.region_id))delete state.pairs[key];
+  }
+  state.regions[r.region_id]={decision,notes,saved:true};
+ }
+ if(m&&(decision==='inspect'||!item.primary)){
+  // Exceptional/partial selections still need an actual reviewer explanation.
+  state.models[m.model_id]={decision:decision==='inspect'?'inspect':decision==='exclude'?'reject':'unresolved',role:decision==='inspect'?(item.primary||form.role.value==='copy'?'target':form.role.value):'',selection_kind:!item.primary&&form.role.value==='copy'?'additional_copy':'',copy_label:form.copy.value.trim(),notes:form.notes.value.trim(),target_override:form.override.checked,comparison_group:form.label.value};
+  if(decision==='inspect')for(const other of own(r))if(other.model_id!==m.model_id&&modelConstraint(other).physical_id===modelConstraint(m).physical_id)clearModelChoice(other);
+ }
+ const plan=reviewPlan(r);if(plan.form_drafts)delete plan.form_drafts[item.primary?'primary':m.model_id];state.review_plan[r.region_id]=plan;
+ const region=state.regions[r.region_id];
+ if(region){region.saved=true;if(reviewIssues().some(x=>x.region_id===r.region_id))region.saved=false}
+ persisted();renderModelLibrary(current());renderReviewQueue();
+ if(current().region_id===r.region_id){$('regionDecision').value=region?.decision||'';$('regionNotes').value=region?.notes||'';$('regionFeedback').textContent=region?.saved?'Region decision saved.':queueIssueText(r)}
+}
+function renderQueueRow(r,item){
+ const m=item.model,choice=m?state.models[m.model_id]||{}:{},region=state.regions[r.region_id]||{},row=el('tr'),draftKey=item.primary?'primary':m.model_id,pending=reviewPlan(r).form_drafts?.[draftKey],draft=pending?.model_id===(m?.model_id||'')?pending:null;
+ row.className=(item.primary?'':'queue-extra ')+(r.region_id===current().region_id?'queue-current':'');row.dataset.regionId=r.region_id;row.dataset.primary=String(item.primary);if(m)row.dataset.modelId=m.model_id;
+ const gene=el('td');gene.append(el('strong',m?groupLabel([m]):r.gene||'Main gene'),el('span',r.genome_id.split('_GC')[0].replaceAll('_',' '),'queue-species'),el('div',`${r.contig}:${item.primary?r.anchor_start:m.start}–${item.primary?r.anchor_end:m.end}`,'muted queue-coordinates'));
+ if(!item.primary)gene.prepend(el('div','Added gene','muted'));
+ const view=el('button','View');view.setAttribute('aria-label','View locus '+r.region_id);view.addEventListener('click',()=>visitReviewLocus(r));gene.append(view);
+ const model=el('td',undefined,'queue-model'),select=el('select');select.setAttribute('aria-label',(item.primary?'Main model ':'Added model ')+(item.primary?r.region_id:m.model_id));
+ for(const v of queueOptions(r,item)){const o=el('option',queueModelLabel(v));o.value=v.model_id;select.append(o)}
+ if(!m){const o=el('option','No overlapping CDS model');o.value='';select.append(o);select.disabled=true}else select.value=m.model_id;
+ select.addEventListener('change',()=>changeQueueModel(r,item,select.value));model.append(select);
+ model.append(el('div',m?`${m.coding_status==='complete_predicted'?'ORF intact':m.coding_status}${m.window_edge?' · window edge':''}${choice.decision==='inspect'?'':' · proposed, not approved'}`:'Inspect the window; absence is not established.','muted'));
+ const notes=el('textarea');notes.rows=2;notes.className='queue-notes';notes.placeholder='Comment (required for partial or exceptional models)';const automaticNotes=['Confirmed by visual review','Excluded after visual review','Unresolved after visual review'];notes.value=draft?.notes??(choice.notes||(item.primary&&!automaticNotes.includes(region.notes)?region.notes||'':''));notes.setAttribute('aria-label','Review comment '+(item.primary?r.region_id:m.model_id));
+ const role=el('select');role.setAttribute('aria-label','Gene purpose '+(m?.model_id||r.region_id));for(const[value,text]of [['neighbor','Synteny anchor only'],['copy','Paralog / target copy'],['target','Also compare another gene']]){const o=el('option',text);o.value=value;role.append(o)}role.value=draft?.role||(choice.selection_kind==='additional_copy'?'copy':choice.role)||reviewPlan(r).additional_roles?.[m?.model_id]||'neighbor';
+ const label=el('input');label.type='text';label.value=draft?.comparison_group??choice.comparison_group??(item.primary?r.gene||'target':m?.identification.proposed_name||m?.annotation_name||m?.gene_group||'neighbor');label.setAttribute('aria-label','Review comparison group '+(item.primary?r.region_id:m.model_id));
+ const override=el('input');override.type='checkbox';override.checked=draft?.target_override??choice.target_override===true;override.setAttribute('aria-label','Review expert override '+(item.primary?r.region_id:m.model_id));
+ const copy=el('input');copy.type='text';copy.value=draft?.copy_label??choice.copy_label??'';copy.placeholder=m?copyLabel(m):'';copy.setAttribute('aria-label','Copy label '+(item.primary?r.region_id:m.model_id));
+ const details=el('details',undefined,'queue-options');details.append(el('summary','Evidence / options'),notes);
+ if(item.primary)for(const text of DATA.automatic_comments?.[r.region_id]||[])details.append(el('p','Automatic comment: '+text,'muted automatic-comment'));
+ if(m&&modelQualityNotice(m))details.append(el('p',modelQualityNotice(m),'muted'));
+ if(!item.primary){model.append(role);if(role.value==='copy'&&!draft&&!choice.comparison_group)label.value=r.gene||'target'}
+ const group=el('label','Comparison group');group.append(label);details.append(group);
+ const copyControl=el('label','Copy label (optional; coordinates identify it by default)');copyControl.append(copy);details.append(copyControl);
+ const warnings=m?targetWarnings(m,{selection_kind:item.primary?choice.selection_kind:role.value==='copy'?'additional_copy':''}):[];
+ if(warnings.length){const warn=el('div',warnings.join('; '),'warn');details.append(warn);const expert=el('label');expert.append(override,document.createTextNode(' Expert exception: use as target (requires a reason)'));details.append(expert)}
+ if(m){details.append(lazy('Model evidence',()=>modelDetails(m)));}model.append(details);
+ const decisionCell=el('td',undefined,'queue-decision'),decision=el('select');decision.setAttribute('aria-label','Gene decision '+(item.primary?r.region_id:m.model_id));
+ for(const[value,text]of [['','Pending'],['inspect','Use for next stage'],['unresolved','Unresolved'],['exclude','Exclude']]){const o=el('option',text);o.value=value;decision.append(o)}
+ decision.value=draft?.decision??(item.primary?region.decision||'':choice.decision==='reject'?'exclude':choice.decision||'');decisionCell.append(decision);
+ const status=el('div',undefined,'queue-status');
+ const problems=region.decision?queueIssueText(r):'';
+ status.textContent=draft?'Unsaved changes — save this row':item.primary?(region.saved&&!problems?'Saved':region.decision?problems||'Not saved':'Awaiting visual review'):(choice.decision&&choice.decision!=='not_selected'?'Decision recorded':'Not included until saved');
+ if(region.decision&&(!region.saved||problems))status.classList.add('warn');status.setAttribute('role','status');decisionCell.append(status);
+ const actions=el('td',undefined,'queue-actions'),save=el('button','Save');save.setAttribute('aria-label','Save gene '+(item.primary?r.region_id:m.model_id));save.addEventListener('click',()=>saveQueueDecision(r,item,{decision,notes,role,label,copy,override,status}));actions.append(save);
+ const dirty=()=>{const p=reviewPlan(r);p.form_drafts={...p.form_drafts,[draftKey]:{model_id:m?.model_id||'',decision:decision.value,notes:notes.value,role:item.primary?'target':role.value,comparison_group:label.value,copy_label:copy.value,target_override:override.checked}};storeReviewPlan(r,p);status.textContent='Unsaved changes — save this row'};
+ for(const node of [decision,override])node.addEventListener('change',dirty);for(const node of [notes,label,copy])node.addEventListener('input',dirty);
+ role.addEventListener('change',()=>{if(role.value==='copy')label.value=r.gene||'target';dirty();renderReviewQueue()});
+ if(item.primary){const add=el('button','+ Gene');add.setAttribute('aria-label','Add gene to '+r.region_id);add.addEventListener('click',()=>showAddGene(r));actions.append(add)}
+ else{const remove=el('button','Remove');remove.setAttribute('aria-label','Remove added gene '+m.model_id);remove.addEventListener('click',()=>{const p=reviewPlan(r);p.additional=p.additional.filter(id=>id!==m.model_id);clearModelChoice(m);storeReviewPlan(r,p);renderModelLibrary(current());renderReviewQueue()});actions.append(remove)}
+ row.append(gene,model,decisionCell,actions);return row;
+}
+function renderReviewQueue(){
+ const t=el('table'),head=el('thead'),hr=el('tr');for(const text of ['Gene / locus','CDS model','Decision',''])hr.append(el('th',text));head.append(hr);t.append(head);const body=el('tbody');
+ for(const r of DATA.regions)for(const item of queueItems(r))body.append(renderQueueRow(r,item));t.append(body);$('reviewQueue').replaceChildren(t);
+}
+function showAddGene(r){
+ const panel=$('addGenePanel');panel.replaceChildren();panel.hidden=false;panel.className='filter-notice';
+ panel.append(el('strong','Add a gene · '+regionLabel(r)),el('p','Choose a gene from this window and its purpose. Several target copies from the same genome may share one comparison group.','muted'));
+ const occupied=new Set(queueItems(r).filter(i=>i.model).map(i=>modelConstraint(i.model).physical_id)),groups=new Map();
+ for(const m of own(r)){const key=modelConstraint(m).physical_id;if(!occupied.has(key)){if(!groups.has(key))groups.set(key,[]);groups.get(key).push(m)}}
+ const select=el('select');select.setAttribute('aria-label','Gene to add');for(const group of groups.values()){const m=rankedModels(group)[0],o=el('option',`${groupLabel(group)} · ${m.start}–${m.end}`);o.value=m.model_id;select.append(o)}
+ const purpose=el('select');purpose.setAttribute('aria-label','Added gene purpose');for(const[value,text]of [['neighbor','Synteny anchor only'],['copy','Paralog / target copy'],['target','Also compare another gene']]){const o=el('option',text);o.value=value;purpose.append(o)}
+ const add=el('button','Add to table');add.disabled=!groups.size;add.addEventListener('click',()=>{const p=reviewPlan(r);if(!select.value)return;p.additional.push(select.value);p.additional_roles={...p.additional_roles,[select.value]:purpose.value};storeReviewPlan(r,p);panel.hidden=true;renderReviewQueue()});
+ const cancel=el('button','Cancel');cancel.addEventListener('click',()=>{panel.hidden=true});panel.append(select,purpose,add,cancel);
+ if(!groups.size)panel.append(el('p','No additional coding genes are available in this window.','muted'));panel.scrollIntoView({behavior:'smooth',block:'center'});
+}

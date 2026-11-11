@@ -82,11 +82,12 @@ def transfer(url, destination, expected, retries=3):
     raise RuntimeError(f"Download did not finish: {url}")
 
 
-def load_sources(path, only=None):
+def load_sources(path, only=None, annotation_only=False):
     with open(path, newline="") as handle:
         reader = csv.DictReader(handle, delimiter="\t")
-        if not {"genome_id", "genome_url"}.issubset(reader.fieldnames or []):
-            raise ValueError("Download TSV requires genome_id and genome_url columns")
+        required={"genome_id", "gff_url" if annotation_only else "genome_url"}
+        if not required.issubset(reader.fieldnames or []):
+            raise ValueError("Download TSV requires "+", ".join(sorted(required))+" columns")
         rows = [{key: value or "" for key, value in row.items()} for row in reader if any(row.values())]
     seen = set()
     for row in rows:
@@ -94,8 +95,9 @@ def load_sources(path, only=None):
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", gid) or gid in seen:
             raise ValueError(f"Unsafe or duplicate genome_id: {gid!r}")
         seen.add(gid)
-        if not row["genome_url"]:
-            raise ValueError(f"{gid}: missing genome_url")
+        required_url="gff_url" if annotation_only else "genome_url"
+        if not row.get(required_url):
+            raise ValueError(f"{gid}: missing {required_url}")
         for key in ("genome_url", "gff_url", "protein_url", "cds_url", "md5_url"):
             url = row.get(key, "")
             if url and (urlsplit(url).scheme not in {"http", "https"} or not urlsplit(url).netloc):
@@ -111,8 +113,9 @@ def load_sources(path, only=None):
 
 
 def run_download(args):
-    sources = load_sources(args.manifest, args.only)
-    kinds = ["genome", "gff"] + (["protein", "cds"] if args.include_reference else [])
+    annotation_only=getattr(args,"annotation_only",False)
+    sources = load_sources(args.manifest, args.only, annotation_only)
+    kinds = (["gff"] if annotation_only else ["genome", "gff"]) + (["protein", "cds"] if args.include_reference else [])
     plan = [dict(genome_id=row["genome_id"], accession=row.get("accession", ""),
                  files={kind: row[kind + "_url"] for kind in kinds if row.get(kind + "_url")},
                  annotation_available=bool(row.get("gff_url"))) for row in sources]
@@ -154,13 +157,15 @@ def run_download(args):
                 receipt["files"].append(dict(kind=kind, url=url, path=str(target),
                     checksum_url=checksum_url, md5=entries[filename], bytes=target.stat().st_size, status=status))
                 downloaded[kind] = str(target.relative_to(root))
-            ready.append(dict(genome_id=gid, fasta=downloaded["genome"], gff3=downloaded.get("gff", "")))
+            ready.append(dict(genome_id=gid, fasta=downloaded.get("genome", ""), gff3=downloaded.get("gff", ""),
+                protein=downloaded.get("protein", ""),cds=downloaded.get("cds", ""),
+                species=row.get("species", ""),assembly_accession=row.get("accession", "")))
             receipt["status"] = "ready"
         except (OSError, ValueError, RuntimeError, URLError, HTTPException) as error:
             receipt.update(status="error", error=str(error))
             failures.append(dict(genome_id=gid, error=str(error)))
             print(f"[{gid}] ERROR: {error}; continuing", file=sys.stderr)
-    write_tsv(root / "genomes.tsv", ready, ["genome_id", "fasta", "gff3"])
+    write_tsv(root / "genomes.tsv", ready, ["genome_id", "fasta", "gff3", "protein", "cds", "species", "assembly_accession"])
     (root / "download_receipt.json").write_text(json.dumps(dict(
         checked_utc=datetime.now(timezone.utc).isoformat(), source_manifest=str(Path(args.manifest).resolve()),
         genomes=receipts, errors=failures, ready=len(ready)), indent=2) + "\n")

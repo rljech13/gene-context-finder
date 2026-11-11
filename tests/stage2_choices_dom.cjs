@@ -1,0 +1,23 @@
+/* Negative STOP-2 controls. All choices stay in isolated JSDOM memory. */
+const fs=require('node:fs'),assert=require('node:assert/strict'),{JSDOM,VirtualConsole}=require('jsdom');
+const errors=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));
+const dom=new JSDOM(fs.readFileSync(process.argv[2],'utf8'),{runScripts:'dangerously',url:'http://isolated-control.invalid/',virtualConsole:vc});
+const w=dom.window,run=s=>w.eval(s),before=run('JSON.stringify(DATA)');
+const reset=()=>run("state.models={};state.pairs={};state.regions=Object.fromEntries(DATA.regions.map(r=>[r.region_id,{decision:'exclude',saved:true,notes:'Software control only'}]))");
+reset();assert.equal(run('validate().length'),0);
+run("window.__wrong=DATA.models.find(m=>!m.overlaps_anchor&&!m.target_support.length&&m.coding_status==='complete_predicted'&&!m.window_edge);state.models[__wrong.model_id]={decision:'inspect',role:'target',notes:'Software control only'};state.regions[__wrong.region_id]={decision:'inspect',saved:true,notes:'Software control only'}");
+assert.ok(run('validate().length')>0,'A neighbor cannot silently become the target');
+assert.ok(run('validate().some(x=>x.includes("override"))'));
+assert.ok(!run('validate()[0]').startsWith('locus_'),'Errors must identify the species/locus');
+run('state.models[__wrong.model_id].target_override=true');assert.equal(run('validate().length'),0,'An explicit documented expert override remains possible');
+reset();run("window.__p=DATA.neighbor_pairs.find(p=>p.kind==='neighbor_proposal');state.pairs[pairKey(__p)]={gene_a:__p.gene_a,gene_b:__p.gene_b,model_a:__p.model_a,model_b:__p.model_b,decision:'inspect'}");
+assert.ok(run('validate().some(x=>x.includes("neighbor pair"))'));
+reset();run("window.__dups=(()=>{const seen=new Map();for(const m of DATA.models.filter(m=>m.source==='tiberius'&&m.identification.proposed_name==='NANOG'&&m.coding_status==='complete_predicted'&&!m.window_edge)){const key=modelConstraint(m).physical_id;if(seen.has(key)&&seen.get(key).region_id!==m.region_id)return[seen.get(key),m];seen.set(key,m)}})();for(const m of __dups){state.models[m.model_id]={decision:'inspect',role:'target',notes:'Software control only',target_override:true,comparison_group:m.region_id};state.regions[m.region_id]={decision:'inspect',saved:true,notes:'Software control only'}}");
+assert.ok(run('validate().some(x=>x.includes("more than once"))'));
+assert.throws(()=>run("load({...state,models:{[__dups[0].model_id]:{decision:'inspect',role:'target',notes:'control',target_override:'true'}}})"),/Unknown model or decision/);
+const label=run("groupLabel([DATA.models.find(m=>m.source==='tiberius'&&m.genome_id.startsWith('Homo_sapiens')&&m.overlaps_anchor)])");
+assert.ok(label.includes('NANOG'));assert.ok(label.includes('NANOGP8'));assert.ok(!label.includes('Unassigned'));
+assert.match(w.document.getElementById('runScope').textContent,/13 of 18/);
+assert.equal(run('JSON.stringify(DATA)'),before);assert.deepEqual(errors,[]);
+const result={off_anchor_unsupported_target_blocked:true,explicit_expert_override_with_reason:true,excluded_region_pair_blocked:true,duplicate_physical_target_blocked:true,malformed_override_rejected:true,human_alternative_names_visible:true,input_genome_scope_visible:true,evidence_unchanged:true,js_errors:errors,note:'Software controls only; no user biological decisions or production localStorage changed.'};
+if(process.argv[3])fs.writeFileSync(process.argv[3],JSON.stringify(result,null,2)+'\n');console.log(JSON.stringify(result,null,2));dom.window.close();

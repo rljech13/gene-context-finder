@@ -1,0 +1,25 @@
+{
+  "status": "passed",
+  "software_control": true,
+  "selected_targets": 11,
+  "selected_species": 11,
+  "review_outcomes": 30,
+  "reviewed_neighbors": 14,
+  "dna_pairs": 55,
+  "dna_blocks": 1624,
+  "groups": [
+    {
+      "group": "group_5e58deae680423a8",
+      "protein_rows": 16,
+      "cds_rows": 11,
+      "protein_columns": 659,
+      "protein_pairs": 120,
+      "cds_pairs": 55,
+      "profile_reference_exclusion": true
+    }
+  ],
+  "source_checkpoint_unchanged": true,
+  "exact_sequences_roundtrip": true,
+  "commands_without_search_or_prediction": true,
+  "elapsed_seconds": 14.203007340431213
+}

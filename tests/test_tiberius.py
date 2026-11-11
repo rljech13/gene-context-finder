@@ -102,6 +102,8 @@ class TiberiusIntegration(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         args = parser().parse_args(['compare', '--results','unused','--out','unused'])
+        args.predictor_cache = os.environ.get('GENE_CONTEXT_TEST_PREDICTOR_CACHE', args.predictor_cache)
+        cls.cache = args.predictor_cache
         cls.python = os.environ.get('GENE_CONTEXT_TIBERIUS_PYTHON') or runtime_python(args)
         try:
             runtime_info(cls.python)
@@ -137,7 +139,7 @@ class TiberiusIntegration(unittest.TestCase):
 
     def execute(self, command, expected=0):
         run=subprocess.run([sys.executable,'-m','genecontext',*map(str,command),
-                            '--tiberius-python',self.python,'--offline','--threads','1'],capture_output=True,text=True)
+                            '--tiberius-python',self.python,'--predictor-cache',self.cache,'--offline','--threads','1'],capture_output=True,text=True)
         self.assertEqual(run.returncode,expected,run.stdout+run.stderr)
 
     def test_complete_protein_query_pipeline_with_isolated_windows_and_no_gff(self):
@@ -182,7 +184,7 @@ class TiberiusIntegration(unittest.TestCase):
         def predict(ids, name):
             root=self.root/name;root.mkdir()
             args=parser().parse_args(['compare','--results','unused','--out',str(root),
-                                     '--tiberius-python',self.python,'--offline','--threads','1'])
+                                     '--tiberius-python',self.python,'--predictor-cache',self.cache,'--offline','--threads','1'])
             rows=[dict(locus_id=key,context_predictor_model='vertebrates',window_bp=len(sequences[key])) for key in ids]
             errors=[]
             models,proof=predict_batches(args,root,rows,sequences,Runner(root),errors)

@@ -1,0 +1,112 @@
+// Cluster overview: one fixed-height row per locus, like the histone figure.
+// Arrows keep true native spans; transcript/exon detail is a separate view.
+function neighborhoodDiagram(rows,edges){
+ const view=$('scale').value;
+ return view==='distance'?clusterNeighborhoodDiagram(rows,edges):view==='models'?detailedNeighborhoodDiagram(rows,edges):schematicNeighborhoodDiagram(rows,edges);
+}
+function clusterGeneSymbol(group){
+ const raw=groupLabel(group).split(' / ')[0].trim(),symbol=raw.replace(/\s+family candidate.*$/i,'').replace(/\s*\([^)]*\).*$/,'').trim();
+ if(/^LOC\d+$/.test(symbol))return 'LOC…'+symbol.slice(-4);
+ return /^[A-Za-z][A-Za-z0-9_.-]{0,17}$/.test(symbol)?symbol:'?';
+}
+function clusterSourceBadge(group){
+ const source=new Set(group.map(m=>m.source));
+ if(source.size<2)return source.has('annotation')?'A':'T';
+ return rulerModelStructures(group).every(s=>new Set(s.map(m=>m.source)).size===2)?'A+T':'A/T';
+}
+function clusterNeighborhoodDiagram(rows,edgesByRow){
+ const zoom=Number($('genomeZoom').value),{left,right,width,center,extent,major,minor,pxPerBp}=sharedGenomicRuler(zoom),rowHeight=112,firstY=76,layouts=rows.map(neighborhood);
+ const groupsByRow=layouts.map((l,i)=>[...l.left,...l.anchor,...l.right].sort((a,b)=>groupRange(rows[i],a)[0]-groupRange(rows[i],b)[0]));
+ const bx=v=>center+v*pxPerBp;
+ const lastY=firstY+(rows.length-1)*rowHeight,axisY=lastY+52,height=axisY+52;
+ const svg=svgNode('svg',{viewBox:`0 0 ${width} ${height}`,class:'diagram linked-neighborhood cluster-overview',role:'img','aria-label':'Compact gene clusters on a shared genomic ruler','data-px-per-bp':pxPerBp,'data-row-height':rowHeight,'data-ruler-center':center,'data-coordinate-system':'target-relative-bp'});
+ svg.style.width=width+'px';svg.style.maxWidth='none';svg.style.minWidth='0';
+ const backdrop=svgNode('g',{}),links=svgNode('g',{'aria-label':'Proposed correspondences'}),foreground=svgNode('g',{}),captions=svgNode('g',{class:'row-captions','pointer-events':'none'});svg.append(backdrop,links,foreground,captions);
+ backdrop.append(svgNode('rect',{x:0,y:firstY-61,width,height:96,fill:'#eef4f8'}));
+ for(let tick=-Math.round(extent/major);tick<=Math.round(extent/major);tick++){
+  const x=bx(tick*major);backdrop.append(svgNode('line',{x1:x,x2:x,y1:firstY-50,y2:axisY,stroke:tick===0?'#d6c6cc':'#eef1f4','stroke-width':tick===0?1:.7,'stroke-dasharray':tick===0?'3 4':'none'}));
+ }
+ const selected=rows[0],colors=['#729fbd','#78b09e','#c48b79','#ae91b5','#c4ad6a','#6fa9ad'],palette=new Map();
+ const matched=new Set(edgesByRow.flatMap((es,i)=>rows[i].genome_id!==selected.genome_id?es.filter(e=>e.kind==='retained').map(e=>e.from):[]));
+ groupsByRow[0].filter(g=>matched.has(g[0].gene_group)).forEach((g,i)=>palette.set(g[0].gene_group,colors[i%colors.length]));
+ const positions=[],interactive=[];
+ function register(node,keys){
+  interactive.push({node,keys});
+  const focus=()=>{svg.classList.add('link-focus');for(const item of interactive)item.node.classList.toggle('link-active',item.keys.some(k=>keys.includes(k)))};
+  const blur=()=>{svg.classList.remove('link-focus');for(const item of interactive)item.node.classList.remove('link-active')};
+  for(const event of ['mouseenter','focus'])node.addEventListener(event,focus);for(const event of ['mouseleave','blur'])node.addEventListener(event,blur);
+ }
+ rows.forEach((r,index)=>{
+  const y=firstY+index*rowHeight,groups=groupsByRow[index],layout=layouts[index],counts=geneCounts(r),window=windowRange(r),wl=bx(window[0]),wr=bx(window[1]),pos=new Map();positions.push(pos);
+  captions.append(svgNode('rect',{x:0,y:y-61,width:left-8,height:rowHeight,fill:index?'white':'#eef4f8'}));
+  const caption=svgNode('text',{x:16,y:y-2,'font-size':15,'font-style':'italic','font-weight':index?400:650,fill:index?'#314957':'#245b75'},speciesName(r));
+  caption.append(svgNode('title',{},regionLabel(r)+(index&&r.genome_id===selected.genome_id?' · same-assembly control':'')));captions.append(caption);
+  captions.append(svgNode('text',{x:16,y:y+17,'font-size':11,fill:'#657b89'},`${((r.window_end-r.window_start)/1000).toFixed(1)} kb · ${r.strand==='-'?'reversed':'forward'}`));
+  const count=svgNode('text',{x:16,y:y+33,'font-size':11,fill:'#657b89',class:'gene-count','data-row':index,'data-shown':groups.length,'data-total':groups.length+layout.hidden,'data-annotation-genes':counts.annotation,'data-tiberius-genes':counts.tiberius},layout.hidden?`${groups.length}/${groups.length+layout.hidden} genes`:`${groups.length} genes`);
+  count.append(svgNode('title',{},`${r.contig}:${r.window_start}–${r.window_end}. Annotation ${counts.annotation}; Tiberius ${counts.tiberius}.`));captions.append(count);
+  const span=svgNode('g',{'data-window-row':index,'aria-label':`${speciesName(r)} displayed window ${r.contig}:${r.window_start}–${r.window_end}`});
+  span.append(svgNode('rect',{x:wl,y:y-1,width:wr-wl,height:2,fill:'#d4dfe7'}));backdrop.append(span);
+  for(const segment of anchorHighlights(r)){const range=groupRange(r,[segment]);backdrop.append(svgNode('rect',{x:bx(range[0]),y:y-10,width:(range[1]-range[0])*pxPerBp,height:20,fill:'#f4dfdc','data-selected-interval':index,'data-highlight-kind':segment.kind,'data-start':segment.start,'data-end':segment.end}))}
+  for(const [side,x,coord,hidden]of [['left',wl,r.strand==='-'?r.window_end:r.window_start,layout.hiddenLeft],['right',wr,r.strand==='-'?r.window_start:r.window_end,layout.hiddenRight]]){
+   const cap=svgNode('line',{x1:x,x2:x,y1:y-10,y2:y+10,stroke:'#879eac','stroke-width':1.2,'data-window-edge':side,'data-row':index,'data-coordinate':coord});cap.append(svgNode('title',{},`${r.contig}:${coord} · DNA window boundary`));foreground.append(cap);
+   if(hidden)cap.append(svgNode('title',{},`${hidden} additional groups hidden by the neighbor display limit.`));
+  }
+
+  // A local ruler uses exactly the same coordinate transform as the arrows.
+  // Absolute assembly coordinates remain in edge tooltips, never on this kb axis.
+  const localAxis=svgNode('g',{class:'cluster-row-ruler','data-row':index,'aria-label':`${speciesName(r)}: shared target-relative ruler in kb`}),ay=y+22;
+  localAxis.append(svgNode('line',{x1:wl,x2:wr,y1:ay,y2:ay,stroke:'#b4c2cc','stroke-width':.75}));
+  for(let tick=Math.ceil(window[0]/minor);tick<=Math.floor(window[1]/minor);tick++){
+   const bp=tick*minor,x=bx(bp),large=tick%5===0;
+   localAxis.append(svgNode('line',{x1:x,x2:x,y1:ay,y2:ay+(large?5:3),stroke:'#8a9eaa','stroke-width':.75,'data-ruler-bp':bp,'data-row':index}));
+   if(large)localAxis.append(svgNode('text',{x,y:ay+17,'text-anchor':'middle','font-size':10,fill:'#657b89','data-ruler-label':bp},(bp/1000).toLocaleString('en-US')+' kb'));
+  }
+  foreground.append(localAxis);
+  const lanes=[[],[]];
+  groups.forEach((group,i)=>{const range=groupRange(r,group),cx=bx((Math.max(range[0],window[0])+Math.min(range[1],window[1]))/2),name=clusterGeneSymbol(group);lanes[i%2].push({group,cx,name,w:Math.max(60,name.length*7.3+clusterSourceBadge(group).length*6+20)})});
+  for(const lane of lanes){let end=left;for(const item of lane){item.labelX=Math.max(item.cx,end+6+item.w/2);end=item.labelX+item.w/2}let start=right;for(let i=lane.length-1;i>=0;i--){const item=lane[i];item.labelX=Math.min(item.labelX,start-6-item.w/2);start=item.labelX-item.w/2}}
+  for(let lane=0;lane<lanes.length;lane++)for(const item of lanes[lane]){
+   const {group,name,w,labelX,cx}=item;
+   const range=groupRange(r,group),x0=bx(Math.max(range[0],window[0])),x1=bx(Math.min(range[1],window[1])),x=(x0+x1)/2,gid=group[0].gene_group,isTarget=group.some(m=>m.overlaps_anchor),matches=index?(edgesByRow[index]||[]).filter(e=>e.to===gid):[],keys=index?[...new Set(matches.map(e=>e.from))]:[gid];
+   const uncertain=index?matches.some(e=>e.kind==='unresolved'):edgesByRow.some(es=>es.some(e=>e.from===gid&&e.kind==='unresolved'));
+   const matchedKey=index?matches.find(e=>e.kind==='retained'&&palette.has(e.from))?.from:gid,color=isTarget?'#c56861':palette.get(matchedKey)||'#a0b4c0';
+   const split=group.some(m=>m.source==='tiberius'&&modelConstraint(m).quality?.split_models?.includes(m.model_id));
+   const structures=rulerModelStructures(group),badge=clusterSourceBadge(group),node=svgNode('g',{tabindex:0,class:'gene-arrow inspectable','aria-label':groupLabel(group)+' · '+badge,'data-row':index,'data-gene-group':gid,'data-model-ids':group.map(m=>m.model_id).join(' '),'data-match-type':isTarget?'target':uncertain?'unresolved':palette.has(matchedKey)?'retained':'none'});
+   node.append(svgNode('title',{},`${groupLabel(group)} · ${badge}\n${group.map(m=>`${m.source} · ${m.original_model} · ${m.contig}:${m.start}–${m.end} (${m.strand})${m.diagnostic_fragment?' · '+m.filter_reason+' · display only':''}`).join('\n')}\nArrow length is the genomic model span, including introns. Filled and outlined arrows distinguish annotation and Tiberius. Use CDS model details for exon structures. Click a selected-locus gene for models.`));if(split){node.dataset.splitPrediction='true';node.append(svgNode('title',{},group.some(m=>m.reconstruction?.resolves_boundary_conflict)?'The full reference-backed model is reconstructed from a spliced transcript; raw Tiberius ORFs are retained as fragmentary alternatives.':'Possible split prediction: separate Tiberius ORFs recover one annotated CDS. They are not a validated merged transcript.'))}foreground.append(node);register(node,keys);
+   structures.forEach(members=>{
+    const m=members[0],range=groupRange(r,[m]),a=bx(Math.max(range[0],window[0])),b=bx(Math.min(range[1],window[1]));if(b<a)return;
+    const source=rulerSourceBadge(members),yy=y+(badge==='A/T'?(source==='T'?1.5:source==='A'?-1.5:0):0),tip=Math.min(5,(b-a)*.4),forward=m.strand===r.strand,half=5;
+    const points=!['+','-'].includes(m.strand)?`${a},${yy-half} ${b},${yy-half} ${b},${yy+half} ${a},${yy+half}`:forward?`${a},${yy-half} ${b-tip},${yy-half} ${b},${yy} ${b-tip},${yy+half} ${a},${yy+half}`:`${b},${yy-half} ${a+tip},${yy-half} ${a},${yy} ${a+tip},${yy+half} ${b},${yy+half}`;
+    const shape=svgNode('polygon',{points,class:'cluster-model-span','data-model-ids':members.map(m=>m.model_id).join(' '),'data-source-badge':source,'data-start':Math.max(m.start,r.window_start),'data-end':Math.min(m.end,r.window_end),fill:m.context_only?'white':color,'fill-opacity':source==='T'?.16:source==='A'?.8:1,stroke:uncertain?'#bc8c35':source==='T'&&!isTarget&&!palette.has(matchedKey)?'#627f90':color,'stroke-width':source==='T'?1.8:1.1,'stroke-dasharray':m.diagnostic_fragment?'3 2':m.context_only?'2 1':'none','data-filtered':!!m.diagnostic_fragment,'data-includes-introns':(m.cds_blocks||[]).length>1});
+    shape.append(svgNode('title',{},members.map(m=>m.source+' '+m.original_model).join(' / ')));node.append(shape);
+    for(const [side,clipped,cx]of [['left',range[0]<window[0],a],['right',range[1]>window[1],b]])if(clipped){const cut=svgNode('path',{d:`M ${cx-2} ${y+8} l 4 -16`,stroke:'#6b5262','stroke-width':1.2,'data-clipped-gene':side,'data-row':index,'data-gene-group':gid});cut.append(svgNode('title',{},'Model continues outside the DNA window.'));node.append(cut)}
+   });
+   const ly=y-20-lane*19,label=svgNode('g',{class:'cluster-gene-label','data-row':index,'data-left':labelX-w/2,'data-right':labelX+w/2,'data-top':ly-14,'data-bottom':ly+2});
+   if(Math.abs(labelX-cx)>3)node.append(svgNode('line',{x1:cx,y1:y-7,x2:labelX,y2:ly+3,stroke:'#c6d1da','stroke-width':.6,class:'gene-label-leader'}));
+   const text=svgNode('text',{x:labelX,y:ly,'text-anchor':'middle','font-size':13,'font-weight':isTarget?650:500,fill:isTarget?'#a7504b':'#354e5d',class:'neighbor-label'},name);text.append(svgNode('tspan',{'font-size':10,fill:'#7a8c99'},' '+badge));label.append(text,svgNode('title',{},groupLabel(group)));node.append(label);
+   const inspect=()=>{if(index){$('region').value=r.region_id;render()}openGeneModels(gid)};
+   node.addEventListener('click',inspect);node.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();inspect()}});
+   pos.set(gid,{x,x0,x1,y,name:groupLabel(group)});
+  }
+  if(!layout.anchor.length)foreground.append(svgNode('text',{x:center,y:y+17,'font-size':11,'text-anchor':'middle',fill:'#8d645c','data-match-type':'empty-anchor'},emptyAnchorMessage(r)));
+ });
+ const rowEdges=rows.map((r,i)=>i?(edgesByRow[i]||[]):groupsByRow[0].map(g=>({from:g[0].gene_group,to:g[0].gene_group,kind:'candidate'})));
+ for(let i=1;i<rows.length;i++){
+  const seen=new Set();
+  for(const a of rowEdges[i-1])for(const b of rowEdges[i]){
+   if(a.from!==b.from)continue;const p=positions[i-1].get(a.to),q=positions[i].get(b.to),key=[a.to,b.to,a.from].join(':');if(!p||!q||seen.has(key))continue;seen.add(key);
+   const kind=a.kind==='unresolved'||b.kind==='unresolved'?'unresolved':a.kind==='control'||b.kind==='control'?'control':a.kind==='target'||b.kind==='target'?'target':'retained',color=kind==='target'?'#c56861':kind==='unresolved'?'#bc8c35':palette.get(a.from)||'#8ca6b8',y0=p.y+7,y1=q.y-7,dy=y1-y0;
+   const path=svgNode('path',{d:`M ${p.x0} ${y0} C ${p.x0} ${y0+dy*.4}, ${q.x0} ${y1-dy*.4}, ${q.x0} ${y1} L ${q.x1} ${y1} C ${q.x1} ${y1-dy*.4}, ${p.x1} ${y0+dy*.4}, ${p.x1} ${y0} Z`,fill:kind==='unresolved'?'none':color,'fill-opacity':.10,stroke:color,'stroke-width':.8,'stroke-dasharray':kind==='retained'?'none':kind==='control'?'5 3':'2 3',class:'neighbor-link',tabindex:0,'data-link-kind':kind,'data-candidate-gene':a.from,'data-from-row':i-1,'data-to-row':i});
+   const evidence=[...new Set([a.evidence,b.evidence].filter(Boolean).map(e=>['model_a','model_b'].map(k=>{const m=models.get(e[k]);return speciesName(regions.get(m.region_id))+' '+m.source+' '+m.original_model}).join(' ↔ ')))].join('; ');
+   path.append(svgNode('title',{},`${p.name} ↔ ${q.name} · ${kind==='control'?'same-assembly control':kind==='target'?'target similarity, not a neighbor anchor':kind==='unresolved'?'unresolved assignment':'protein correspondence; orthology unverified'}${evidence?' · Evidence: '+evidence:''}. Ribbon bounds show gene-model spans, not a genomic DNA alignment.${i>1?' Both rows share a selected-locus correspondence, not a direct pairwise test.':''}`));links.append(path);register(path,[a.from]);
+  }
+ }
+ foreground.append(svgNode('line',{x1:left,x2:right,y1:axisY,y2:axisY,stroke:'#859ca9','stroke-width':1}));
+ for(let tick=-Math.round(extent/minor);tick<=Math.round(extent/minor);tick++){
+  const bp=tick*minor,x=bx(bp),large=tick%5===0;
+  foreground.append(svgNode('line',{x1:x,x2:x,y1:axisY,y2:axisY+(large?7:4),stroke:'#859ca9','data-ruler-bp':bp}));
+  if(large)foreground.append(svgNode('text',{x,y:axisY+23,'text-anchor':'middle','font-size':11,fill:'#657b89'},(bp/1000).toLocaleString('en-US',{maximumFractionDigits:3})));
+ }
+ foreground.append(svgNode('text',{x:center,y:axisY+43,'text-anchor':'middle','font-size':11,fill:'#657b89'},'Shared genomic scale (kb) · 0 = selected interval centre'));
+ return svg;
+}
