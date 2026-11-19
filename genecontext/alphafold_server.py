@@ -100,7 +100,12 @@ def import_result(requests, archive, out, source_url=''):
             if type(score) not in {int,float} or not math.isfinite(score):raise ValueError('Invalid AF3 ranking score')
             candidates.append((score,model,stem+'_full_data'+index+'.json',summary))
         if not candidates:raise ValueError('No ranked Server mmCIF model found')
-        score,model,full,summary=max(candidates,key=lambda r:(r[0],r[1]))
+        # Server filenames are confidence ranks, with model_0 best. Summary
+        # scores are rounded and often tie; never select model_4 on a tie.
+        def ranking(record):
+            rank=re.search(r'_model_([0-9]+)\.cif$',record[1])
+            return (-record[0],int(rank[1]) if rank else 0,record[1])
+        score,model,full,summary=min(candidates,key=ranking)
         root=new_output(out)
         try:
             original=root/'source.zip';shutil.copyfile(archive,original)
@@ -130,7 +135,7 @@ def import_result(requests, archive, out, source_url=''):
                 protein_sha256=digest,source_sequence_ids=request['source_sequence_ids'],
                 request_manifest_sha256=sha256(request_file),source_archive_sha256=sha256(original),
                 selected_member=model,ranking_score=score,returned_samples=len(candidates),
-                selection_policy='Highest returned ranking_score, filename breaks ties; all samples retained in source.zip',
+                selection_policy='Highest returned ranking_score; lower Server confidence-rank index breaks rounded-score ties. Display one best structure; all raw samples retained in source.zip',
                 raw_mmcif_sha256=sha256(cif),pae_status=pae_status,conversion=conversion,extensions={},
                 source_code_sha256=sha256(Path(__file__)),limitations=['A predicted structure does not establish gene identity, orthology or biological function.']))
             dump(root/'seal.json',{str(p.relative_to(root)):sha256(p) for p in root.rglob('*') if p.is_file() and p.name!='seal.json'})

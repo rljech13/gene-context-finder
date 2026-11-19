@@ -8,12 +8,16 @@ from unittest.mock import patch
 from urllib.parse import parse_qs,urlsplit
 
 from genecontext.alphafold_db import BASE,Client,collect
-from genecontext.af3_requests import prepare
+from genecontext.af3_requests import prepare as prepare_with_approval
+from test_structure_approval import approved_sequences
 from genecontext.cli import parser
 from genecontext.sequence import sha256
 from genecontext.stage4 import run
 from genecontext.stage4_structure import import_structures
 from test_stage4 import fixture,pdb
+
+def prepare(sequences,*args,**kwargs):
+    return prepare_with_approval(sequences,*args,approval=approved_sequences(sequences),**kwargs)
 
 
 def hashes(root):

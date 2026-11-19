@@ -389,7 +389,20 @@ def parser():
     af3=commands.add_parser('af3-prepare',help='Prepare exact-protein AlphaFold 3 requests without submitting jobs or creating cloud resources')
     af3.add_argument('--fasta',required=True)
     af3.add_argument('--out',required=True)
-    af3.add_argument('--limit',type=positive,default=3)
+    af3.add_argument('--approval',required=True,help='Explicit final STOP3 reference approval; candidate selections do not authorize folding')
+    af3.add_argument('--limit',type=positive,help='Optional unique-protein limit; default prepares all selected proteins')
+    campaign=commands.add_parser('af3-campaign',help='Prepare all selected proteins once in quota-sized Server upload batches')
+    campaign.add_argument('--fasta',required=True)
+    campaign.add_argument('--metadata',help='Optional JSON object keyed by FASTA sequence ID')
+    campaign.add_argument('--completed',action='append',default=[],help='Verified completed af3-import directory to reuse; repeatable')
+    campaign.add_argument('--out',required=True)
+    campaign.add_argument('--approval',required=True)
+    campaign.add_argument('--batch-size',type=positive,default=30)
+    campaign.add_argument('--first-batch-size',type=positive)
+    approval=commands.add_parser('af3-approval',help='Export only explicitly reviewed final primary references from a sealed STOP3')
+    approval.add_argument('--results',required=True)
+    approval.add_argument('--decisions',help='Saved final STOP3 choices')
+    approval.add_argument('--out',required=True)
     af3import=commands.add_parser('af3-import',help='Import a completed AlphaFold Server ZIP for exact prepared proteins into a new catalogue')
     af3import.add_argument('--requests',required=True,help='Prepared requests.json')
     af3import.add_argument('--archive',required=True,help='Original downloaded Server job ZIP')
@@ -407,6 +420,27 @@ def parser():
 
 def main(argv=None):
     args = parser().parse_args(argv)
+    if args.command == 'af3-approval':
+        from .structure_approval import issue
+        try:
+            approval=issue(args.results,args.out,args.decisions)
+            print(json.dumps(dict(approved_final_references=len(approval['proteins']))))
+            return 0
+        except (OSError,ValueError,RuntimeError,KeyError) as error:
+            print(f'ERROR: {error}',file=sys.stderr)
+            return 2
+    if args.command == 'af3-campaign':
+        from .af3_campaign import prepare
+        from .sequence import read_fasta
+        from pathlib import Path
+        try:
+            metadata=json.loads(Path(args.metadata).read_text()) if args.metadata else {}
+            plan=prepare(read_fasta(args.fasta),args.out,metadata,args.completed,args.batch_size,args.first_batch_size,args.approval)
+            print(json.dumps(plan['counts']))
+            return 0
+        except (OSError,ValueError,RuntimeError,KeyError) as error:
+            print(f'ERROR: {error}',file=sys.stderr)
+            return 2
     if args.command == 'af3-import':
         from .alphafold_server import import_result
         from zipfile import BadZipFile
@@ -421,7 +455,7 @@ def main(argv=None):
         from .af3_requests import prepare
         from .sequence import read_fasta
         try:
-            print(json.dumps(dict(rows=prepare(read_fasta(args.fasta),args.out,args.limit),prediction_submitted=False),indent=2))
+            print(json.dumps(dict(rows=prepare(read_fasta(args.fasta),args.out,args.limit,approval=args.approval),prediction_submitted=False),indent=2))
             return 0
         except (OSError,ValueError,RuntimeError,KeyError) as error:
             print(f'ERROR: {error}',file=sys.stderr)

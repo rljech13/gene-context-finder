@@ -7,13 +7,17 @@ import tempfile
 import unittest
 import zipfile
 
-from genecontext.af3_requests import prepare
+from genecontext.af3_requests import prepare as prepare_with_approval
+from test_structure_approval import approved_sequences
 from genecontext.alphafold_server import import_result
 from genecontext.sequence import sha256
 from genecontext.stage4_structure import import_structures
 from test_stage4 import pdb
 
 HAS_GEMMI=importlib.util.find_spec('gemmi') is not None
+
+def prepare(sequences,*args,**kwargs):
+    return prepare_with_approval(sequences,*args,approval=approved_sequences(sequences),**kwargs)
 
 
 def fixture(root,sequence='MAAAA'):
@@ -40,6 +44,16 @@ def archive(root,files):
 
 
 class ServerPreparation(unittest.TestCase):
+    def test_all_selected_proteins_are_split_into_valid_server_uploads(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            alphabet='ACDEFGHIKLMNPQRSTVWY'
+            sequences={str(i):'MAAA'+alphabet[i//20]+alphabet[i%20] for i in range(105)}
+            rows=prepare(sequences,root/'requests')
+            self.assertTrue(all(r['status']=='awaiting_prediction' for r in rows))
+            plan=json.loads((root/'requests/requests.json').read_text())
+            self.assertEqual([len(json.loads((root/'requests'/p).read_text())) for p in plan['upload_files']],[100,5])
+
     def test_server_limits_and_batch_without_sequence_substitution(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);rows=prepare({'short':'MA','long':'A'*5001,'unknown':'MAXA','ready':'MAAA'},root/'requests',limit=1)
@@ -51,6 +65,13 @@ class ServerPreparation(unittest.TestCase):
 
 @unittest.skipUnless(HAS_GEMMI,'Optional gemmi structure parser not installed')
 class ServerResult(unittest.TestCase):
+    def test_best_server_rank_breaks_rounded_score_ties(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);_,files=fixture(root)
+            for n in list(files):
+                if '_summary_confidences_' in n:files[n]=json.dumps(dict(ranking_score=.6))
+            import_result(root/'requests/requests.json',archive(root,files),root/'out')
+            self.assertEqual(json.loads((root/'out/receipt.json').read_text())['selected_member'],'fold_test_model_0.cif')
     def test_ranked_roundtrip_retains_raw_all_samples_pae_and_source(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);rows,files=fixture(root);source=archive(root,files);original=sha256(source)

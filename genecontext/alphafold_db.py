@@ -160,6 +160,7 @@ class Client:
 
 
 def collect(sequences, out, cache=DEFAULT_CACHE, limit=3, offline=False, refresh=False, transport=None):
+    limit=3 if limit is None else limit
     if not 1<=limit<=50:
         raise ValueError('AFDB prototype limit must be between 1 and 50 unique proteins')
     if any(not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}', sid) for sid in sequences):
@@ -209,6 +210,6 @@ def collect(sequences, out, cache=DEFAULT_CACHE, limit=3, offline=False, refresh
 
 def add_options(command):
     command.add_argument('--structure-cache',default=DEFAULT_CACHE,help='Shared immutable exact-sequence AFDB download cache')
-    command.add_argument('--structure-limit',type=int,default=3,help='Pilot maximum unique proteins to look up (1–50; default 3)')
+    command.add_argument('--structure-limit',type=int,help='Maximum unique proteins: AFDB defaults to 3 (up to 50); Server defaults to all selected proteins')
     command.add_argument('--structure-offline',action='store_true',help='Reuse verified AFDB cache only; no requests')
     command.add_argument('--structure-refresh',action='store_true',help='Explicitly create a new pinned AFDB response; previous cache retained')

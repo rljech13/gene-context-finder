@@ -135,6 +135,12 @@ def run(args):
         raise ValueError('Final primary assignments are not reviewed. Supply exported final decisions or use --preview explicitly.')
     models,proteins,coding=load_models(source,comparison,evidence)
     primary,cases=rows_for(evidence['spec'],models,state)
+    folding_approval=None;folding_sequences={}
+    if getattr(args,'structure_provider',None) in {'alphafold-server','af3-prepare'}:
+        from .structure_approval import from_validated,verify
+        folding_approval=from_validated(source,evidence,state,proteins)
+        folding_sequences={sid:proteins[sid] for sid in folding_approval['proteins']}
+        verify(folding_approval,folding_sequences)
     extra=reference_panel(args.reference_panel,comparison['groups'])
     target=Path(args.out).resolve()
     if target==source or target in source.parents or source in target.parents:
@@ -202,8 +208,7 @@ def run(args):
             args.structure_cache,args.structure_limit,args.structure_offline,args.structure_refresh)
     elif getattr(args,'structure_provider',None) in {'alphafold-server','af3-prepare'}:
         from .af3_requests import prepare
-        order=list(dict.fromkeys([r['model_id'] for r in primary+cases]+list(sequences)))
-        retrieval=prepare({sid:sequences[sid] for sid in order},root/'af3',args.structure_limit)
+        retrieval=prepare(folding_sequences,root/'af3',args.structure_limit,approval=folding_approval)
     imported,structure_notes=import_structures(catalogue,sequences,root)
     retrieval_by_id={r['sequence_id']:r for r in retrieval}
     structural=compare_structures(imported,sequence_groups,root,runner,args.usalign)
@@ -262,7 +267,7 @@ def run(args):
         extra_reference_panel_sha256=sha256(args.reference_panel) if args.reference_panel else None,
         structures_catalogue_sha256=sha256(args.structures) if args.structures else None,
         counts=payload['counts'],elapsed_seconds=time.perf_counter()-started,commands=runner.commands,
-        source_code_sha256={n:sha256(Path(__file__).with_name(n)) if n.endswith('.txt') else sha256(Path(importlib.import_module('genecontext.'+n[:-3]).__file__)) for n in ['stage4.py','alphafold_db.py','af3_requests.py','stage4_phylogeny.py','stage4_structure.py','stage4_report.txt','stage4_viewer.py','stage4_viewer.txt','stage4_similarity.py','stage3_finalization.py','sequence.py','tools.py','cli.py']},
+        source_code_sha256={n:sha256(Path(__file__).with_name(n)) if n.endswith('.txt') else sha256(Path(importlib.import_module('genecontext.'+n[:-3]).__file__)) for n in ['stage4.py','structure_approval.py','alphafold_db.py','af3_requests.py','stage4_phylogeny.py','stage4_structure.py','stage4_report.txt','stage4_viewer.py','stage4_viewer.txt','stage4_similarity.py','stage3_finalization.py','sequence.py','tools.py','cli.py']},
         parameters=dict(tree=args.tree,bootstrap=args.bootstrap,occupancy=args.occupancy,threads=args.threads,
             seed=42,structure_plddt_threshold=70,structure_provider=getattr(args,'structure_provider',None) or 'none',
             structure_limit=getattr(args,'structure_limit',3)),limitations=payload['limitations']))

@@ -100,6 +100,36 @@ and license are shipped under `genecontext/vendor/`, pinned by hash in
 
 ### Preferred new predictions: AlphaFold Server
 
+Folding export is allowed **only after STOP3 and explicit approval of a final
+primary reference model**. Saved candidate choices, a completed alignment or a
+proposed primary are insufficient. The approval is bound to the exact protein
+SHA-256 and reviewed final gene/genome decision. Alternatives, special cases,
+queries and unreviewed suggestions are not sent automatically.
+
+Prepare every explicitly approved final reference by default; identical full
+sequences share one job. Show **one best structure per protein**. AlphaFold Server calculates
+five samples per job; its public upload format does not expose a setting for
+three samples. The original ZIP preserves all raw samples as evidence.
+
+For a whole multi-gene/multi-species collection:
+
+```bash
+gene-context af3-approval --results STOP3 --decisions final.json --out final.references.json
+gene-context af3-campaign --fasta all.selected.proteins.faa \
+  --approval final.references.json \
+  --metadata models.by_sequence_id.json --out SERVER_CAMPAIGN \
+  --completed prior/verified-result --first-batch-size 28
+```
+
+The optional metadata object is keyed by FASTA ID and may contain `gene`,
+`species`, `original_model` and source locators. Completed imports are checked
+against their seal, archive and exact coordinate sequence before reuse. Pending
+proteins are distributed across genes and split into batches of 30 (at most 100
+draft jobs per upload); the first batch can match the current remaining quota.
+`jobs.tsv` maps every selected model to its unique protein job. `campaign.json`
+records completed, pending and unsupported proteins. Preparing batches does not
+submit them or create a daily schedule.
+
 Use the exact selected proteins from the saved review, not a replacement sequence
 looked up by gene name. The Server's documented JSON upload is the initial
 transport; the prototype does not rely on internal browser RPC endpoints.
@@ -108,7 +138,7 @@ transport; the prototype does not rely on internal browser RPC endpoints.
 gene-context stage4 --results STOP3 --decisions final.json --out STOP4_SERVER \
   --structure-provider alphafold-server --structure-limit 2
 # Or prepare independently from an exact selected FASTA:
-gene-context af3-prepare --fasta selected.proteins.faa --out SERVER_REQUESTS --limit 2
+gene-context af3-prepare --fasta final.proteins.faa --approval final.references.json --out SERVER_REQUESTS --limit 2
 ```
 
 In AlphaFold Server, upload `upload.server.json`, open each saved draft and submit
@@ -129,7 +159,9 @@ The small optional Gemmi parser is needed only for this mmCIF import; ordinary
 pipeline installation stays dependency-free. The importer checks the returned
 job name, seed and full protein against sealed input files, selects the highest
 returned ranking score, validates exact coordinate sequence and PAE dimensions,
-and emits the ordinary `stage4_structures_v1` catalogue. All returned samples,
+and emits the ordinary `stage4_structures_v1` catalogue. Rounded score ties use
+the lower Server confidence-rank index (`model_0` first), so the one displayed
+structure follows the Server's ranking. All returned samples,
 MSAs, templates and output terms remain in the original `source.zip`; selected
 raw mmCIF, confidence files and conversion details are also retained. Chain-A PDB
 conversion changes decimal precision; the raw structure is preserved. The
@@ -188,7 +220,7 @@ These steps can also be run separately against an exact protein FASTA:
 
 ```sh
 gene-context structure-fetch --fasta STOP3/selected.proteins.faa --out AFDB_CATALOGUE
-gene-context af3-prepare --fasta STOP3/selected.proteins.faa --out AF3_REQUESTS --limit 2
+gene-context af3-prepare --fasta final.proteins.faa --approval final.references.json --out AF3_REQUESTS --limit 2
 ```
 
 The AFDB catalogue is accepted by the ordinary offline `--structures` importer.

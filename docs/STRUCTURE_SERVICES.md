@@ -17,7 +17,10 @@ the generated `upload.server.json` batch, run its drafts, then retain and import
 each downloaded result ZIP with `af3-import`. A real trial on the saved POU5F3
 proteins of Gallus gallus and Pavo cristatus completed on 2026-11-19: two jobs,
 one seed each, five returned samples per job. These are new Server AF3 predictions,
-separate from earlier ready-made AFDB controls. See `docs/STAGE4.md` for the
+separate from earlier ready-made AFDB controls. These experimental jobs do not
+approve either gene model as a final reference. After the user's clarification,
+further exports require explicit reviewed final STOP3 reference approval;
+candidate selections and alignments cannot authorize submission. See `docs/STAGE4.md` for the
 request/result boundary and later provider adapters.
 
 For an API-first prototype without managing GPU/cloud
