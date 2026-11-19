@@ -20,8 +20,14 @@ d.getElementById('showReferences').checked=true;d.getElementById('showReferences
 assert.ok(d.querySelectorAll('.aln-row').length>=n);
 d.getElementById('alnNext').click();assert.ok(Number(d.getElementById('alignmentStart').value)>1);
 change('alignmentKind','cds');assert.equal(d.querySelectorAll('.aln-row').length,models.length);
-change('dnaReference',models.at(-1).model_id);assert.ok(d.getElementById('dnaFigure').getAttribute('src').includes(models.at(-1).model_id));
-assert.equal(d.querySelectorAll('#dnaTable tbody tr').length,models.length-1);
+if(run("DATA.genomic_context?.status==='not_requested'")){
+ assert.equal(d.getElementById('dna').hidden,true);assert.equal(d.getElementById('dnaFigure').getAttribute('src'),null);
+ assert.ok(!d.querySelector('a[href="selected.genomic_windows.fna"]'));
+ assert.match(d.getElementById('methodsText').textContent,/not requested/);
+}else{
+ change('dnaReference',models.at(-1).model_id);assert.ok(d.getElementById('dnaFigure').getAttribute('src').includes(models.at(-1).model_id));
+ assert.equal(d.querySelectorAll('#dnaTable tbody tr').length,models.length-1);
+}
 assert.ok(d.getElementById('syntenyStatus').textContent.includes('reviewed'));
 let checked=0;
 for(const node of d.querySelectorAll('a[href],img[src],iframe[src]')){

@@ -42,16 +42,18 @@ def parse_protein_hits(path, queries, subjects):
             continue
         seen.add(line)
         f = line.split('\t')
-        if len(f) != 12 or f[0] not in queries or f[1] not in subjects:
+        if len(f) not in {12, 14} or f[0] not in queries or f[1] not in subjects:
             raise ValueError(f'Unknown/malformed BLASTP hit, line {n}')
         qa, qb, sa, sb = int(f[4])-1, int(f[5]), int(f[6])-1, int(f[7])
         qlen, slen = len(queries[f[0]]['sequence']), subjects[f[1]]
         if not (0 <= qa < qb <= qlen and 0 <= sa < sb <= slen) or (int(f[10]), int(f[11])) != (qlen, slen):
             raise ValueError(f'BLASTP coordinates/lengths differ from input, line {n}')
-        hits.append(dict(hsp_id='h_'+hashlib.sha256(line.encode()).hexdigest()[:20],
+        from .blast_alignment import alignment_fields
+        trace = alignment_fields(f, queries[f[0]]['sequence'])
+        hits.append(dict(hsp_id='h_'+hashlib.sha256('\t'.join(f[:12]).encode()).hexdigest()[:20],
             query=f[0], contig=f[1], start=sa, end=sb, strand='+',
             qstart=qa, qend=qb, alignment_length=int(f[3]), identity=float(f[2])/100,
-            evalue=float(f[8]), bitscore=float(f[9]), qlen=qlen, slen=slen))
+            evalue=float(f[8]), bitscore=float(f[9]), qlen=qlen, slen=slen, **trace))
     return hits
 
 

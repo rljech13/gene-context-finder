@@ -70,7 +70,7 @@ def rank_loci(data):
         strongest = max(values, default=0)
         mean = sum(values)/len(values) if values else 0
         entry = dict(genome_id=locus['genome_id'], locus_id=locus['locus_id'],
-                     discovery_rank=locus['rank_within_genome'], score=strongest+mean,
+                     discovery_rank=locus.get('rank_within_genome'), score=strongest+mean,
                      strongest_source_weight=strongest, mean_source_weight=mean,
                      represented_sources=sum(v > 0 for v in values), supplied_sources=len(values),
                      best_evalue=min((c['evalue'] for c in best.values()), default=float('inf')),

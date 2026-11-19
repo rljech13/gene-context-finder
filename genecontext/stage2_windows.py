@@ -6,8 +6,8 @@ it never relabels an existing prediction as covering a larger interval.
 from copy import deepcopy
 
 
-def resolve_windows(data, regions, decision_rows, policy='pre-synteny'):
-    if policy not in {'pre-synteny', 'fixed'}:
+def resolve_windows(data, regions, decision_rows, policy='pre-synteny', annotation_contexts=None):
+    if policy not in {'annotation-neighbors', 'pre-synteny', 'fixed'}:
         raise ValueError('Unknown stage 2 window policy: '+str(policy))
     loci = {(l['genome_id'], l['locus_id']): l for l in data['loci']}
     decisions = {(r['genome_id'], r['locus_id']): r for r in decision_rows}
@@ -16,7 +16,12 @@ def resolve_windows(data, regions, decision_rows, policy='pre-synteny'):
         r = deepcopy(original)
         key = r['genome_id'], r['locus_id']
         locus = loci[key]
-        context = locus.get('early_synteny') or {}
+        previous_context = locus.get('early_synteny') or {}
+        context = previous_context
+        if policy == 'annotation-neighbors':
+            if annotation_contexts is None or key not in annotation_contexts:
+                raise ValueError('Missing refreshed annotation neighborhood')
+            context = annotation_contexts[key]
         row = decisions[key]
         manual = any(str(row.get(k) or '').strip() for k in ['window_start', 'window_end'])
         detail = dict(policy=policy, previous_start=r['window_start'],
@@ -25,8 +30,8 @@ def resolve_windows(data, regions, decision_rows, policy='pre-synteny'):
             detail.update(source='manual', reason='Explicit reviewed window retained')
         elif policy == 'fixed':
             detail.update(source='fixed', reason='Explicit fixed-flank policy')
-        elif not context.get('neighbors'):
-            detail.update(source='fixed_fallback', reason='No preliminary neighbor coordinates',
+        elif not (context.get('neighbors') or (policy=='annotation-neighbors' and context.get('display_only_genes'))):
+            detail.update(source='annotation_unavailable' if policy=='annotation-neighbors' else 'fixed_fallback', reason='No verified neighbor coordinates',
                           preliminary_status=context.get('status', 'not_available'))
         else:
             for name, expected in [('genome_id', key[0]), ('locus_id', key[1])]:
@@ -54,10 +59,19 @@ def resolve_windows(data, regions, decision_rows, policy='pre-synteny'):
                              strand=gene.get('strand', ''), side=gene.get('side', '')))
             r['window_start'] = min(a for a, _ in bounds)
             r['window_end'] = max(b for _, b in bounds)
-            detail.update(source='pre-synteny', reason='Complete preliminary neighborhood envelope',
+            detail.update(source='full-annotation' if policy=='annotation-neighbors' else 'pre-synteny', reason='Complete gene-neighborhood envelope',
                           preliminary_status=context.get('status', ''))
         if not 0 <= r['window_start'] <= r['anchor_start'] < r['anchor_end'] <= r['window_end'] <= locus['contig_length']:
             raise ValueError('Resolved window does not contain the reviewed anchor: '+r['region_id'])
+        if policy == 'annotation-neighbors':
+            from .stage2_neighborhoods import coverage
+            for field, name in [('neighbor_genes','neighbors'),('display_only_genes','display_only_genes')]:
+                detail[field]=[{k:g.get(k) for k in ['gene_id','name','start','end','strand','side','target_side']} for g in context.get(name,[])]
+            detail.update(neighborhood_coverage=coverage(context,r['window_start'],r['window_end']),
+                annotation_sha256=context.get('gff3_sha256'), annotation_identity=context.get('annotation_identity'),
+                previous_preliminary_neighbors=len(previous_context.get('neighbors',[])),
+                retained_preliminary_genes=context.get('retained_preliminary_genes',[]),
+                distance_cap=0)
         r.update(window_source=detail['source'], window_resolution=detail)
         result.append(r)
     return result

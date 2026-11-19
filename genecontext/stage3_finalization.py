@@ -44,6 +44,8 @@ def validate_choices(state, spec):
 
 
 def case_reason(model, primary, models):
+    if model.get('alignment_candidate'):
+        return 'Alternative CDS model included for alignment review; not an approved target or an additional physical copy.'
     a=model['assignment']; identity=model['copy_identity']
     if a['known_other_copy']:
         return 'Specific source label is '+identity['display_name']+'; it is not automatically renamed to '+model['target_gene']+'.'
@@ -111,6 +113,7 @@ def prepare(root,payload,models,references):
             complete=m['quality']['coding_status']=='complete_predicted' and str(m.get('window_edge')).lower()!='true'
             facts=['Copy label: '+identity['display_name']+' ('+identity['basis'].replace('_',' ')+').',
                 'Complete coding model.' if complete else 'Coding completeness or saved-window boundary needs review.']
+            if m.get('alignment_candidate'):facts.append('Preliminary CDS comparison candidate; inclusion is not target approval.')
             if target:facts.append('Best '+('supplied' if fallback else gene)+' query: '+target['accession']+'; identity '+format(target['identity'],'.1%')+', coverage model/reference '+format(target['coverage_model'],'.1%')+' / '+format(target['coverage_reference'],'.1%')+'.')
             else:facts.append('No comparable target-reference protein measurement.')
             agreement=m['quality']['source_agreement']

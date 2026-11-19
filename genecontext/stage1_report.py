@@ -3,7 +3,9 @@ import json
 from pathlib import Path
 
 TEMPLATE = Path(__file__).with_name("stage1_review.txt").read_text().replace(
-    "__CONTEXT_VIEW__", Path(__file__).with_name("stage1_context_view.txt").read_text())
+    "__CONTEXT_VIEW__", Path(__file__).with_name("stage1_context_view.txt").read_text()).replace(
+    "__BLAST_ALIGNMENT_VIEW__", Path(__file__).with_name("stage1_blast_view.txt").read_text()).replace(
+    "__ANALYSIS_GROUPS__", Path(__file__).with_name("stage1_groups.txt").read_text())
 
 
 def pack_report(data):
@@ -36,7 +38,8 @@ def pack_report(data):
     # than another copy of them in every standalone review page.
     view = {k: data[k] for k in ['review_id', 'config', 'filters', 'queries',
                                 'genomes', 'loci', 'early_synteny', 'review_ranking',
-                                'report_assets', 'copy_identities', 'copy_names_by_gene'] if k in data}
+                                'report_assets', 'copy_identities', 'copy_names_by_gene', 'candidate_limit',
+                                'blast_alignments'] if k in data}
     return dict(schema='gcf_report_interned_v1', data=visit(view), objects=objects)
 
 
@@ -69,7 +72,7 @@ def write_report(root, data):
         with dna_path.open() as handle:
             dna_loci = [line[1:].split()[0] for line in handle if line.startswith('>')]
     payload = json.dumps(pack_report(dict(data, review_ranking=ranking, copy_identities=identities, copy_names_by_gene=copy_names,
-                         report_assets=dict(dna_loci=dna_loci))),
+                         report_assets=dict(dna_loci=dna_loci, raw_base=data.get('source_checkpoint',{}).get('raw_base','raw/')))),
                          ensure_ascii=True, separators=(',', ':')).replace('<', chr(92)+'u003c').replace('&', chr(92)+'u0026')
     (root/'report.html').write_text(TEMPLATE.replace('__DATA__', payload))
 
@@ -91,13 +94,15 @@ def refresh(args):
         destination = root/name
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source/name, destination)
+    from .stage1_limit import inherit_parent_locator
+    inherit_parent_locator(source,root,data)
     if (source/'loci.decisions.tsv').exists():
         shutil.copyfile(source/'loci.decisions.tsv', root/'loci.decisions.tsv')
     manifest = json.loads((root/'manifest.json').read_text())
     manifest['presentation'] = dict(version=__version__, created=now(), source_checkpoint=str(source),
         source_evidence_sha256=sha256(source/'evidence.json'), retained_review_id=data['review_id'],
         renderer_sha256={name:sha256(Path(__file__).with_name(name)) for name in
-                         ['stage1_report.py','stage1_review.txt','stage1_context_view.txt','locus_ranking.py','gene_identity.py']},
+                         ['stage1_report.py','stage1_review.txt','stage1_blast_view.txt','stage1_groups.txt','stage1_context_view.txt','locus_ranking.py','gene_identity.py']},
         note='Presentation revision only; all search evidence, filters, coordinates and review IDs retained.')
     dump(root/'manifest.json', manifest)
     write_report(root, data)

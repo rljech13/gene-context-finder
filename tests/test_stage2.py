@@ -100,7 +100,7 @@ class RealBlastStage2(unittest.TestCase):
             data=dict(review_id='one',config=dict(gene='TEST',window=500,query_type='protein'),queries=[dict(id='q',sequence=query,members=[dict(query='reference')])],genomes=[dict(genome_id='g',status='success',fasta_sha256=sha256(root/'g.fna'))],loci=[region_locus])
             (source/'evidence.json').write_text(json.dumps(data));write_tsv(root/'genomes.tsv',[dict(genome_id='g',fasta=str(root/'g.fna'))],['genome_id','fasta'])
             write_tsv(root/'decisions.tsv',[dict(review_id='one',genome_id='g',locus_id='l',decision='inspect',reason='sequence_support',notes='unit control')],['review_id','genome_id','locus_id','decision','reason','notes'])
-            args=parser().parse_args(['stage2','--results',str(source),'--decisions',str(root/'decisions.tsv'),'--genomes',str(root/'genomes.tsv'),'--protein-db',str(root/'db'),'--out',str(root/'result')])
+            args=parser().parse_args(['stage2','--window-policy','pre-synteny','--results',str(source),'--decisions',str(root/'decisions.tsv'),'--genomes',str(root/'genomes.tsv'),'--protein-db',str(root/'db'),'--out',str(root/'result')])
             def predictor(args,out,rows,windows,runner,errors):
                 rid=rows[0]['locus_id'];return {rid:[Model('p',rid,'+',cds=[(500,500+len(cds),0)],gene='p')]},dict(test_double=True)
             with patch('genecontext.stage2.verify',return_value=(source,data)),patch('genecontext.stage2.validate_prediction_inputs',return_value=None),patch('genecontext.tiberius_backend.predict_batches',side_effect=predictor):

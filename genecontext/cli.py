@@ -42,6 +42,13 @@ def neighbor_limit(value):
     return value
 
 
+def candidate_limit(value):
+    value = positive(value)
+    if value > 20:
+        raise argparse.ArgumentTypeError('must be between 1 and 20 loci per gene per assembly')
+    return value
+
+
 def comparison_options(command):
     command.add_argument("--context-mode", choices=["predict", "annotation"], default="predict",
                          help="predict: predict genes in every window, then identify proteins; annotation: legacy GFF3/reference-supported contexts")
@@ -92,10 +99,12 @@ def early_synteny_options(command, disable_option=True):
     command.add_argument("--datasets", help="Optional complete datasets TSV; default: the search genome list")
     command.add_argument("--source-datasets", help="Optional source-reference datasets TSV; query-to-gene mapping is automatic")
     command.add_argument("--neighbor-cache", help="Reusable context/proteome cache; default: _genecontext_cache beside the output")
-    command.add_argument("--synteny-neighbors", type=neighbor_limit, default=5)
+    command.add_argument("--synteny-neighbors", type=neighbor_limit, default=10,
+                         help="Nearest coding neighbors per side; default 10")
     command.add_argument("--synteny-max-neighbors", type=neighbor_limit, default=10,
                          help="Maximum neighboring genes per side (1–10; hard upper bound 10)")
-    command.add_argument("--synteny-max-distance", type=positive, default=1000000)
+    command.add_argument("--synteny-max-distance", type=nonnegative, default=0,
+                         help="Optional distance cutoff in bp; 0 (default) collects neighbors by count until the contig/annotation ends")
 
 
 def search_options(command, comparative=False):
@@ -235,6 +244,7 @@ def parser():
     loci.add_argument("--out", required=True)
     loci.add_argument("--threads", type=positive, default=4)
     loci.add_argument("--jobs", type=positive, default=1, help="Concurrent genomes; --threads is per genome, so CPU demand is jobs × threads")
+    loci.add_argument("--max-loci-per-assembly", type=candidate_limit, default=20, help="At most 20 loci per gene per assembly, using the weighted BLAST review ranking")
     loci.add_argument("--search-evalue", type=float, default=1e-3, help="BLAST retrieval ceiling; weaker matches cannot be recovered by refiltering")
     loci.add_argument("--seed-min-length", type=positive, default=20, help="Minimum HSP alignment length: aa for protein/CDS, nt for DNA")
     loci.add_argument("--seed-min-identity", type=fraction, default=0.20)
@@ -259,6 +269,10 @@ def parser():
     filtered = commands.add_parser("stage1-filter", help="Change locus review thresholds without another genome search")
     filtered.add_argument("--results", required=True)
     filtered.add_argument("--out", required=True)
+    limited = commands.add_parser('stage1-limit', help='Limit a saved one-gene checkpoint without another search or context computation')
+    limited.add_argument('--results', required=True)
+    limited.add_argument('--out', required=True)
+    limited.add_argument('--max-loci-per-assembly', type=candidate_limit, default=20)
     selected = commands.add_parser("stage1-select", help="Validate explicit locus decisions and export chosen synteny windows")
     selected.add_argument("--results", required=True)
     selected.add_argument("--decisions", required=True)
@@ -281,13 +295,18 @@ def parser():
         choice.add_argument("--decisions", help="Completed stage 1 decisions TSV")
         choice.add_argument("--selection", help="Approved output directory from stage1-select")
         choice.add_argument("--draft", help="Portable stage 1 draft; unsaved pairs are rejected unless --committed-only")
+        command.add_argument("--analysis-group", help="One explicit STOP-1 group ID or exact name; scoped group JSON selects it automatically")
         command.add_argument("--committed-only", action="store_true", help="Explicitly process saved draft pairs only; never process unsaved checkboxes")
         command.add_argument("--only-genomes", nargs="+", help="Explicit subset of approved genome IDs, for a pilot")
-        command.add_argument("--window-policy", choices=["pre-synteny","fixed"], default="pre-synteny", help="Default: full preliminary gene envelope; fixed retains configured flanks. Explicit manual windows take precedence.")
+        command.add_argument("--window-policy", choices=["annotation-neighbors","pre-synteny","fixed"], default="annotation-neighbors", help="Default: refresh ten coding neighbors per side from matching full GFF3, without a distance cutoff. pre-synteny reuses the saved context; fixed retains configured flanks.")
+        command.add_argument("--neighbors-per-side", type=positive, default=10)
+        command.add_argument("--minimum-neighbors-per-side", type=positive, default=5)
+        command.add_argument("--allow-incomplete-neighborhood", action="store_true", help="Explicitly permit prediction despite a missing/short annotated neighborhood; does not waive window-size limits")
         command.add_argument("--max-window-bases", type=positive, default=2000000)
         command.add_argument("--out", required=True)
     s2.add_argument("--resume", action="store_true", help="Continue an interrupted stage2 output with identical inputs and parameters")
     s2.add_argument("--genomes", required=True, help="Dataset TSV with local genomic FASTA and optional matching GFF3")
+    s2p.add_argument("--genomes", help="Matching GFF3 inventory; required for the default annotation-neighbors policy. Planning reads annotations only.")
     s2.add_argument("--protein-db", required=True, help="Verified local prepare-stage2-db output; no downloads during analysis")
     s2.add_argument("--threads", type=positive, default=4)
     s2.add_argument("--identification-coverage", type=fraction, default=.5)
@@ -329,6 +348,7 @@ def parser():
     s3.add_argument("--validate-only", action="store_true", help="Check decisions and sequence integrity without creating output or running aligners")
     s3.add_argument("--threads", type=positive, default=4)
     s3.add_argument("--include-partial", action="store_true")
+    s3.add_argument("--genomic-context", action="store_true", help="Optional expensive genomic-window comparisons and DNA/flank exports; default compares selected proteins/CDS for STOP 4")
     s3.add_argument("--dna-engine", choices=["blastn", "lastz"], default="blastn")
     s3.add_argument("--dna-min-block", type=positive, default=50)
     s3.add_argument("--dna-min-identity", type=fraction, default=.6)
@@ -341,6 +361,24 @@ def parser():
     final.add_argument("--results",required=True)
     final.add_argument("--decisions",required=True,help="Exported stage3.final.decisions.json")
     final.add_argument("--out",required=True)
+    s4=commands.add_parser('stage4',help='Build a compact candidate dossier, per-group gene trees and optional exact-sequence structural comparisons')
+    s4.add_argument('--results',required=True,help='Completed sealed STOP 3 result')
+    s4.add_argument('--decisions',help='Exported STOP 3 final choices; otherwise use saved finalization state')
+    s4.add_argument('--out',required=True)
+    s4.add_argument('--preview',action='store_true',help='Explicitly allow unreviewed primary suggestions, visibly marked as preview')
+    s4.add_argument('--tree',choices=['auto','none'],default='auto')
+    s4.add_argument('--threads',type=positive,default=2)
+    s4.add_argument('--bootstrap',type=positive,default=1000,help='UFBoot replicates (minimum 1000)')
+    s4.add_argument('--occupancy',type=fraction,default=.5,help='Minimum canonical-residue column occupancy after full-sequence deduplication')
+    s4.add_argument('--reference-panel',help='Optional named target/paralog/outgroup reference JSON')
+    s4.add_argument('--structures',help='Optional hash-verified exact-sequence PDB catalogue JSON')
+    s4.add_argument('--iqtree',help='Optional IQ-TREE executable path')
+    s4.add_argument('--usalign',help='Optional US-align executable path')
+    view4=commands.add_parser('stage4-viewer',help='Attach an offline 3D viewer to a sealed STOP 4 without repeating scientific comparisons')
+    view4.add_argument('--results',required=True)
+    view4.add_argument('--out',required=True)
+    view4.add_argument('--structures',help='Optional exact full-atom PDB catalogue; CA coordinates must match the measured structures')
+    view4.add_argument('--usalign',help='Reproduce measured structural pairs with per-residue deviation coloring using this US-align executable')
     return parser
 
 
@@ -352,6 +390,19 @@ def main(argv=None):
             return compact(args)
         except (OSError, ValueError) as error:
             print(f"ERROR: {error}", file=sys.stderr)
+            return 2
+    if args.command=='stage4-viewer':
+        from .stage4_viewer import attach
+        try:return attach(args)
+        except (OSError,ValueError,RuntimeError,KeyError) as error:
+            print(f'ERROR: {error}',file=sys.stderr);return 2
+    if args.command=='stage4':
+        from .stage4 import run as stage4
+        try:
+            if args.bootstrap<1000: raise ValueError('UFBoot requires at least 1000 replicates')
+            return stage4(args)
+        except (OSError,ValueError,RuntimeError,KeyError) as error:
+            print(f'ERROR: {error}',file=sys.stderr)
             return 2
     if args.command in {"stage3","stage3-report","stage3-finalize"}:
         from .stage3 import run as stage3
@@ -380,14 +431,15 @@ def main(argv=None):
         except (OSError, ValueError, RuntimeError, KeyError) as error:
             print(f"ERROR: {error}", file=sys.stderr)
             return 2
-    if args.command in {"stage1", "stage1-filter", "stage1-select", "stage1-context", "stage1-report"}:
+    if args.command in {"stage1", "stage1-filter", "stage1-select", "stage1-context", "stage1-report", "stage1-limit"}:
         from .stage1 import search, refilter, approve
         from .stage1_context import context
         from .stage1_report import refresh
+        from .stage1_limit import restrict_checkpoint
         if args.command == "stage1" and args.jobs > 1:
             from .stage1_parallel import search
         try:
-            return {"stage1": search, "stage1-filter": refilter, "stage1-select": approve, "stage1-context": context, "stage1-report": refresh}[args.command](args)
+            return {"stage1": search, "stage1-filter": refilter, "stage1-select": approve, "stage1-context": context, "stage1-report": refresh, "stage1-limit": restrict_checkpoint}[args.command](args)
         except (OSError, ValueError, RuntimeError, KeyError) as error:
             print(f"ERROR: {error}", file=sys.stderr)
             return 2

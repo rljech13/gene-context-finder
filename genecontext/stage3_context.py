@@ -28,8 +28,17 @@ def write_context_page(root,payload):
     template=Path(__file__).with_name('stage2_review.txt').read_text()
     css=template.split('<style>',1)[1].split('</style>',1)[0]
     helpers=Path(__file__).with_name('stage2_neighborhood.txt').read_text().split('function compare(){',1)[0]
-    a=helpers.index('function openGeneModels(');b=helpers.index('// Coordinate view:',a)
-    helpers=helpers[:a]+helpers[b:]
+    if 'function createComparisonPane(' in helpers:
+        # Reuse drawing helpers, not the STOP-2 pane setup and review controls.
+        helpers=helpers[helpers.index('function diagramModels('):].split('function renderPriorContext(',1)[0]
+        shared=template.split('const NEIGHBOR_COLORS=',1)[1].split('function openGeneModels(',1)[0]
+        shared=('const NEIGHBOR_COLORS='+shared).replace(
+            "const m=models.get(reviewPlan(r).primary_model);return m?groupLabel([m]):'No target model'",
+            "return r.copy_label||r.gene||'Selected model'")
+        helpers=shared+helpers.replace('models.get(reviewPlan(r).primary_model)','models.get(r.region_id)')
+    elif 'function openGeneModels(' in helpers:
+        a=helpers.index('function openGeneModels(');b=helpers.index('// Coordinate view:',a)
+        helpers=helpers[:a]+helpers[b:]
     cluster=Path(__file__).with_name('stage2_cluster.txt').read_text()
     code=r'''
 'use strict';const DATA=__DATA__,$=id=>document.getElementById(id),regions=new Map([...DATA.original_regions,...DATA.regions].map(r=>[r.region_id,r])),models=new Map(DATA.models.map(m=>[m.model_id,m]));

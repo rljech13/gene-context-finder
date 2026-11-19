@@ -81,7 +81,7 @@ class NeighborhoodBounds(unittest.TestCase):
             (source/'evidence.json').write_text(json.dumps(data))
             write_tsv(root/'decisions.tsv',[dict(review_id='review',genome_id='g',locus_id='l',decision='inspect')],
                       ['review_id','genome_id','locus_id','decision'])
-            args=parser().parse_args(['stage2-plan','--results',str(source),'--decisions',str(root/'decisions.tsv'),
+            args=parser().parse_args(['stage2-plan','--window-policy','pre-synteny','--results',str(source),'--decisions',str(root/'decisions.tsv'),
                                        '--out',str(root/'plan')])
             with patch('genecontext.stage2.verify',return_value=(source,data)):
                 self.assertEqual(plan(args),0)

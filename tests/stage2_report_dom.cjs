@@ -17,14 +17,14 @@ const {JSDOM,VirtualConsole}=require('jsdom');
  for(const r of run('DATA.regions')){
   d.getElementById('region').value=r.region_id;dispatch('region');await tick();
   const svg=d.querySelector('#links .cluster-overview'),px=Number(svg.dataset.pxPerBp),rows=run('comparisonRows()'),pitch=Number(svg.dataset.rowHeight),height=Number(svg.getAttribute('viewBox').split(' ')[3]);
-  assert.equal(pitch,112);assert.equal(height,112*rows.length+68,'Overview height depends only on locus count, not isoform count');
+  assert.ok(height>=110*rows.length,'Rows expand to isolate overlapping genes and labels');
   const centre=Number(svg.querySelector('[data-ruler-bp="0"]').getAttribute('x1')),shown=run('neighborhood(current())'),expected=[...shown.left,...shown.anchor,...shown.right].flatMap(g=>g.map(m=>m.model_id)).sort();
   const shapes=[...svg.querySelectorAll('.gene-arrow[data-row="0"] .cluster-model-span')];
   assert.deepEqual(shapes.flatMap(n=>n.dataset.modelIds.split(' ')).sort(),Array.from(expected),'Overview retains every original model ID');
   assert.equal(svg.querySelectorAll('.cluster-gene-label[data-row="0"]').length,shown.left.length+shown.anchor.length+shown.right.length);
   const sign=r.strand==='-'?-1:1,mid=(r.anchor_start+r.anchor_end)/2;
   for(const shape of shapes){
-   const a=Number(shape.dataset.start),b=Number(shape.dataset.end),points=shape.getAttribute('points').split(/\s+/).map(p=>p.split(',').map(Number)),xs=points.map(p=>p[0]),x=centre+Math.min((a-mid)*sign,(b-mid)*sign)*px;
+   const a=Number(shape.dataset.start),b=Number(shape.dataset.end),xs=[Number(shape.getAttribute('x1')),Number(shape.getAttribute('x2'))],x=centre+Math.min((a-mid)*sign,(b-mid)*sign)*px;
    assert.ok(Math.abs(Math.min(...xs)-x)<1e-8);assert.ok(Math.abs(Math.max(...xs)-Math.min(...xs)-(b-a)*px)<1e-8,'Overview spans use true bp lengths');overviewSpans++;
   }
   const labels=[...svg.querySelectorAll('.cluster-gene-label')];

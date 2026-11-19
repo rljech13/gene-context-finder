@@ -4,6 +4,12 @@ Find candidate gene loci in multiple genomes using an annotation-derived panel o
 
 The current [work plan](docs/WORK_PLAN.md) maps implemented stages to the remaining work for target-gene conservation and sequence selection across the study species. The active workflow is `stage1 → stage2 → stage3`, with two manual review stops. The [stage 3 guide](docs/STAGE3.md) explains the reviewed-sequence catalogue and conservation comparisons. The [NANOG verification](docs/WORKFLOW_FIXES_2026-11-09.md) records the actual run scope, fixes and remaining work.
 
+The optional [STOP 4 prototype](docs/STAGE4.md) turns a sealed STOP 3 result into
+a compact candidate dossier with separate identity/model-quality assessments,
+per-group ML gene trees and optional exact-sequence structural comparisons.
+Unreviewed final suggestions require explicit `--preview`; no folding jobs or
+queues are started automatically.
+
 The first review stop is **stage 1**: search all supplied genomes, assemble local matches into loci, automatically check available reference-neighbor contexts, and stop for manual selection. Multiple transcript variants and source species support one target/search group. The report ranks loci, maps matches for every query and supports selection by checkbox. Standard FASTA source headers are read automatically for every gene; a common source-dataset inventory can be reused across query panels. Missing source contexts remain explicit, and duplicate self comparisons are hidden by default.
 
 ## Install
@@ -59,6 +65,8 @@ On host2, use the [constrained launcher](docs/LIMITED_EXPERIMENTS.md) for every 
 
 Prepare a broad local protein reference once, then run the selected windows through Tiberius and BLASTP:
 
+The default stage-2 planner first refreshes ten coding neighbors per side from the matching full GFF3, without a distance cutoff. Run `stage2-plan` with `--genomes` to inspect the complete intervals and captured gene counts. Missing/short neighborhoods and oversized windows block prediction; dry planning retains their full spans for review. See [window planning](docs/STAGE2.md#reannotation-bounds-from-preliminary-synteny).
+
 ```bash
 gene-context prepare-stage2-db --download-vertebrates --out /mnt/project/references/vertebrates_reviewed
 gene-context setup-predictor --predictor-cache /mnt/project/cache/tiberius --models vertebrates mammalia
@@ -88,6 +96,8 @@ This preserves the application script, coordinates, labels and zoom. It reduces
 file size; it does not reduce the hydrated evidence or demonstrate lower browser
 memory use. The compact file uses native browser gzip decompression and offers a
 link to the original if that capability is unavailable.
+
+At STOP 1, **Groups for stage 2 — families or copies** lets you assign selected loci to named sets across assemblies. Download each group's JSON and submit it as `stage2 --draft` to its own output directory. Full grouped drafts and TSVs require `--analysis-group ID_OR_NAME`. This reuses the saved BLAST evidence and keeps families in separate STOP-2 reports; see [STOP-1 grouping](docs/STAGE1.md#separate-familycopy-groups-after-stop-1).
 
 After saving the review, download `stage2.decisions.json` and run:
 
@@ -128,3 +138,13 @@ gene-context stage1-report --results results/nanog_stage1 --out results/nanog_co
 ```
 
 The original evidence and review/decision IDs are retained. The default view shows the first ten candidate loci in combined review order, each with a compact support table for every query variant. The score combines coverage- and identity-weighted BLAST support across source groups; contributions are available in Details and review_ranking.tsv. Synteny and technical details are collapsed; opening Synteny shows all available query-source neighborhoods. Curated GeneIDs can bind source neighborhoods across isoform differences while retaining sequence-discrepancy flags. See [metric definitions](docs/STAGE1_METRICS.md).
+
+Stage 1 retains at most **20 candidate loci per gene in each assembly** before preliminary synteny and manual review. Each assembly keeps its best loci by the existing weighted BLAST review ranking (bit score, query coverage and aligned identity across supplied source groups); synteny does not change this ordering. This is a review-pool limit, not a biological rejection of omitted hits. Raw search evidence is retained.
+
+Use `--max-loci-per-assembly N` (1–20) with `stage1` for a smaller pool. To restrict a completed checkpoint without another search or synteny calculation:
+
+```sh
+gene-context stage1-limit --results original_checkpoint --out review_top20
+```
+
+The new checkpoint has its own review ID and blank decisions, retains the original locus IDs and full evidence for each kept locus, and points to the verified original checkpoint for raw BLAST files. Keep that original directory available. Old decisions belong to the original review and are not automatically approved for the restricted pool.
