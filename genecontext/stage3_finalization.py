@@ -4,6 +4,7 @@ from copy import deepcopy
 import hashlib
 import json
 from pathlib import Path
+import re
 
 from .gene_identity import identity as reference_identity, model_identities, export_identities
 from .sequence import read_fasta, write_fasta, write_tsv
@@ -11,6 +12,20 @@ from .stage3_analysis import read_table
 
 
 SCHEMA='stage3_final_choices_v1'
+
+
+def reference_approved(choice,bucket,spec,protein_sha256=None):
+    approval=choice.get('reference_approval')
+    if not isinstance(approval,dict) or choice.get('reviewed') is not True:
+        return False
+    mid=choice.get('primary');expected=protein_sha256 or spec.get('protein_sha256',{}).get(mid)
+    return bool(mid and approval.get('schema')=='stage3_reference_approval_v1'
+        and approval.get('confirmed') is True and approval.get('stage')==3
+        and approval.get('model_id')==mid and mid in bucket['model_ids']
+        and approval.get('review_id')==spec['review_id'] and approval.get('set_id')==spec['set_id']
+        and approval.get('gene')==bucket.get('gene','') and approval.get('genome_id')==bucket.get('genome_id','')
+        and re.fullmatch(r'[0-9a-f]{64}',str(approval.get('protein_sha256','')))
+        and (not expected or approval['protein_sha256']==expected))
 
 
 def normalized(value):
@@ -33,6 +48,8 @@ def validate_choices(state, spec):
             raise ValueError('Supply the basis for every primary assignment, including an unresolved assignment')
         if type(choice.get('reviewed')) is not bool:
             raise ValueError('The reviewed flag must be a boolean')
+        if choice.get('reference_approval') is not None and not reference_approved(choice,buckets[key],spec):
+            raise ValueError('Reference approval is invalid or belongs to another final model/protein')
     notes=state.get('cases',{})
     allowed={m for b in buckets.values() for m in b['model_ids']}
     if not isinstance(notes,dict) or set(notes)-allowed:
@@ -141,7 +158,9 @@ def prepare(root,payload,models,references):
         choices[key]=dict(primary=best['model_id'] if best else '',reason=reason,reviewed=False)
     signature=[(m['group'],m['genome_id'],m['model_id'],m['cds_sha256']) for m in models]
     set_id=hashlib.sha256(json.dumps([payload['review_id'],sorted(signature)],sort_keys=True).encode()).hexdigest()
+    protein_records=read_fasta(root/'selected.proteins.faa')
     spec=dict(review_id=payload['review_id'],set_id=set_id,buckets=buckets,
+        protein_sha256={sid:hashlib.sha256(seq.encode()).hexdigest() for sid,seq in protein_records.items()},
         method='One proposed representative per comparison group/genome. Specific known non-target labels are kept separate. Complete models rank first, then target-query identity × minimum model/reference coverage. Source label and exact CDS agreement break ties. This is a proposal, not resolved orthology.')
     state=dict(schema=SCHEMA,review_id=payload['review_id'],set_id=set_id,choices=choices,cases={})
     path=root/'finalization.decisions.json'

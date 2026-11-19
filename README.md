@@ -132,6 +132,13 @@ gene-context stage3-finalize --results results/pou5_comparison \
 
 This final assignment retains the original STOP-2 selection and all-by-all comparisons; it does not resolve orthology automatically.
 
+On step 3, **«Утвердить модель как эталон»** explicitly approves the final
+representative and its exact protein. Only then does **«Подготовить отправку в
+AlphaFold Server»** become available. Saving a reviewed choice alone is
+insufficient. Editing the primary or revoking approval blocks export again.
+The button downloads a Server JSON for manual upload and launch; it starts no
+remote calculation. [Approval and export details](docs/STAGE3.md#explicit-final-reference-approval).
+
 ## Earlier pipeline
 
 The earlier `search → contexts → compare-reviewed` workflow is preserved and documented in [the legacy workflow](docs/LEGACY_WORKFLOW.md). Its model-first checkpoints differ from the new locus-first stage. Use the new `stage2` command for locus-first selections. Legacy `contexts` and `compare-reviewed` retain their different checkpoint format; they are not consumers of the new STOP-2 decisions.

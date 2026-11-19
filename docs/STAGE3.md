@@ -100,6 +100,25 @@ gene-context stage3-finalize --results COMPLETED_STAGE3 \
 
 This validates the exact source review and sequence-set fingerprint, every gene/genome bucket, permitted model IDs, reasons and reviewed flags. It generates a separate sealed report and split exports without running alignment or changing original STOP-2 selection. `finalization.decisions.json` and `finalization.evidence.json` retain assignment state and evidence. `model_choice_history.tsv` and `model_decision_audit.tsv` retain the original candidate and observation decisions in the technical appendix. No cross-species copy orthology is inferred from local copy numbering.
 
+## Explicit final reference approval
+
+In the primary-target table, **«Утвердить модель как эталон»** is a separate
+step after saving the final reviewed choice. Existing reviewed choices keep
+their selection and comments; they do not acquire reference approval automatically.
+Only this explicit action enables **«Подготовить отправку в AlphaFold Server»**.
+Approval is bound to the model, gene/genome bucket, reviewed set and SHA-256 of
+the full native protein. Editing the primary choice, changing the protein or
+using **«Отозвать утверждение»** blocks preparation until a new approval.
+
+Approval and its history persist with the browser draft and exported
+`stage3.final.decisions.json`. To carry approval between computers, export and
+import that JSON. Browser drafts do not update scientific files automatically.
+The AlphaFold button downloads one exact-sequence Server JSON and provides the
+link to the official Server; upload and launch take place there. Merely approving
+a reference or opening the report never starts a prediction. The backend checks
+the same explicit approval before individual or campaign exports; `reviewed: true`
+alone is insufficient. See [stage 4](STAGE4.md#preferred-new-predictions-alphafold-server).
+
 ## One export per gene report, with previous comments
 
 Each standalone STOP3 report has an **Export all chosen models + comments · ZIP** button above the alignments and below Final assignment. Review the organisms in that report, change any necessary assignments, then export once for the whole gene. Unchanged rows need no individual Save action: their proposed defaults are included. The package uses the current saved browser choices. A separate **Export original defaults · ZIP** button always uses the report's original defaults, even if browser choices have changed.

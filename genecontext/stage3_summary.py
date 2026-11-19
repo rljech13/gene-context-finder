@@ -136,7 +136,7 @@ def write_summary(root, payload):
                    query_reference_files=queries['files'],query_protein_count=queries['protein_sequences'])
     serialized = json.dumps(summary, ensure_ascii=True, separators=(',', ':')).replace('<','\\u003c').replace('&','\\u0026')
     template = Path(__file__).with_name('stage3_summary.txt').read_text()
-    final_script=Path(__file__).with_name('stage3_finalization.txt').read_text()
+    final_script=Path(__file__).with_name('stage3_reference_approval.txt').read_text()+'\n'+Path(__file__).with_name('stage3_finalization.txt').read_text()
     from .alignment_blossom import colour_alignment_html
     html=colour_alignment_html(template.replace('__DATA__',serialized).replace('__FINALIZATION_SCRIPT__',final_script))
     from .interactive_review import attach,stage3_dataset,write_dataset

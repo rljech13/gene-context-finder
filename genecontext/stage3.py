@@ -270,7 +270,7 @@ def run(args):
         genomic_context=genomic_status,
         control_run=args.control_run,biological_approval_asserted=False,parameters=vars(args),tools=versions,
         commands=runner.commands,errors=errors,elapsed_seconds=time.perf_counter()-started,timings=timings,resources=resource_usage(),
-        source_code_sha256={n:sha256(Path(__file__).with_name(n)) for n in ['interactive_review.py','review_realign.txt','stage3_export.py','cli.py','stage3.py','stage3_analysis.py','stage3_report.py','stage3_report.txt','stage3_summary.py','stage3_summary.txt','stage3_handoff.py','stage3_finalization.py','stage3_finalization.txt','gene_identity.py','stage3_context.py','stage2_choices.py','alignment.py','alignment_blossom.py','comparison_report.py','dna_compare.py','stage2_neighborhood.txt','stage2_cluster.txt']})
+        source_code_sha256={n:sha256(Path(__file__).with_name(n)) for n in ['interactive_review.py','review_realign.txt','stage3_export.py','cli.py','stage3.py','stage3_analysis.py','stage3_report.py','stage3_report.txt','stage3_summary.py','stage3_summary.txt','stage3_handoff.py','stage3_finalization.py','stage3_finalization.txt','stage3_reference_approval.txt','gene_identity.py','stage3_context.py','stage2_choices.py','alignment.py','alignment_blossom.py','comparison_report.py','dna_compare.py','stage2_neighborhood.txt','stage2_cluster.txt']})
     step=time.perf_counter()
     from .stage3_report import write_report as full_report
     full_report(root,data,catalogue,groups,selected,observations,blocks,context,errors,args.control_run,analysis,manifest)

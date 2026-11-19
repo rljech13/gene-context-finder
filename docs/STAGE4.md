@@ -101,8 +101,9 @@ and license are shipped under `genecontext/vendor/`, pinned by hash in
 ### Preferred new predictions: AlphaFold Server
 
 Folding export is allowed **only after STOP3 and explicit approval of a final
-primary reference model**. Saved candidate choices, a completed alignment or a
-proposed primary are insufficient. The approval is bound to the exact protein
+primary reference model** using **«Утвердить модель как эталон»** in the stage-3
+primary-target table. A saved reviewed choice alone, saved candidate choices, a
+completed alignment or a proposed primary are insufficient. The approval is bound to the exact protein
 SHA-256 and reviewed final gene/genome decision. Alternatives, special cases,
 queries and unreviewed suggestions are not sent automatically.
 
