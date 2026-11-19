@@ -104,7 +104,7 @@ def input_files(project, tid, args):
         paths.add(path_from(project.root, target['query']))
     if args.command == 'stage1' and target.get('query_metadata'):
         paths.add(path_from(project.root, target['query_metadata']))
-    for key in PATH_OPTIONS-{'neighbor_cache', 'predictor_cache', 'protein_db', 'tiberius_python', 'iqtree', 'usalign'}:
+    for key in PATH_OPTIONS-{'neighbor_cache', 'predictor_cache', 'structure_cache', 'protein_db', 'tiberius_python', 'iqtree', 'usalign'}:
         value = getattr(args, key, None)
         if value:
             paths.add(Path(value))

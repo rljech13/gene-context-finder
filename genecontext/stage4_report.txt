@@ -21,6 +21,7 @@ function row(r){
  const tone=r.identity_assessment==='Conflicting copy evidence'?'conflict':r.identity_assessment==='Consistent candidate'?'ok':'review';
  const s=r.structure,m=r.structure_match;
  let structure='<span class="muted">Not assessed</span>';
+ if(!s&&r.structure_retrieval){const f=r.structure_retrieval;structure='<span class="muted">'+esc(f.status.replaceAll('_',' '))+'</span><br><small>'+esc(f.reason||'')+'</small>'}
  if(s){structure=(s.viewer_file?'<a href="'+esc(s.viewer_file)+'?model='+encodeURIComponent(r.model_id)+'"><strong>View 3D</strong></a> · ':'')+link(s.full_file||s.file,'PDB')+'<br><small>'+esc(s.source)+'</small>';
   if(m)structure+='<br><span class="metric">TM '+Number(m.tm_model).toFixed(2)+' / '+Number(m.tm_reference).toFixed(2)+'</span><br><small>Coverage '+pct(m.coverage_model)+' / '+pct(m.coverage_reference)+'</small>';
   else structure+='<br><small>No independent reference comparison</small>';

@@ -377,7 +377,19 @@ def parser():
     s4.add_argument('--bootstrap',type=positive,default=1000,help='UFBoot replicates (minimum 1000)')
     s4.add_argument('--occupancy',type=fraction,default=.5,help='Minimum canonical-residue column occupancy after full-sequence deduplication')
     s4.add_argument('--reference-panel',help='Optional named target/paralog/outgroup reference JSON')
-    s4.add_argument('--structures',help='Optional hash-verified exact-sequence PDB catalogue JSON')
+    structures=s4.add_mutually_exclusive_group()
+    structures.add_argument('--structures',help='Optional hash-verified exact-sequence PDB catalogue JSON')
+    structures.add_argument('--structure-provider',choices=['none','afdb','af3-prepare'],help='Opt-in AFDB retrieval or exact-sequence AF3 request preparation; no automatic paid jobs')
+    from .alphafold_db import add_options as afdb_options
+    afdb_options(s4)
+    fetch=commands.add_parser('structure-fetch',help='Fetch existing exact-sequence AFDB models into a separate catalogue; no folding jobs')
+    fetch.add_argument('--fasta',required=True)
+    fetch.add_argument('--out',required=True)
+    afdb_options(fetch)
+    af3=commands.add_parser('af3-prepare',help='Prepare exact-protein AlphaFold 3 requests without submitting jobs or creating cloud resources')
+    af3.add_argument('--fasta',required=True)
+    af3.add_argument('--out',required=True)
+    af3.add_argument('--limit',type=positive,default=3)
     s4.add_argument('--iqtree',help='Optional IQ-TREE executable path')
     s4.add_argument('--usalign',help='Optional US-align executable path')
     view4=commands.add_parser('stage4-viewer',help='Attach an offline 3D viewer to a sealed STOP 4 without repeating scientific comparisons')
@@ -390,6 +402,25 @@ def parser():
 
 def main(argv=None):
     args = parser().parse_args(argv)
+    if args.command == 'af3-prepare':
+        from .af3_requests import prepare
+        from .sequence import read_fasta
+        try:
+            print(json.dumps(dict(rows=prepare(read_fasta(args.fasta),args.out,args.limit),prediction_submitted=False),indent=2))
+            return 0
+        except (OSError,ValueError,RuntimeError,KeyError) as error:
+            print(f'ERROR: {error}',file=sys.stderr)
+            return 2
+    if args.command == 'structure-fetch':
+        from .alphafold_db import collect
+        from .sequence import read_fasta
+        try:
+            catalogue,rows=collect(read_fasta(args.fasta),args.out,args.structure_cache,args.structure_limit,args.structure_offline,args.structure_refresh)
+            print(json.dumps(dict(catalogue=str(catalogue),rows=rows,prediction_submitted=False),indent=2))
+            return 0
+        except (OSError,ValueError,RuntimeError,KeyError) as error:
+            print(f'ERROR: {error}',file=sys.stderr)
+            return 2
     if args.command == 'review-package':
         from .interactive_review import package_review
         try:

@@ -191,3 +191,12 @@ and `windows-arm64`. MAFFT availability still follows the portable runtime's
 documented architecture support. Packaging never approves models, downloads
 genomes or starts alignments. Existing scientific results and old portable
 packages are left untouched.
+
+## Optional STOP4 structures
+
+Set `options.stage4.structure_provider` to `afdb` for existing exact-sequence
+structures, or `af3-prepare` for native AF3 and AlphaFold Server request files.
+`structure_limit` defaults to three unique proteins; `structure_cache` can point
+to a shared local cache. The default remains offline with no automatic folding
+or paid API job. See [the prototype guide](STAGE4.md#experimental-api-preparation-and-retrieval)
+and [provider/access comparison](STRUCTURE_SERVICES.md).

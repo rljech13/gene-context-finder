@@ -98,8 +98,58 @@ and license are shipped under `genecontext/vendor/`, pinned by hash in
 
 ## Exact structures
 
-No folding jobs, model-weight downloads, public MSA submissions or network
-requests occur in this command. Existing exact structures are imported with
+### Experimental API preparation and retrieval
+
+STOP4 can explicitly look up existing exact-sequence monomers through AlphaFold
+DB, or prepare requests for genuinely new AlphaFold 3 predictions. They are
+separate operations and have separate statuses:
+
+```sh
+gene-context stage4 --results STOP3 --decisions final.json --out STOP4_WITH_AFDB \
+  --structure-provider afdb --structure-limit 3
+gene-context stage4 --results STOP3 --decisions final.json --out STOP4_AF3_REQUESTS \
+  --structure-provider af3-prepare --structure-limit 3
+```
+
+`afdb` uses the documented sequence-MD5 endpoint and verifies the complete amino
+acid sequence in both the API metadata and PDB coordinates. It downloads a
+versioned existing model, not a new folding calculation. Coordinates, metadata,
+source accession/organism and optional validated PAE are retained. The pilot
+checks at most three unique proteins by default (up to 50 explicitly), with
+primary models first. Identical sequences reuse the same cache artifact. The
+initial retrieval limit is 1500 amino acids and PDB chain A; unsupported lengths,
+missing exact models, API failures and budget omissions are shown explicitly.
+No similar protein is substituted. A structure from another accession or species
+can be reused only for the same full sequence and keeps its true provenance.
+
+`af3-prepare` writes per-protein native AF3 JSON (for local inference or a
+configured Google Cloud endpoint) and AlphaFold Server upload JSON. Status is
+`awaiting_prediction`, never “predicted”. It starts no cloud resources, sends
+no prediction requests and consumes no paid credits. Endpoint/account setup is
+a separate choice; see [service access comparison](STRUCTURE_SERVICES.md).
+
+These steps can also be run separately against an exact protein FASTA:
+
+```sh
+gene-context structure-fetch --fasta STOP3/selected.proteins.faa --out AFDB_CATALOGUE
+gene-context af3-prepare --fasta STOP3/selected.proteins.faa --out AF3_REQUESTS --limit 2
+```
+
+The AFDB catalogue is accepted by the ordinary offline `--structures` importer.
+Use `--structure-cache PATH` for a shared verified cache, `--structure-offline`
+to forbid requests, and `--structure-refresh` to explicitly retain a fresh
+response alongside the pinned cache. Network errors are not cached as missing
+models. Verified not-found responses remain pinned until explicit refresh.
+PAE matrices are dimension/value checked and downloadable; domain interpretation
+and a PAE plot are outside this prototype. pLDDT remains separate from measured
+structural similarity. The default `stage4` command is offline. Both structure
+providers work through `project.json` stage4 options without changing saved
+STOP1–3 decisions. Downloading or predicting a structure never approves a gene.
+
+### Import an existing catalogue
+
+With the default provider, no folding jobs, model-weight downloads, public MSA
+submissions or network requests occur. Existing exact structures are imported with
 `--structures structures.json`; a later folding/cache stage can produce this
 same catalogue. Prototype imports one full PDB CA chain per protein; partial
 experimental structures and mmCIF need a later extension.

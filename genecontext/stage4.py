@@ -192,10 +192,24 @@ def run(args):
                     competitor_references=sum(r['role']=='paralog' for r in additions),
                     history_status='not_reconstructed',sequence_roles={k:('selected_model' if k in chosen else next((r['role'] for r in additions if r['id']==k),'supplied_query')) for k in aligned})
         dump(folder/'evidence.json',tree);trees.append(tree)
-    imported,structure_notes=import_structures(args.structures,sequences,root)
+    catalogue=args.structures;retrieval=[]
+    if getattr(args,'structure_provider','none')=='afdb':
+        from .alphafold_db import collect
+        # Chosen primary models get the pilot budget first, then separate
+        # cases and supplied references; identical proteins use one request.
+        order=list(dict.fromkeys([r['model_id'] for r in primary+cases]+list(sequences)))
+        catalogue,retrieval=collect({sid:sequences[sid] for sid in order},root/'afdb',
+            args.structure_cache,args.structure_limit,args.structure_offline,args.structure_refresh)
+    elif getattr(args,'structure_provider',None)=='af3-prepare':
+        from .af3_requests import prepare
+        order=list(dict.fromkeys([r['model_id'] for r in primary+cases]+list(sequences)))
+        retrieval=prepare({sid:sequences[sid] for sid in order},root/'af3',args.structure_limit)
+    imported,structure_notes=import_structures(catalogue,sequences,root)
+    retrieval_by_id={r['sequence_id']:r for r in retrieval}
     structural=compare_structures(imported,sequence_groups,root,runner,args.usalign)
     for r in rows:
         mid=r['model_id'];r['structure']=imported.get(mid)
+        r['structure_retrieval']=retrieval_by_id.get(mid)
         possible=[]
         for p in structural:
             if p['status']!='computed' or p['scope']!='plddt_ge70' or p['same_protein_sequence'] or mid not in [p['sequence_a'],p['sequence_b']]:continue
@@ -209,7 +223,8 @@ def run(args):
     for r in rows:
         v={k:v for k,v in r.items() if not isinstance(v,(dict,list))}
         v.update(facts=' '.join(r['facts']),limitations=' '.join(r['limitations']),
-            structure_status='Exact structure available' if r['structure'] else 'Not assessed',
+            structure_status='Exact structure available' if r['structure'] else (r['structure_retrieval']['status'] if r['structure_retrieval'] else 'Not assessed'),
+            structure_missing_reason=r['structure_retrieval']['reason'] if r['structure_retrieval'] else '',
             structure_source=r['structure']['source'] if r['structure'] else '',
             structure_comparison_status='Computed on confident residues' if r['structure_match'] else 'No independent confident reference comparison')
         for k in ['tm_model','tm_reference','coverage_model','coverage_reference','rmsd_angstrom']:
@@ -221,11 +236,11 @@ def run(args):
     payload=dict(schema='stage4_dossier_v1',prototype=True,preview=bool(pending),
         review_id=evidence['spec']['review_id'],set_id=evidence['spec']['set_id'],
         rows=rows,trees=trees,structures=imported,structure_comparisons=structural,
-        structure_notes=structure_notes,counts=dict(primary=len(primary),special_cases=len(cases),
+        structure_notes=structure_notes,structure_retrieval=retrieval,counts=dict(primary=len(primary),special_cases=len(cases),
             species=len({r['genome_id'] for r in primary}),unreviewed_primary_buckets=pending),
         limitations=['No automatic orthology or functional-equivalence claim.',
             'Trees do not automatically validate target-versus-paralog identity or reconstruct duplication/loss history.',
-            'Structure prediction is not launched; exact existing PDB structures may be imported. Missing structures remain unassessed.',
+            'No new folding jobs are submitted. Optional AFDB retrieval supplies existing full exact-sequence structures; absent exact structures require separate prediction.',
             'Confidence-filtered structural comparisons are not domain-specific comparisons. Low-confidence/disordered sequence is not diagnosed as a model error.'])
     dump(root/'evidence.json',payload)
     if imported:
@@ -247,9 +262,10 @@ def run(args):
         extra_reference_panel_sha256=sha256(args.reference_panel) if args.reference_panel else None,
         structures_catalogue_sha256=sha256(args.structures) if args.structures else None,
         counts=payload['counts'],elapsed_seconds=time.perf_counter()-started,commands=runner.commands,
-        source_code_sha256={n:sha256(Path(__file__).with_name(n)) if n.endswith('.txt') else sha256(Path(importlib.import_module('genecontext.'+n[:-3]).__file__)) for n in ['stage4.py','stage4_phylogeny.py','stage4_structure.py','stage4_report.txt','stage4_viewer.py','stage4_viewer.txt','stage4_similarity.py','stage3_finalization.py','sequence.py','tools.py','cli.py']},
+        source_code_sha256={n:sha256(Path(__file__).with_name(n)) if n.endswith('.txt') else sha256(Path(importlib.import_module('genecontext.'+n[:-3]).__file__)) for n in ['stage4.py','alphafold_db.py','af3_requests.py','stage4_phylogeny.py','stage4_structure.py','stage4_report.txt','stage4_viewer.py','stage4_viewer.txt','stage4_similarity.py','stage3_finalization.py','sequence.py','tools.py','cli.py']},
         parameters=dict(tree=args.tree,bootstrap=args.bootstrap,occupancy=args.occupancy,threads=args.threads,
-            seed=42,structure_plddt_threshold=70),limitations=payload['limitations']))
+            seed=42,structure_plddt_threshold=70,structure_provider=getattr(args,'structure_provider',None) or 'none',
+            structure_limit=getattr(args,'structure_limit',3)),limitations=payload['limitations']))
     dump(root/'seal.json',{str(p.relative_to(root)):sha256(p) for p in root.rglob('*') if p.is_file() and p.name!='seal.json'})
     print(json.dumps(dict(report=str(root/'report.html'),preview=bool(pending),counts=payload['counts'],elapsed_seconds=time.perf_counter()-started)))
     return 0

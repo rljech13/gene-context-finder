@@ -11,6 +11,17 @@ from .sequence import sha256, write_tsv
 RESIDUES = dict(zip('ALA ARG ASN ASP CYS GLN GLU GLY HIS ILE LEU LYS MET PHE PRO SER THR TRP TYR VAL'.split(), 'ARNDCQEGHILKMFPSTWYV'))
 
 
+def validate_pae(path, length):
+    data=json.loads(Path(path).read_text())
+    if isinstance(data,list) and len(data)==1:data=data[0]
+    matrix=data.get('predicted_aligned_error') if isinstance(data,dict) else None
+    if not isinstance(matrix,list) or len(matrix)!=length or any(not isinstance(row,list) or len(row)!=length for row in matrix):
+        raise ValueError('PAE dimensions do not match the exact full protein')
+    if any(type(value) not in {int,float} or not math.isfinite(value) or value<0 for row in matrix for value in row):
+        raise ValueError('PAE contains an invalid error value')
+    return matrix
+
+
 def ca_atoms(path, chain='A'):
     atoms, seen = [], set()
     for line in Path(path).read_text().splitlines():
@@ -70,7 +81,15 @@ def import_structures(catalogue, sequences, root):
             mean_plddt=sum(a['confidence'] for a in atoms)/len(atoms) if confidence else None,
             confident_file=str(masked.relative_to(root)) if confident else '',
             pae_status='not_imported', exact_sequence_match=True)
-    notes.append('PDB CA-chain imports require a full, exact sequence match. pLDDT is used only when explicitly declared; experimental B factors are not pLDDT. PAE and domain boundaries are not assessed in this prototype.')
+        for key in ['afdb_model_id','afdb_version','source_organism']:
+            if key in entry:imported[sid][key]=entry[key]
+        if entry.get('pae_file'):
+            pae=(file.parent/entry['pae_file']).resolve()
+            if sha256(pae)!=entry.get('pae_file_sha256'):raise ValueError('PAE file hash mismatch: '+sid)
+            validate_pae(pae,len(atoms))
+            dest=root/'structures'/(sid+'.pae.json');shutil.copyfile(pae,dest)
+            imported[sid].update(pae_status='available_not_interpreted',pae_file=str(dest.relative_to(root)),pae_file_sha256=sha256(dest))
+    notes.append('PDB CA-chain imports require a full, exact sequence match. pLDDT is used only when explicitly declared; experimental B factors are not pLDDT. Optional PAE matrices are dimension/value checked and retained, without domain interpretation.')
     return imported, notes
 
 
