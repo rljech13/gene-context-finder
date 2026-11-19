@@ -158,6 +158,12 @@ def parser():
     parser = argparse.ArgumentParser(description="Find genes and their surroundings from DNA or protein sequences")
     parser.add_argument("--version", action="version", version=__version__)
     commands = parser.add_subparsers(dest="command", required=True)
+    from .project_run import register_cli
+    register_cli(commands)
+    package = commands.add_parser('review-package', help='Export a sealed STOP2/3 review app for one platform or all; no scientific calculations')
+    package.add_argument('--results', required=True)
+    package.add_argument('--out', required=True)
+    package.add_argument('--platform', choices=['current', 'all', 'darwin-arm64', 'darwin-amd64', 'linux-arm64', 'linux-amd64', 'windows-arm64', 'windows-amd64'], default='current')
     doctor = commands.add_parser("doctor", help="Check sequence tools and the selected predictor")
     predictor_options(doctor)
     setup = commands.add_parser("setup-predictor", help="Install the pinned Tiberius CPU runtime and prepare shared model weights")
@@ -384,6 +390,21 @@ def parser():
 
 def main(argv=None):
     args = parser().parse_args(argv)
+    if args.command == 'review-package':
+        from .interactive_review import package_review
+        try:
+            print(json.dumps(package_review(args), indent=2))
+            return 0
+        except (OSError, ValueError, RuntimeError, KeyError) as error:
+            print(f'ERROR: {error}', file=sys.stderr)
+            return 2
+    if args.command == 'project':
+        from .project_run import main as project_main
+        try:
+            return project_main(args)
+        except (OSError, ValueError, RuntimeError, KeyError, subprocess.SubprocessError) as error:
+            print(f'ERROR: {error}', file=sys.stderr)
+            return 2
     if args.command == 'compact-report':
         from .compact_report import run as compact
         try:

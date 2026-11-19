@@ -3,6 +3,8 @@
 (()=>{
 const host=document.getElementById('interactiveReview');if(!host)return;
 const seed=JSON.parse(document.getElementById('interactiveReviewData').textContent);
+let canPersist=true;
+const localStorage=(()=>{try{const s=window.localStorage,k='gcf-storage-check-'+Math.random();s.setItem(k,'1');s.removeItem(k);return s}catch(e){canPersist=false;const memory=new Map();return {getItem:k=>memory.get(k)||null,setItem:(k,v)=>memory.set(k,String(v)),removeItem:k=>memory.delete(k)}}})();
 let token=new URLSearchParams(location.search).get('review_token')||'';
 const hosted=!token&&location.protocol!=='file:';let pool='',connectPromise=null,polling=false;
 const workspaceKey='gcf-review-workspace-'+seed.stage+'-'+seed.review_id;
@@ -14,6 +16,7 @@ const resultStorage=()=>storage+'-result-'+group.value;
 try{const ids=JSON.parse(localStorage.getItem(storage)||'null');if(Array.isArray(ids))chosen=new Set(ids.filter(id=>seed.sequences.some(s=>s.id===id)))}catch(e){}
 const title=node('h2',seed.stage===2?'CDS candidates and alignment preview':'Rebuild the alignment');
 const help=node('p','Select the models and query references, then press Recalculate alignment. The new alignment appears here and remains after reloading this HTML. Alignment membership does not approve final gene assignments.');
+if(!canPersist)help.textContent='Browser storage is unavailable. Existing saved choices have not been changed. Export new choices and results before closing this page.';
 const tools=node('div');tools.className='interactive-tools';
 const group=node('select');group.setAttribute('aria-label','Interactive gene group');
 for(const id of [...new Set(seed.sequences.map(s=>s.group))]){const o=node('option',seed.groups?.[id]||id);o.value=id;group.append(o)}
@@ -27,6 +30,7 @@ const calc=node('button','Recalculate alignment');calc.id='realignSelected';calc
 const exportButton=node('button','Download current alignment + native sequences · ZIP');exportButton.type='button';exportButton.disabled=true;
 const stop=node('button','Finish and clean up');stop.type='button';stop.disabled=true;
 const launch=node('a','Download local recalculation app · ZIP');launch.href='review_app.zip';launch.download='';
+launch.hidden=seed.portable_available===false;
 const status=node('p');status.id='realignStatus';status.setAttribute('role','status');
 const list=node('div');list.className='interactive-models';
 const canvas=node('div');canvas.className='interactive-alignment';canvas.id='interactiveAlignment';
@@ -118,7 +122,7 @@ async function pollHosted(initial){
  finally{polling=false;setRunning(false)}
 }
 async function connect(){
- if(location.protocol==='file:'){status.textContent='For a standalone ZIP, start Start_review once. The same Recalculate button then runs MAFFT and saves the result.';return false}
+ if(location.protocol==='file:'){status.textContent=seed.portable_available===false?'Saved comparisons are available offline. Open the hosted review or a portable review app to recalculate alignments.':'For a standalone ZIP, start Start_review once. The same Recalculate button then runs MAFFT and saves the result.';return false}
  try{
   if(hosted&&!pool){const rows=seed.sequences.map(s=>[s.id,s.protein,s.cds||'',s.group]).sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0);pool=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(rows)))),v=>v.toString(16).padStart(2,'0')).join('')}
   const state=await(await api('status')).json();if(state.review_id!==seed.review_id)throw Error('Different report session');

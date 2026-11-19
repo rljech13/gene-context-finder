@@ -14,8 +14,8 @@ STYLE = """#interactiveReview{margin:22px 0;padding:20px;border:1px solid #cbd9d
 
 def sequences(root):
     root = Path(root)
-    proteins = dict(read_fasta(root/'proteins.faa')) if (root/'proteins.faa').exists() else {}
-    coding = dict(read_fasta(root/'cds.fna')) if (root/'cds.fna').exists() else {}
+    proteins = dict(read_fasta(root/'proteins.faa')) if (root/'proteins.faa').exists() and (root/'proteins.faa').stat().st_size else {}
+    coding = dict(read_fasta(root/'cds.fna')) if (root/'cds.fna').exists() and (root/'cds.fna').stat().st_size else {}
     for name, target in [('reconstructed.proteins.faa', proteins), ('reconstructed.cds.fna', coding)]:
         p=root/'reconstruction'/name
         if p.exists(): target.update(read_fasta(p))
@@ -43,7 +43,7 @@ def stage2_dataset(root, data):
                 q=(data.get('query_members',{}).get(qid) or [{}])[0]
                 records.append(dict(id=rid,protein=seq,cds='',group=gene,reference=True,label=(q.get('species') or 'Query')+' · '+(q.get('protein') or q.get('query') or qid),metadata=dict(query_id=qid,cds_status='not_supplied')))
                 visible.append(rid)
-    return dict(schema='gcf_interactive_review_v1',stage=2,review_id=data['review_id'],sequences=records,
+    return dict(schema='gcf_interactive_review_v1',stage=2,review_id=data['review_id'],sequences=records,portable_available=False,
         selected=[s['id'] for s in records if s['reference']],visible=visible,colours=BLOSSOM,history=dict(source_review_id=data['review_id'],note='No model approved by opening this package.'))
 
 def stage3_dataset(root, data, source=None, source_display=None):
@@ -81,7 +81,7 @@ def stage3_dataset(root, data, source=None, source_display=None):
             records[rid]=dict(id=rid,protein=seq,cds='',group=g['id'],reference=True,
                 label=(q.get('species') or 'Query')+' · '+(q.get('protein') or q.get('query') or rid),metadata=dict(aliases=members,cds_status='not_supplied'))
             selected.append(rid)
-    return dict(schema='gcf_interactive_review_v1',stage=3,review_id=data['review_id'],groups=groups,
+    return dict(schema='gcf_interactive_review_v1',stage=3,review_id=data['review_id'],groups=groups,portable_available=False,
         sequences=list(records.values()),selected=selected,visible=selected,colours=BLOSSOM,
         history=dict(original_stop2_decisions=json.loads((root/'decisions.snapshot.json').read_text()) if (root/'decisions.snapshot.json').exists() else {},
             comments=data.get('comment_history',{}),original_final_choices=data.get('finalization',{}).get('state',{}),
@@ -98,9 +98,15 @@ def attach(html,data):
     script=Path(__file__).with_name('review_realign.txt').read_text()
     return MARKER+'\n'+html.replace('</body>','<script>'+script+'</script></body>',1)
 
-def write_kit(root,data,bin_dir=None):
+def write_dataset(root, data):
+    path=Path(root)/'review_data.json'
+    path.write_text(json.dumps(data,ensure_ascii=True,separators=(',',':'))+'\n')
+
+
+def write_kit(root,data,bin_dir=None,platforms=None):
     """The tiny app is independent of source scientific trees and environments."""
-    root=Path(root);(root/'review_data.json').write_text(json.dumps(data,ensure_ascii=True,separators=(',',':'))+'\n')
+    data=dict(data,portable_available=True)
+    root=Path(root);write_dataset(root,data)
     binary_root=Path(bin_dir or os.environ.get('GCF_REVIEW_BIN_DIR') or Path(__file__).parent/'vendor/review')
     if not binary_root.is_dir():raise ValueError('Review launcher binaries were not packaged')
     files={'review_data.json':(root/'review_data.json').read_bytes()}
@@ -116,7 +122,9 @@ exec ".review/bin/review-$os-$arch" --root "$PWD"
     for name,raw in files.items():
         p=root/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(raw)
         if name.endswith(('.command','.sh')):p.chmod(0o755)
-    for p in binary_root.glob('review-*'):
+    binaries=[p for p in binary_root.glob('review-*') if platforms is None or p.name.removesuffix('.exe').removeprefix('review-') in platforms]
+    if not binaries:raise ValueError('No packaged launcher for the requested platform')
+    for p in binaries:
         dest=root/'.review/bin'/p.name;dest.parent.mkdir(parents=True,exist_ok=True)
         if dest.is_symlink():dest.unlink()
         if not dest.exists():
@@ -141,3 +149,29 @@ exec ".review/bin/review-$os-$arch" --root "$PWD"
             z.writestr(info,raw)
     return dict(schema=data['schema'],review_id=data['review_id'],sequences=len(data['sequences']),selected=len(data['selected']),
         app_zip_sha256=hashlib.sha256((root/'review_app.zip').read_bytes()).hexdigest(),app_zip_bytes=(root/'review_app.zip').stat().st_size)
+
+
+def package_review(args):
+    import platform
+    from .stage1 import new_output
+    source=Path(args.results).resolve();target=Path(args.out).resolve()
+    if source==target or source in target.parents or target in source.parents:
+        raise ValueError('Use a separate portable-package output directory')
+    data=json.loads((source/'review_data.json').read_text())
+    if data.get('schema')!='gcf_interactive_review_v1':raise ValueError('Expected saved interactive review data')
+    if data.get('stage')==2:
+        from .stage2_choices import verify_checkpoint
+        _,scientific=verify_checkpoint(source);review_id=scientific['review_id']
+    elif data.get('stage')==3:
+        from .stage4 import checked_source
+        _,manifest=checked_source(source);review_id=manifest['source_review_id']
+    else:raise ValueError('Portable review requires STOP2 or STOP3')
+    if data['review_id']!=review_id:raise ValueError('Review dataset belongs to another checkpoint')
+    chosen=args.platform
+    if chosen=='current':
+        osname={'Darwin':'darwin','Linux':'linux','Windows':'windows'}.get(platform.system())
+        arch={'arm64':'arm64','aarch64':'arm64','x86_64':'amd64','AMD64':'amd64'}.get(platform.machine())
+        if not osname or not arch:raise ValueError('Choose a supported viewer platform explicitly')
+        chosen=osname+'-'+arch
+    root=new_output(target)
+    return write_kit(root,data,platforms=None if chosen=='all' else {chosen})

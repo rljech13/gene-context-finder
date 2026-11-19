@@ -1,8 +1,21 @@
 # Gene Context Finder
 
-Find candidate gene loci in multiple genomes using an annotation-derived panel of reference sequences.
+Find, review and compare gene loci across user-supplied genomes and reference panels.
 
-The current [work plan](docs/WORK_PLAN.md) maps implemented stages to the remaining work for target-gene conservation and sequence selection across the study species. The active workflow is `stage1 → stage2 → stage3`, with two manual review stops. The [stage 3 guide](docs/STAGE3.md) explains the reviewed-sequence catalogue and conservation comparisons. The [NANOG verification](docs/WORKFLOW_FIXES_2026-11-09.md) records the actual run scope, fixes and remaining work.
+The primary workflow is **configure study → STOP1 loci → STOP2 models → STOP3 sequence comparison and final selection → STOP4 dossier**. Each transition requires the exact exported review decisions. Pluripotency is one application; gene names, families, species and references are configuration inputs. The [project guide](docs/PROJECTS.md) covers multi-target studies, existing checkpoint adoption, safe review history, shared-queue execution and optional portable apps. Native single-stage commands below remain available.
+
+After installation, try a project using the bundled small POU5 control windows:
+
+```sh
+gene-context project init --name 'POU5 controls' --out results/pou5-study \
+  --targets examples/studies/pou5.targets.tsv \
+  --genomes examples/queries/pou5_test/controls.genomes.tsv
+gene-context project validate --project results/pou5-study
+gene-context project run --project results/pou5-study --target all --stage stage1
+gene-context project report --project results/pou5-study
+```
+
+Open `project-report.html` in the study directory. Review STOP1, import its export with `project decisions`, then explicitly run the next stage. New projects default to planning-only STOP2 until a compute executor is configured. The six control windows are not whole-genome validation. Existing calculations continue on their pinned source; use `project attach` on the owning host after they complete, without copying or editing their data.
 
 The optional [STOP 4 prototype](docs/STAGE4.md) turns a sealed STOP 3 result into
 a compact candidate dossier with separate identity/model-quality assessments,

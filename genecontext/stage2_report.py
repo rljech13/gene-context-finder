@@ -95,8 +95,8 @@ def render_document(payload, root=None):
     text=json.dumps(payload,ensure_ascii=True,separators=(',',':')).replace('<','\\u003c').replace('&','\\u0026')
     html='<!-- '+UI_VERSION+' -->\n'+template.replace('__DATA__',text)
     if root is not None:
-        from .interactive_review import attach,stage2_dataset,write_kit
-        interactive=stage2_dataset(root,payload);write_kit(root,interactive);html=attach(html,interactive)
+        from .interactive_review import attach,stage2_dataset,write_dataset
+        interactive=stage2_dataset(root,payload);write_dataset(root,interactive);html=attach(html,interactive)
     return html
 
 

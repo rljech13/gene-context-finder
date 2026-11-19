@@ -139,7 +139,7 @@ def write_summary(root, payload):
     final_script=Path(__file__).with_name('stage3_finalization.txt').read_text()
     from .alignment_blossom import colour_alignment_html
     html=colour_alignment_html(template.replace('__DATA__',serialized).replace('__FINALIZATION_SCRIPT__',final_script))
-    from .interactive_review import attach,stage3_dataset,write_kit
+    from .interactive_review import attach,stage3_dataset,write_dataset
     source=Path(payload.get('parameters',{}).get('results',''))
     interactive=stage3_dataset(root,summary,source if (source/'evidence.json').exists() else None)
-    write_kit(root,interactive);(root/'report.html').write_text(attach(html,interactive))
+    write_dataset(root,interactive);(root/'report.html').write_text(attach(html,interactive))

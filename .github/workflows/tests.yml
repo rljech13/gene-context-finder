@@ -20,3 +20,36 @@ jobs:
           "$RUNNER_TEMP/gcf-install/bin/python" -m pip install --no-index --no-deps "$RUNNER_TEMP/gcf-wheel/"*.whl
           cd "$RUNNER_TEMP"
           "$RUNNER_TEMP/gcf-install/bin/gene-context" --help
+          "$RUNNER_TEMP/gcf-install/bin/gene-context" project --help
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install sequence tools for small software controls
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ncbi-blast+ samtools mafft
+      - run: python -m unittest discover -s tests -v
+  review-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+  portable-viewer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: portable-review/go.mod
+          cache: false
+      - run: go test ./...
+        working-directory: portable-review
