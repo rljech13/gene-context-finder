@@ -379,7 +379,7 @@ def parser():
     s4.add_argument('--reference-panel',help='Optional named target/paralog/outgroup reference JSON')
     structures=s4.add_mutually_exclusive_group()
     structures.add_argument('--structures',help='Optional hash-verified exact-sequence PDB catalogue JSON')
-    structures.add_argument('--structure-provider',choices=['none','afdb','af3-prepare'],help='Opt-in AFDB retrieval or exact-sequence AF3 request preparation; no automatic paid jobs')
+    structures.add_argument('--structure-provider',choices=['none','afdb','alphafold-server','af3-prepare'],help='Opt-in AFDB retrieval or AlphaFold Server job preparation; no automatic paid jobs')
     from .alphafold_db import add_options as afdb_options
     afdb_options(s4)
     fetch=commands.add_parser('structure-fetch',help='Fetch existing exact-sequence AFDB models into a separate catalogue; no folding jobs')
@@ -390,6 +390,11 @@ def parser():
     af3.add_argument('--fasta',required=True)
     af3.add_argument('--out',required=True)
     af3.add_argument('--limit',type=positive,default=3)
+    af3import=commands.add_parser('af3-import',help='Import a completed AlphaFold Server ZIP for exact prepared proteins into a new catalogue')
+    af3import.add_argument('--requests',required=True,help='Prepared requests.json')
+    af3import.add_argument('--archive',required=True,help='Original downloaded Server job ZIP')
+    af3import.add_argument('--out',required=True,help='New result directory; old attempts are retained')
+    af3import.add_argument('--source-url',default='',help='Optional Server job page URL for provenance')
     s4.add_argument('--iqtree',help='Optional IQ-TREE executable path')
     s4.add_argument('--usalign',help='Optional US-align executable path')
     view4=commands.add_parser('stage4-viewer',help='Attach an offline 3D viewer to a sealed STOP 4 without repeating scientific comparisons')
@@ -402,6 +407,16 @@ def parser():
 
 def main(argv=None):
     args = parser().parse_args(argv)
+    if args.command == 'af3-import':
+        from .alphafold_server import import_result
+        from zipfile import BadZipFile
+        try:
+            catalogue=import_result(args.requests,args.archive,args.out,args.source_url)
+            print(json.dumps(dict(catalogue=str(catalogue),status='available')))
+            return 0
+        except (OSError,ValueError,RuntimeError,KeyError,BadZipFile) as error:
+            print(f'ERROR: {error}',file=sys.stderr)
+            return 2
     if args.command == 'af3-prepare':
         from .af3_requests import prepare
         from .sequence import read_fasta

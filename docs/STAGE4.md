@@ -98,6 +98,62 @@ and license are shipped under `genecontext/vendor/`, pinned by hash in
 
 ## Exact structures
 
+### Preferred new predictions: AlphaFold Server
+
+Use the exact selected proteins from the saved review, not a replacement sequence
+looked up by gene name. The Server's documented JSON upload is the initial
+transport; the prototype does not rely on internal browser RPC endpoints.
+
+```bash
+gene-context stage4 --results STOP3 --decisions final.json --out STOP4_SERVER \
+  --structure-provider alphafold-server --structure-limit 2
+# Or prepare independently from an exact selected FASTA:
+gene-context af3-prepare --fasta selected.proteins.faa --out SERVER_REQUESTS --limit 2
+```
+
+In AlphaFold Server, upload `upload.server.json`, open each saved draft and submit
+it. One exact monomer is one job. Inputs retain seed 42; the Server dialect uses
+string seeds and accepts 4–5000 canonical residues. Unsupported proteins are
+reported without substituting unknown residues. Identical proteins share a job.
+
+After completion, download the original job ZIP and import it into a new directory:
+
+```bash
+pip install 'gene-context-finder[structures]'
+gene-context af3-import --requests SERVER_REQUESTS/requests.json \
+  --archive downloaded-job.zip --out SERVER_RESULT \
+  --source-url https://alphafoldserver.com/fold/JOB_ID
+```
+
+The small optional Gemmi parser is needed only for this mmCIF import; ordinary
+pipeline installation stays dependency-free. The importer checks the returned
+job name, seed and full protein against sealed input files, selects the highest
+returned ranking score, validates exact coordinate sequence and PAE dimensions,
+and emits the ordinary `stage4_structures_v1` catalogue. All returned samples,
+MSAs, templates and output terms remain in the original `source.zip`; selected
+raw mmCIF, confidence files and conversion details are also retained. Chain-A PDB
+conversion changes decimal precision; the raw structure is preserved. The
+catalogue can be supplied with `stage4 --structures SERVER_RESULT/catalogue.json`.
+Use a new STOP4 directory and preserve the existing report and decisions.
+
+### Extension boundary
+
+The core consumes `stage4_structures_v1`; provider adapters are separate modules
+(`alphafold_db.py`, `alphafold_server.py`). New providers or Server formats can
+add an adapter without changing selected model IDs or review decisions. Request
+and result manifests carry provider/model, adapter/schema versions, exact protein
+SHA-256, source model IDs and an `extensions` object. Request files, original
+archives, selected coordinates and outputs are hashed; old attempts are retained.
+Unknown returned Server request versions are recorded rather than silently
+rewritten; supported monomer/coordinate/metric checks still apply. A failed import
+leaves an explicit failed attempt, never a ready receipt. This boundary supports
+a later official submission API without making it a requirement for a first trial.
+
+Two real Server jobs for user-selected Gallus gallus (annotation) and Pavo
+cristatus (Tiberius) POU5F3 proteins completed on 2026-11-19. Each input was 389 aa
+with seed 42; five samples were retained per job. This validates a small real
+round trip, not biological functional equivalence or all future service formats.
+
 ### Experimental API preparation and retrieval
 
 STOP4 can explicitly look up existing exact-sequence monomers through AlphaFold
@@ -151,8 +207,9 @@ STOP1–3 decisions. Downloading or predicting a structure never approves a gene
 With the default provider, no folding jobs, model-weight downloads, public MSA
 submissions or network requests occur. Existing exact structures are imported with
 `--structures structures.json`; a later folding/cache stage can produce this
-same catalogue. Prototype imports one full PDB CA chain per protein; partial
-experimental structures and mmCIF need a later extension.
+same catalogue. The core imports one full PDB CA chain per protein; the Server
+adapter converts and verifies mmCIF first. Partial experimental structures and
+arbitrary complex/mmCIF imports need a later extension.
 
 ```json
 {"schema":"stage4_structures_v1","entries":[
@@ -165,7 +222,8 @@ experimental structures and mmCIF need a later extension.
 
 The actual CA-chain sequence must equal the entire exact saved protein, not just
 the supplied checksum. No homolog structure is relabeled as the selected model.
-Omit `confidence` when B factors are not pLDDT. PAE is not imported or assessed.
+Omit `confidence` when B factors are not pLDDT. Optional PAE is verified and retained;
+it is not interpreted as a domain annotation.
 US-align (`--usalign PATH`) measures all available same-group pairs for full
 chains and independently filtered pLDDT≥70 coordinates. Both normalized TM-scores,
 RMSD, aligned residues and coverage of both original full proteins are exported.

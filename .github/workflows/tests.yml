@@ -32,6 +32,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ncbi-blast+ samtools mafft
+      - name: Install optional structure parser for AF3 ZIP controls
+        run: python -m pip install '.[structures]'
       - run: python -m unittest discover -s tests -v
   review-ui:
     runs-on: ubuntu-latest

@@ -12,8 +12,15 @@ does not create accounts, buy credits, deploy endpoints or submit predictions.
 | Tamarind Bio | AlphaFold2/ColabFold, Boltz, Chai and other tools | Documented API; free page lists 10 jobs/month, academic extensions are available. Open API access is explicitly listed under Premium; academic API entitlement and price need confirmation. The provider's “AlphaFold3 commercially” article discusses Boltz/Chai alternatives. |
 | Foldify / Foldify-Open | Includes actual AlphaFold 3 | The published open service is a possible free academic trial route. The institutional manual describes e-INFRA login/group access, while the open repository supports guest sessions. Public submission-API support and current open-service availability were not verified. |
 
-For a few original AF3 structures, start with AlphaFold Server and the generated
-`.server.json` uploads. For an API-first prototype without managing GPU/cloud
+The project's preferred route for new predictions is **AlphaFold Server**. Use
+the generated `upload.server.json` batch, run its drafts, then retain and import
+each downloaded result ZIP with `af3-import`. A real trial on the saved POU5F3
+proteins of Gallus gallus and Pavo cristatus completed on 2026-11-19: two jobs,
+one seed each, five returned samples per job. These are new Server AF3 predictions,
+separate from earlier ready-made AFDB controls. See `docs/STAGE4.md` for the
+request/result boundary and later provider adapters.
+
+For an API-first prototype without managing GPU/cloud
 infrastructure, first check NVIDIA's hosted OpenFold3 trial **if a reimplementation
 is acceptable**. Its hosted endpoint does not require a local Docker/GPU setup.
 Neurosnap pay-as-you-go is another candidate for named alternatives such as

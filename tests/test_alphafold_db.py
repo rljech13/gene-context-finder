@@ -129,14 +129,15 @@ class AF3Requests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp)
             with patch('genecontext.alphafold_db.urlopen',side_effect=AssertionError('No network')):
-                rows=prepare({'selected':'MA','same_sequence':'MA','later':'MG'},root/'prepared',limit=1)
+                rows=prepare({'selected':'MAAA','same_sequence':'MAAA','later':'MGGG'},root/'prepared',limit=1)
             self.assertEqual(rows[0]['status'],'awaiting_prediction');self.assertEqual(rows[1]['input_file'],rows[0]['input_file'])
             self.assertEqual(rows[2]['status'],'not_requested')
             data=json.loads((root/'prepared'/rows[0]['input_file']).read_text())
-            self.assertEqual(data['sequences'],[dict(protein=dict(id='A',sequence='MA'))])
+            self.assertEqual(data['sequences'],[dict(protein=dict(id='A',sequence='MAAA'))])
             self.assertEqual((data['dialect'],data['version'],data['modelSeeds']),('alphafold3',4,[42]))
             server=json.loads((root/'prepared'/rows[0]['server_input_file']).read_text())
-            self.assertEqual(server[0]['sequences'],[dict(proteinChain=dict(sequence='MA',count=1))])
+            self.assertEqual(server[0]['sequences'],[dict(proteinChain=dict(sequence='MAAA',count=1))])
+            self.assertEqual(server[0]['modelSeeds'],['42'])
             request=json.loads((root/'prepared/requests.json').read_text());self.assertFalse(request['prediction_submitted'])
             self.assertEqual(request['requests'][0]['source_sequence_ids'],['selected','same_sequence'])
 

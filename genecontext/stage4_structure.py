@@ -81,7 +81,7 @@ def import_structures(catalogue, sequences, root):
             mean_plddt=sum(a['confidence'] for a in atoms)/len(atoms) if confidence else None,
             confident_file=str(masked.relative_to(root)) if confident else '',
             pae_status='not_imported', exact_sequence_match=True)
-        for key in ['afdb_model_id','afdb_version','source_organism']:
+        for key in ['afdb_model_id','afdb_version','source_organism','provider','model','adapter_version','source_archive_sha256','raw_mmcif_sha256','usage_terms_url']:
             if key in entry:imported[sid][key]=entry[key]
         if entry.get('pae_file'):
             pae=(file.parent/entry['pae_file']).resolve()

@@ -200,7 +200,7 @@ def run(args):
         order=list(dict.fromkeys([r['model_id'] for r in primary+cases]+list(sequences)))
         catalogue,retrieval=collect({sid:sequences[sid] for sid in order},root/'afdb',
             args.structure_cache,args.structure_limit,args.structure_offline,args.structure_refresh)
-    elif getattr(args,'structure_provider',None)=='af3-prepare':
+    elif getattr(args,'structure_provider',None) in {'alphafold-server','af3-prepare'}:
         from .af3_requests import prepare
         order=list(dict.fromkeys([r['model_id'] for r in primary+cases]+list(sequences)))
         retrieval=prepare({sid:sequences[sid] for sid in order},root/'af3',args.structure_limit)
