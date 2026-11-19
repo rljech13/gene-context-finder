@@ -6,13 +6,13 @@ STOP4 dossier/structures. The confirmation inside STOP2 hands a model set to
 synteny; it does not authorize AlphaFold.
 
 At the end of the separate synteny page, each confirmed target/candidate model
-has **«Утвердить модель как эталон»**. This explicit action selects the final
+has **«Approve model as reference»**. This explicit action selects the final
 reference after context review; at most one alternative model of a physical
 locus can be approved at a time. Distinct physical copies remain distinct.
 Revoke the old reference before choosing another variant of that same locus.
 Queries and neighbor-only anchors have no approval action.
 
-**«Подготовить отправку в AlphaFold Server»** is disabled until approval. It
+**«Prepare AlphaFold Server submission»** is disabled until approval. It
 verifies the full native protein hash and unchanged confirmed-set handoff,
 then downloads one monomer Server JSON; upload and launch happen manually on
 the official Server. Opening the page or approving a reference never submits

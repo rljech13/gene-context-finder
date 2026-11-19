@@ -134,7 +134,7 @@ This final assignment retains the original STOP-2 selection and all-by-all compa
 
 In the alignment-first route, STOP2 covers models → alignment → tree →
 confirmed-set handoff. **STOP3 is the separate synteny/context review.** At its
-end, **«Утвердить модель как эталон»** enables preparation of a Server JSON for
+end, **«Approve model as reference»** enables preparation of a Server JSON for
 that exact protein. The legacy comparison table has no reference-approval
 button. Saved choices remain intact; old reports retain their legacy route to
 STOP4. [Post-synteny approval](docs/SYNTENY_REFERENCE.md).

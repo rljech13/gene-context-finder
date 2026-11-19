@@ -101,7 +101,7 @@ and license are shipped under `genecontext/vendor/`, pinned by hash in
 ### Preferred new predictions: AlphaFold Server
 
 Folding export is allowed **only after STOP3 and explicit approval of a final
-primary reference model** using **«Утвердить модель как эталон»** at the end of the new STOP3
+primary reference model** using **«Approve model as reference»** at the end of the new STOP3
 synteny/context page. The old comparison table has no approval controls. A saved reviewed choice alone, saved candidate choices, a
 completed alignment or a proposed primary are insufficient. The approval is bound to the exact protein
 SHA-256 and reviewed final gene/genome decision. Alternatives, special cases,

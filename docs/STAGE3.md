@@ -104,8 +104,8 @@ This validates the exact source review and sequence-set fingerprint, every gene/
 
 The alignment-first workflow has a **separate STOP3 for genomic context and
 synteny**, after STOP2 model choice, alignment, tree and confirmed-set handoff.
-**«Утвердить модель как эталон»** belongs at the end of that synteny page,
-followed by **«Подготовить отправку в AlphaFold Server»**. The legacy comparison
+**«Approve model as reference»** belongs at the end of that synteny page,
+followed by **«Prepare AlphaFold Server submission»**. The legacy comparison
 sheet described above no longer contains these buttons. Its saved choices,
 comments and previously approved exports remain intact.
 
