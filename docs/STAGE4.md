@@ -101,8 +101,8 @@ and license are shipped under `genecontext/vendor/`, pinned by hash in
 ### Preferred new predictions: AlphaFold Server
 
 Folding export is allowed **only after STOP3 and explicit approval of a final
-primary reference model** using **«Утвердить модель как эталон»** in the stage-3
-primary-target table. A saved reviewed choice alone, saved candidate choices, a
+primary reference model** using **«Утвердить модель как эталон»** at the end of the new STOP3
+synteny/context page. The old comparison table has no approval controls. A saved reviewed choice alone, saved candidate choices, a
 completed alignment or a proposed primary are insufficient. The approval is bound to the exact protein
 SHA-256 and reviewed final gene/genome decision. Alternatives, special cases,
 queries and unreviewed suggestions are not sent automatically.
@@ -111,6 +111,18 @@ Prepare every explicitly approved final reference by default; identical full
 sequences share one job. Show **one best structure per protein**. AlphaFold Server calculates
 five samples per job; its public upload format does not expose a setting for
 three samples. The original ZIP preserves all raw samples as evidence.
+
+For the new alignment-first route, use the approval JSON downloaded **after
+synteny** (only the approved native proteins may appear in this FASTA):
+
+```bash
+gene-context af3-prepare --fasta approved.references.faa \
+  --approval stage3.synteny.references.json --out SERVER_REQUESTS
+```
+
+The legacy sealed-report route remains available for completed studies and
+explicitly approved historical decisions. It does not reinterpret old reviewed
+flags as new post-synteny approval.
 
 For a whole multi-gene/multi-species collection:
 

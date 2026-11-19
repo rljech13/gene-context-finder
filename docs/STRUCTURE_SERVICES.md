@@ -20,7 +20,7 @@ one seed each, five returned samples per job. These are new Server AF3 predictio
 separate from earlier ready-made AFDB controls. These experimental jobs do not
 approve either gene model as a final reference. After the user's clarification,
 further exports require the separate **«Утвердить модель как эталон»** action in
-the STOP3 report; a reviewed choice alone does not grant approval;
+the end of the new STOP3 synteny/context page; a reviewed choice alone does not grant approval;
 candidate selections and alignments cannot authorize submission. See `docs/STAGE4.md` for the
 request/result boundary and later provider adapters.
 

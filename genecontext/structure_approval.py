@@ -22,6 +22,9 @@ def from_validated(source,evidence,state,proteins):
 def verify(approval,sequences):
     if isinstance(approval,(str,Path)):
         approval=json.loads(Path(approval).read_text())
+    if isinstance(approval,dict) and approval.get('schema')=='gcf_synteny_reference_approval_v1':
+        from .synteny_reference import verify as verify_synteny
+        return verify_synteny(approval,sequences)
     if not isinstance(approval,dict) or approval.get('schema')!=SCHEMA or approval.get('stage')!=3:
         raise ValueError('Folding export requires explicit final reference-model approval after STOP3; saved candidate selections and alignments are insufficient')
     state=validate_choices(approval['decisions'],approval['spec'])

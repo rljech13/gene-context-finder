@@ -30,24 +30,9 @@ function load(payload=data(),saved){
 const tick=()=>new Promise(r=>setTimeout(r,15));
 const readBlob=(w,b)=>new Promise((resolve,reject)=>{const reader=new w.FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsText(b)});
 (async()=>{
- let app=load(),{w,d,run}=app;const button=action=>d.querySelector('[data-action="'+action+'"]');
- assert.equal(button('approve-reference').disabled,true);assert.equal(button('send-alphafold').disabled,true);
- run("editPrimary('a')");d.getElementById('finalReason').value='Reviewed synthetic final model';d.getElementById('finalSave').click();
- assert.equal(button('approve-reference').disabled,false);assert.equal(button('send-alphafold').disabled,true,'Saving a reviewed choice does not approve a reference');
- button('approve-reference').click();await tick();
- assert.equal(button('send-alphafold').disabled,false);assert.equal(run('finalState.choices.bucket.reference_approval.protein_sha256'),hash('MAAAA'));
- const approved=run('JSON.stringify(finalState)');assert.ok(JSON.parse(run('localStorage.getItem(finalKey)')).choices.bucket.reference_approval);
- button('send-alphafold').click();await tick();assert.equal(app.downloads.length,1);
- const job=JSON.parse(await readBlob(w,app.downloads[0].blob));assert.equal(job.length,1);assert.equal(job[0].sequences[0].proteinChain.sequence,'MAAAA');assert.deepEqual(job[0].modelSeeds,['42']);
- assert.match(d.getElementById('finalMessage').textContent,/Задание скачано/);assert.equal(d.querySelector('#finalMessage a').href,'https://alphafoldserver.com/');
- assert.ok(JSON.parse(run("finalFiles()['stage3.final.decisions.json']")).choices.bucket.reference_approval);
- app.dom.window.close();app=load(data(),approved);({w,d,run}=app);assert.equal(button('send-alphafold').disabled,false,'Explicit approval survives reload');
- button('revoke-reference').click();assert.equal(button('send-alphafold').disabled,true);assert.equal(run('finalState.reference_history.at(-1).action'),'revoked');
- button('approve-reference').click();await tick();run("editPrimary('b')");d.getElementById('finalReason').value='Changed synthetic final model';d.getElementById('finalSave').click();
- assert.equal(button('send-alphafold').disabled,true);assert.equal(run('finalState.choices.bucket.reference_approval'),undefined);assert.equal(run('finalState.reference_history.at(-1).action'),'invalidated_by_model_edit');
- app.dom.window.close();const changed=data();changed.finalization.raw_sequences.protein.a='MAAAC';changed.models[0].protein_sha256=hash('MAAAC');changed.finalization.spec.protein_sha256.a=hash('MAAAC');app=load(changed,approved);({w,d,run}=app);
- assert.equal(button('send-alphafold').disabled,true,'Changed sequence invalidates old approval');assert.equal(run('finalState.choices.bucket.primary'),'a');assert.equal(run('finalState.choices.bucket.reviewed'),true);assert.equal(run('finalState.reference_history.at(-1).action'),'invalidated_on_load');
- app.dom.window.close();
- if(process.argv[2]){fs.mkdirSync(process.argv[2],{recursive:true});fs.writeFileSync(path.join(process.argv[2],'report.html'),html());fs.writeFileSync(path.join(process.argv[2],'approved.synthetic.json'),approved)}
- console.log(JSON.stringify({status:'passed',legacy_review_does_not_approve:true,explicit_button_required:true,exact_sequence_bound:true,reload:true,revoke:true,changed_model_blocks:true,changed_sequence_blocks:true,one_job_export:true,no_network_or_predictions:true}));
+ const app=load(),before=app.run('JSON.stringify(finalState)');
+ assert.equal(app.d.querySelector('[data-action="approve-reference"]'),null,'Old comparison table is not the new STOP3');
+ assert.equal(app.d.querySelector('[data-action="send-alphafold"]'),null);
+ assert.equal(app.run('JSON.stringify(finalState)'),before);
+ app.dom.window.close();console.log(JSON.stringify({status:'passed',legacy_buttons_removed:true,legacy_choices_preserved:true}));
 })().catch(e=>{console.error(e);process.exit(1)});

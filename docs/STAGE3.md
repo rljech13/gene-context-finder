@@ -102,22 +102,21 @@ This validates the exact source review and sequence-set fingerprint, every gene/
 
 ## Explicit final reference approval
 
-In the primary-target table, **«Утвердить модель как эталон»** is a separate
-step after saving the final reviewed choice. Existing reviewed choices keep
-their selection and comments; they do not acquire reference approval automatically.
-Only this explicit action enables **«Подготовить отправку в AlphaFold Server»**.
-Approval is bound to the model, gene/genome bucket, reviewed set and SHA-256 of
-the full native protein. Editing the primary choice, changing the protein or
-using **«Отозвать утверждение»** blocks preparation until a new approval.
+The alignment-first workflow has a **separate STOP3 for genomic context and
+synteny**, after STOP2 model choice, alignment, tree and confirmed-set handoff.
+**«Утвердить модель как эталон»** belongs at the end of that synteny page,
+followed by **«Подготовить отправку в AlphaFold Server»**. The legacy comparison
+sheet described above no longer contains these buttons. Its saved choices,
+comments and previously approved exports remain intact.
 
-Approval and its history persist with the browser draft and exported
-`stage3.final.decisions.json`. To carry approval between computers, export and
-import that JSON. Browser drafts do not update scientific files automatically.
-The AlphaFold button downloads one exact-sequence Server JSON and provides the
-link to the official Server; upload and launch take place there. Merely approving
-a reference or opening the report never starts a prediction. The backend checks
-the same explicit approval before individual or campaign exports; `reviewed: true`
-alone is insufficient. See [stage 4](STAGE4.md#preferred-new-predictions-alphafold-server).
+STOP2 confirmation alone does not approve a reference. The new action binds the
+confirmed set, exact model/native protein and physical locus after synteny review.
+Changing that set or protein, or revoking approval, blocks preparation again.
+Reference approvals use a separate browser key and JSON; they never rewrite
+model choices, alignments, tree settings or the one-step undo store. Opening the
+report starts no prediction and approves nothing. The Server action downloads
+one native-sequence JSON for manual upload/launch. See
+[the synteny approval contract](SYNTENY_REFERENCE.md).
 
 ## One export per gene report, with previous comments
 

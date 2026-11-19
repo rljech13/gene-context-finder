@@ -88,7 +88,8 @@ def stage3_dataset(root, data, source=None, source_display=None):
             note='Original choices and reviewed flags are unchanged; interactive membership is not biological approval.'))
 
 def attach(html,data):
-    if MARKER in html:return html
+    from .synteny_reference import attach as attach_reference
+    if MARKER in html:return attach_reference(html)
     text=json.dumps(data,ensure_ascii=True,separators=(',',':')).replace('<','\\u003c').replace('&','\\u0026')
     section='<section id="interactiveReview"></section><script id="interactiveReviewData" type="application/json">'+text+'</script>'
     if '<details id="alignmentPanel"' in html:
@@ -96,7 +97,7 @@ def attach(html,data):
     else:html=html.replace('</main>',section+'</main>',1)
     html=html.replace('</head>','<style>'+STYLE+'</style></head>',1)
     script=Path(__file__).with_name('review_realign.txt').read_text()
-    return MARKER+'\n'+html.replace('</body>','<script>'+script+'</script></body>',1)
+    return attach_reference(MARKER+'\n'+html.replace('</body>','<script>'+script+'</script></body>',1))
 
 def write_dataset(root, data):
     path=Path(root)/'review_data.json'

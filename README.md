@@ -132,12 +132,12 @@ gene-context stage3-finalize --results results/pou5_comparison \
 
 This final assignment retains the original STOP-2 selection and all-by-all comparisons; it does not resolve orthology automatically.
 
-On step 3, **«Утвердить модель как эталон»** explicitly approves the final
-representative and its exact protein. Only then does **«Подготовить отправку в
-AlphaFold Server»** become available. Saving a reviewed choice alone is
-insufficient. Editing the primary or revoking approval blocks export again.
-The button downloads a Server JSON for manual upload and launch; it starts no
-remote calculation. [Approval and export details](docs/STAGE3.md#explicit-final-reference-approval).
+In the alignment-first route, STOP2 covers models → alignment → tree →
+confirmed-set handoff. **STOP3 is the separate synteny/context review.** At its
+end, **«Утвердить модель как эталон»** enables preparation of a Server JSON for
+that exact protein. The legacy comparison table has no reference-approval
+button. Saved choices remain intact; old reports retain their legacy route to
+STOP4. [Post-synteny approval](docs/SYNTENY_REFERENCE.md).
 
 ## Earlier pipeline
 
