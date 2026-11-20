@@ -39,6 +39,18 @@ main{padding-top:20px}section{padding:18px;margin:14px 0}.comparison-heading{mar
 @media(max-width:760px){.review-queue table,.review-queue tbody,.review-queue tr,.review-queue td{display:block;width:100%;min-width:0}.review-queue thead{display:none}.review-queue .queue-model,.review-queue .queue-decision,.review-queue .queue-actions{min-width:0}.review-queue .review-gene-card{margin:12px 0;border-radius:7px}.review-queue .queue-options .queue-notes{min-width:0}.review-queue .model-comparison-row>td{padding:0}.cds-compact-narrow .cds-model-header{flex-wrap:wrap}}
 
 .model-comparison{scroll-margin-top:50px}
+/* gcf-synteny-link-contrast-v1 */
+.gcf-synteny-stop .linked-neighborhood .neighbor-link {
+  opacity: .95;
+  stroke-opacity: .85;
+  stroke-width: 1.6;
+}
+.gcf-synteny-stop .linked-neighborhood.link-focus .neighbor-link { opacity: .25; }
+.gcf-synteny-stop .linked-neighborhood.link-focus .neighbor-link.link-active {
+  opacity: 1;
+  stroke-opacity: 1;
+  stroke-width: 2.8;
+}
 </style></head><body><main>
 <h1 id="pageTitle">Stage 2 — neighborhood review</h1><p class="muted diagramTitle"><strong id="runScope"></strong></p><div id="errors"></div><details><summary id="coverageSummary">Input species and review scope</summary><p id="workflowHelp" class="muted">1. Inspect the neighborhoods above. 2. Review the proposed main CDS for each selected locus in the table below. 3. Add other genes only when needed, then download the decisions JSON.</p><div id="runCoverage"></div></details>
 <div id="comparisonPanels">
