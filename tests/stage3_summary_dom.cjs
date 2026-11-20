@@ -50,8 +50,18 @@ for(const id of bucket.model_ids)assert.ok(d.querySelector(`#specialCaseTable tr
 run(`editCase(${JSON.stringify(original)})`);d.getElementById('finalReason').value='A retained separate copy';d.getElementById('finalSave').click();assert.equal(run(`finalRows().cases.find(r=>r.model_id===${JSON.stringify(original)}).selection_reason`),'A retained separate copy');
 for(const mutate of [s=>s.set_id='wrong',s=>s.review_id='wrong',s=>s.choices[bucket.key].primary='reference_q0001',s=>s.choices[bucket.key].reason='',s=>s.choices[bucket.key].reviewed='true']){const invalid=JSON.parse(run('JSON.stringify(finalState)'));mutate(invalid);assert.throws(()=>run(`validateFinal(${JSON.stringify(invalid)})`))}
 const files=run('finalFiles()');for(const key of ['primary_targets.tsv','special_cases.tsv','stage3.final.decisions.json','primary_targets.cds.fna','primary_targets.proteins.faa','special_cases.cds.fna','special_cases.proteins.faa'])assert.ok(key in files);
-for(const[name,text]of Object.entries(files))if(name.endsWith('.fna')||name.endsWith('.faa')){const kind=name.endsWith('.fna')?'cds':'protein',rows=name.startsWith('primary')?run('finalRows().primary'):run('finalRows().cases');const records=new Map(text.split('>').slice(1).map(r=>{const[h,...seq]=r.trim().split('\n');return[h,seq.join('')]}));assert.equal(records.size,rows.length);for(const r of rows)assert.equal(records.get(r.model_id),run(`DATA.finalization.raw_sequences.${kind}[${JSON.stringify(r.model_id)}]`))}
+for(const[name,text]of Object.entries(files))if((name.endsWith('.fna')||name.endsWith('.faa'))&&!name.includes('with_queries')&&!name.startsWith('query_references')){const kind=name.endsWith('.fna')?'cds':'protein',rows=name.startsWith('all_selected')?[...run('finalRows().primary'),...run('finalRows().cases')]:name.startsWith('primary')?run('finalRows().primary'):run('finalRows().cases');const records=new Map(text.split('>').slice(1).map(r=>{const[h,...seq]=r.trim().split('\n');return[h,seq.join('')]}));assert.equal(records.size,rows.length);for(const r of rows)assert.equal(records.get(r.model_id),run(`DATA.finalization.raw_sequences.${kind}[${JSON.stringify(r.model_id)}]`))}
 assert.ok(run('zipFiles(finalFiles()).size')>1000);
+const defaults=run('finalFiles(validateFinal(DATA.finalization.state))');
+assert.equal(defaults['stage3.final.decisions.json'].trimEnd(),run('JSON.stringify(DATA.finalization.state,null,2)'));
+assert.notEqual(defaults['stage3.final.decisions.json'],files['stage3.final.decisions.json']);
+assert.equal(d.getElementById('allReadyExports'),null);
+const exports=[];run('saveBlob=(blob,name)=>window.__exportCapture(blob,name)');w.__exportCapture=(blob,name)=>exports.push({blob,name});
+const edited=run('JSON.stringify(finalState)'),stored=run('localStorage.getItem(finalKey)');
+d.getElementById('downloadFinalTop').click();d.getElementById('downloadDefaults').click();
+assert.equal(exports.length,2);assert.ok(exports[0].name.endsWith('.chosen_models_with_comments.zip'));assert.ok(exports[1].name.endsWith('.default_models_with_comments.zip'));
+assert.equal(run('JSON.stringify(finalState)'),edited);assert.equal(run('localStorage.getItem(finalKey)'),stored);
+assert.ok(exports.every(e=>e.blob.size>1000));
 if(process.argv[3]){fs.writeFileSync(process.argv[3]+'.edited.json',run('JSON.stringify(finalState,null,2)'));fs.writeFileSync(process.argv[3]+'.browser-files.json',JSON.stringify(files))}
 let links=0;for(const n of d.querySelectorAll('a[href]')){const url=n.getAttribute('href');if(!url||url.startsWith('#')||/^https?:/.test(url))continue;assert.ok(fs.existsSync(path.join(root,decodeURIComponent(url.split(/[?#]/)[0]))),url);links++}
 assert.equal(d.querySelectorAll('script[src],link[rel=stylesheet],iframe').length,0);

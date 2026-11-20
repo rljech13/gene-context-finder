@@ -123,6 +123,6 @@ def analyze(root, data, selected, catalogue, dna, blocks, categories, context):
     if dna:write_tsv(root/'dna_pairs.tsv',dna,list(dna[0]))
     if blocks:write_tsv(root/'dna_blocks.tsv',blocks,list(blocks[0]))
     return dict(groups=groups,quality=qc,pairs=pair_rows,paralogs=paralogs,species_profiles=profiles,
-        overlapping_window_pairs=sum(r['genomic_window_relation']=='overlapping_native_windows' for r in dna),
+        overlapping_window_pairs=sum(r['genomic_window_relation']=='overlapping_native_windows' for r in pair_rows),
         reviewed_neighbor_models=len(context),reviewed_cross_locus_pairs=len(data.get('_reviewed_pairs',{})),
         source_agreement=dict(Counter(r['source_agreement'] for r in qc)),naming_status=dict(Counter(r['database_status'] for r in qc)))

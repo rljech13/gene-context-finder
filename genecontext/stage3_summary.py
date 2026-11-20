@@ -126,9 +126,20 @@ def write_summary(root, payload):
     model_decisions(root,payload)
     from .stage3_finalization import prepare
     finalization=prepare(root,payload,models,references)
+    from .stage3_export import write_default_export, query_export
+    queries=query_export(root,payload)
+    exported=write_default_export(root,payload,finalization,queries)
     summary = dict(payload, models=models, references=references, reference_comparisons=comparisons,
-                   all_pairs=all_alignments(root,payload),final_choices=read_table(root/'final_model_choices.tsv'),finalization=finalization)
+                   all_pairs=all_alignments(root,payload),final_choices=read_table(root/'final_model_choices.tsv'),finalization=finalization,
+                   prior_comment_files=exported['files'],previous_comments=exported['history']['model_comments'],
+                   comment_history={k:v for k,v in exported['history'].items() if k!='files'},default_export=exported['record'],
+                   query_reference_files=queries['files'],query_protein_count=queries['protein_sequences'])
     serialized = json.dumps(summary, ensure_ascii=True, separators=(',', ':')).replace('<','\\u003c').replace('&','\\u0026')
     template = Path(__file__).with_name('stage3_summary.txt').read_text()
-    final_script=Path(__file__).with_name('stage3_finalization.txt').read_text()
-    (root/'report.html').write_text(template.replace('__DATA__',serialized).replace('__FINALIZATION_SCRIPT__',final_script))
+    final_script=Path(__file__).with_name('stage3_reference_approval.txt').read_text()+'\n'+Path(__file__).with_name('stage3_finalization.txt').read_text()
+    from .alignment_blossom import colour_alignment_html
+    html=colour_alignment_html(template.replace('__DATA__',serialized).replace('__FINALIZATION_SCRIPT__',final_script))
+    from .interactive_review import attach,stage3_dataset,write_dataset
+    source=Path(payload.get('parameters',{}).get('results',''))
+    interactive=stage3_dataset(root,summary,source if (source/'evidence.json').exists() else None)
+    write_dataset(root,interactive);(root/'report.html').write_text(attach(html,interactive))

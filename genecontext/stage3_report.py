@@ -34,7 +34,7 @@ def refresh(args):
     comparison=json.loads((root/'comparison.json').read_text());data=json.loads((root/'source.evidence.json').read_text())
     if (root/'context_evidence.json').exists():write_context_page(root,json.loads((root/'context_evidence.json').read_text()))
     write_report(root,data,read_table(root/'sequence_catalogue.tsv'),comparison['groups'],comparison['selected'],read_table(root/'review_summary.tsv'),comparison.get('blocks',[]),comparison['context'],comparison['errors'],manifest['control_run'],comparison['analysis'],manifest)
-    dump(root/'presentation.json',dict(source=str(source),source_manifest_sha256=sha256(source/'manifest.json'),note='Stored scientific alignments, sequences and STOP-2 decisions retained. Final target/special-case assignment is stored separately; suggestions are not manual approvals.',finalization_decisions_sha256=sha256(root/'finalization.decisions.json'),renderer_sha256={name:sha256(Path(__file__).with_name(name)) for name in ['stage3_report.py','stage3_report.txt','stage3_summary.py','stage3_summary.txt','stage3_handoff.py','stage3_finalization.py','stage3_finalization.txt','gene_identity.py','stage3_context.py','comparison_report.py','stage2_neighborhood.txt','stage2_cluster.txt']}))
+    dump(root/'presentation.json',dict(source=str(source),source_manifest_sha256=sha256(source/'manifest.json'),note='Stored scientific alignments, sequences and STOP-2 decisions retained. Final target/special-case assignment is stored separately; suggestions are not manual approvals.',finalization_decisions_sha256=sha256(root/'finalization.decisions.json'),renderer_sha256={name:sha256(Path(__file__).with_name(name)) for name in ['stage3_export.py','alignment_blossom.py','stage3_report.py','stage3_report.txt','stage3_summary.py','stage3_summary.txt','stage3_handoff.py','stage3_finalization.py','stage3_finalization.txt','stage3_reference_approval.txt','gene_identity.py','stage3_context.py','comparison_report.py','stage2_neighborhood.txt','stage2_cluster.txt']}))
     dump(root/'seal.json',{str(p.relative_to(root)):sha256(p) for p in root.rglob('*') if p.is_file() and p.name!='seal.json'})
     print('Updated stage-3 report: '+str(root/'report.html'));return 0
 
@@ -56,7 +56,8 @@ def write_report(root,data,catalogue,groups,selected,observations,blocks,context
         folder=root/'queries'/group['id'];chosen=[dict(r,display_label=label_by_id[r['model_id']]) for r in selected if r['group']==group['id']]
         profiles=[dict(coverage=r['species_coverage'],consensus_fraction=r['species_balanced_consensus_fraction']) for r in analysis['species_profiles'] if r['group']==group['id']]
         if profiles:_protein_svg(folder/'species_conservation.svg',profiles,title='Species-balanced protein conservation (query references excluded)',unit='species')
-        for row in chosen:dna_svg(folder/('genomic_blocks.'+row['model_id']+'.svg'),group['name'],chosen,blocks,row['model_id'])
+        if manifest.get('genomic_context',{}).get('status')!='not_requested':
+            for row in chosen:dna_svg(folder/('genomic_blocks.'+row['model_id']+'.svg'),group['name'],chosen,blocks,row['model_id'])
         alignments[group['id']]={kind:read_fasta(folder/name) if (folder/name).exists() else {} for kind,name in [('protein','proteins.aligned.faa'),('cds','cds.codon.aligned.fna')]}
     payload=dict(review_id=data['review_id'],groups=groups,models=models,observations=observations,
         summary=analysis['groups'],pairs=analysis['pairs'],paralogs=analysis['paralogs'],dna=read_table(root/'dna_pairs.tsv'),
@@ -65,10 +66,12 @@ def write_report(root,data,catalogue,groups,selected,observations,blocks,context
         alignments=alignments,query_members=data.get('query_members',{}),errors=errors,control=control,
         naming_status=analysis['naming_status'],source_agreement=analysis['source_agreement'],
         overlapping_window_pairs=analysis['overlapping_window_pairs'],parameters=manifest.get('parameters',{}),
+        genomic_context=manifest.get('genomic_context',dict(status='legacy_result')),
         timings=manifest.get('timings',{}),core_elapsed_seconds=manifest.get('elapsed_seconds',0),resources=manifest.get('resources',{}))
     text=json.dumps(payload,ensure_ascii=True,separators=(',',':')).replace('<','\\u003c').replace('&','\\u0026')
     template=Path(__file__).with_name('stage3_report.txt').read_text()
-    (root/'technical.html').write_text(template.replace('__DATA__',text))
+    from .alignment_blossom import colour_alignment_html
+    (root/'technical.html').write_text(colour_alignment_html(template.replace('__DATA__',text)))
     from .stage3_summary import write_summary
     write_summary(root,payload)
     (root/'START_HERE.html').write_text('<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gene sequence reference sheet</title><style>body{font:17px/1.6 system-ui;max-width:760px;margin:50px auto;padding:24px;color:#213a3d;background:#f3f6f5}a{color:#1d686b}h1{line-height:1.2}</style><h1>Gene sequence reference sheet</h1><p><a href="report.html">Open the reference sheet →</a></p><p>The report opens with complete protein / CDS alignments and any-pair comparisons. Two final tables separate one proposed target representative per organism from additional copies and uncertain cases. Each row explains the assignment; you can change it and export the split sequence set. Reference-comparison tables and diagnostics are in the technical appendix.</p><p>Extract the entire archive before opening this page. Use a modern browser with JavaScript enabled. The report works offline; keep its folders together. No installation or server is needed.</p><p><a href="technical.html">Technical appendix</a> · <a href="README.md">Instructions</a> · <a href="sequence_reference_sheet.tsv">Sequence choices table</a></p></html>')
@@ -82,11 +85,11 @@ Protein alignments include selected models and the supplied query proteins; CDS 
 
 sequence_reference_sheet.tsv contains the sequence guidance and closest supplied protein reference (ranked by identity times the smaller coverage). reference_comparisons.tsv contains the exact comparable positions, identity, both coverage directions and pair-alignment paths. Pair downloads are projections of the stored multiple alignment with double-gap columns removed, not new pairwise optimization. A close match does not establish orthology or functional interchangeability. Sequence guidance retains the exact manual choice and reports integrity, source disagreement and naming limits; it is not experimental validation.
 
-The report includes selected source sequences and model quality, protein and codon-guided CDS alignments, identity and coverage matrices, within-genome copy comparisons, genomic local-alignment blocks, exact upstream/downstream exports, and the available annotation/Tiberius gene context. All tables, alignments, figures and provenance are linked.
+The default STOP 3 prepares exact selected source sequences, model quality, protein and codon-guided CDS alignments, identity and coverage matrices, within-genome copy comparisons, and saved STOP-2 context for review before STOP 4. Complete native proteins are retained for structural prediction; tree filtering and trimming must be recorded separately, without overwriting them. Final model assignments still require review.
 
 Related copies may share a comparison group. Copy numbers in short display labels are local to each genome and do not assign cross-species orthology. Query references guide protein alignment and are excluded from the selected-copy conservation profile. The species-balanced profile gives each observed species one vote, divided equally among its observed copies at that column.
 
-Genomic DNA is compared as local blocks, not a forced global alignment. DNA matrices require identity, coverage and comparable length together. Overlapping windows from the same assembly are flagged: similarity may reuse the same physical DNA, rather than independently support conserved paralogous regions. Model-span DNA and flanks use the selected coding-model envelope, not an experimentally established transcription start/end site. Flanks stop at the saved window edges.
+Genomic-window alignment, model-span DNA and flank exports are optional (--genomic-context). manifest.json explicitly records whether this analysis was requested. Empty DNA tables with status not_requested contain no measurements; they do not mean 0% conservation. When requested, DNA is compared as local blocks. Overlapping windows from the same assembly may reuse the same physical DNA. Model-span DNA and flanks use the selected coding-model envelope, not an experimentally established transcription start/end site.
 
 The context overview retains all available models and saved protein-match proposals from STOP 2, including unreviewed and noncoding context. Final synteny statistics use only manually selected neighboring models and correspondence pairs. Too few reviewed anchors means synteny is unresolved; it does not mean genes are absent. A conserved block does not establish CRE activity, and sequence comparison does not establish expression or experimental function.
 

@@ -1,0 +1,7 @@
+##gff-version 3
+chr	synthetic_control	gene	1201	1443	.	+	.	ID=FACTOR_A_gene;Name=FACTOR_A
+chr	synthetic_control	mRNA	1201	1443	.	+	.	ID=FACTOR_A_transcript;Parent=FACTOR_A_gene
+chr	synthetic_control	CDS	1201	1443	.	+	0	ID=FACTOR_A_CDS;Parent=FACTOR_A_transcript
+chr	synthetic_control	gene	3401	3643	.	+	.	ID=FACTOR_B_gene;Name=FACTOR_B
+chr	synthetic_control	mRNA	3401	3643	.	+	.	ID=FACTOR_B_transcript;Parent=FACTOR_B_gene
+chr	synthetic_control	CDS	3401	3643	.	+	0	ID=FACTOR_B_CDS;Parent=FACTOR_B_transcript

@@ -119,6 +119,27 @@ class ContextSafety(unittest.TestCase):
         c = compare_context(reference, ctx['neighbors'], ctx['neighbors'], {})
         self.assertEqual(c['shared_anchors'], 0)
 
+    def test_count_first_reaches_ten_distant_coding_neighbors_per_side(self):
+        genes = [gene('anchor', 20000000, 20001000)]
+        genes += [gene('left'+str(i), 20000000-i*1500000, 20000100-i*1500000) for i in range(1,11)]
+        genes += [gene('right'+str(i), 20001000+i*1500000, 20001100+i*1500000) for i in range(1,11)]
+        genes += [dict(gene('rna',19999000,19999500),coding=False)]
+        ctx = GeneIndex(dict(genes=genes)).neighbors('chr',20000000,20001000,'+',10,0,{'anchor'},'anchor')
+        self.assertEqual(ctx['limits'],dict(left='enough_genes',right='enough_genes'))
+        self.assertEqual(len(ctx['neighbors']),20)
+        self.assertEqual(sum(g['target_side']=='upstream' for g in ctx['neighbors']),10)
+        self.assertGreater(max(g['distance_bp'] for g in ctx['neighbors']),1000000)
+        limited = GeneIndex(dict(genes=genes)).neighbors('chr',20000000,20001000,'+',10,1000000,{'anchor'},'anchor')
+        self.assertEqual(limited['neighbors'],[])
+        self.assertEqual(limited['limits'],dict(left='distance_cap',right='distance_cap'))
+
+    def test_count_first_reports_short_contig_and_does_not_add_distant_excluded_copy(self):
+        genes = [gene('anchor',100,200),gene('left',10,90),gene('right',300,400),gene('other_copy',9000000,9000100)]
+        ctx = GeneIndex(dict(genes=genes)).neighbors('chr',100,200,'+',10,0,{'anchor','other_copy'},'anchor')
+        self.assertEqual(len(ctx['neighbors']),2)
+        self.assertEqual(ctx['limits'],dict(left='contig_or_annotation_end',right='contig_or_annotation_end'))
+        self.assertEqual(ctx['display_only_genes'],[])
+
     def test_reverse_orientation_preserves_neighbor_sides_and_budget(self):
         genes = [gene('a', 1000, 1100, '-'), gene('copy', 1200, 1250),
                  *[gene('left'+str(i), 100+i*50, 120+i*50) for i in range(12)],

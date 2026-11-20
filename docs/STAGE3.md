@@ -1,4 +1,8 @@
+> The current study route is documented in [PROJECTS.md](PROJECTS.md). Numeric native commands below retain their historical engine/checkpoint meaning; current STOP3 is the separate synteny review.
+
 # Stage 3: compare the reviewed models
+
+STOP 3 prepares the selected models for STOP 4: gene trees and protein structure analysis. Its default scientific scope is protein/CDS comparison, including exact native sequences, model QC, protein MSA and codon-guided CDS MSA. Native proteins stay complete; any tree trimming is a separate derived artifact. Final assignments remain subject to manual review.
 
 This command accepts the **new locus-first stage2 checkpoint**. The older `compare-reviewed` command retains its legacy format.
 
@@ -37,9 +41,9 @@ Open `report.html`: a compact sequence reference sheet for sharing, with one row
 Main exports:
 
 - `sequence_catalogue.tsv`: target, species/assembly ID, copy label, physical locus, region/model IDs, original accession, source, native coordinates, coding quality, sequence hashes and recommendation reason.
-- `selected.proteins.faa`, `selected.cds.fna`, `selected.genomic_windows.fna`: exact chosen inputs. Individual files under `sequences/` include genomic gene DNA only where the full model envelope fits inside the saved window; otherwise the catalogue records why it was not exported.
+- `selected.proteins.faa`, `selected.cds.fna`: exact chosen model sequences. Individual protein/CDS files are under `sequences/`. Genomic windows, gene-span DNA and flanks are exported only with `--genomic-context`.
 - `queries/group_*/proteins.aligned.faa`, `cds.codon.aligned.fna`, `protein_pairs.tsv`, `cds_pairs.tsv`, `protein_profile.tsv`: alignments and conservation measurements.
-- `dna_pairs.tsv`, `dna_blocks.tsv`, `dna_categories.tsv`: genomic comparisons.
+- `dna_pairs.tsv`, `dna_blocks.tsv`, `dna_categories.tsv`: optional genomic comparisons. By default these retain headers only, and manifest/comparison `genomic_context.status=not_requested` explicitly records that no genomic comparison was measured.
 - `reviewed_neighbors.tsv`, `synteny.tsv`: explicitly chosen neighbors and their context summaries.
 - `review_summary.tsv`: selected, excluded, unresolved and unsaved-stage-1 outcomes, preserving missingness.
 - `decisions.snapshot.json`, `source.evidence.json`, `manifest.json`, `comparison.json`, `seal.json`: exact handoff and reproducibility evidence.
@@ -63,13 +67,13 @@ The technical appendix includes:
 - A searchable sequence catalogue with original accessions, native copy labels, annotation/Tiberius CDS agreement, broad-database naming status, all retained query matches, and the exact chosen sequences.
 - Protein and CDS identity matrices with coverage of both sequences and comparable length, a paged alignment viewer, and per-copy or species-balanced position profiles. The species-balanced profile gives each observed species one vote, divided equally among the observed copies at that alignment column.
 - A separate within-genome copy table. Copy labels and short within-genome numbering do not assign orthology between species.
-- Genomic alignment blocks against any selected reference copy, with native block coordinates and coding/intronic/upstream/downstream summaries. Overlapping windows from one assembly are flagged; shared physical DNA is not independent conservation evidence.
+- With explicit `--genomic-context`: genomic alignment blocks against any selected reference copy, with native block coordinates and coding/intronic/upstream/downstream summaries. Overlapping windows from one assembly are flagged; shared physical DNA is not independent conservation evidence.
 - A read-only context viewer that reuses the STOP-2 ruler, all available annotation/Tiberius coding alternatives, gene-level GFF context and saved protein correspondences. These descriptive proposals are explicitly separated from the manually selected anchors used by the final synteny statistics. Insufficient reviewed anchors remain unresolved.
 - Command timings, source fingerprints, input decisions, checksums and downloadable tables/figures.
 
-Final comparison categories and exported flanks use the selected coding-model envelope; the discovery seed is retained separately. These boundaries are not experimentally established transcript start/end sites. Upstream and downstream exports request 50 kb, stop at the saved window edges and record exact native coordinates, length and any clipping in `sequence_catalogue.tsv`.
+Optional genomic comparison categories and exported flanks use the selected coding-model envelope; the discovery seed is retained separately. These boundaries are not experimentally established transcript start/end sites. Upstream and downstream exports request 50 kb, stop at the saved window edges and record exact native coordinates, length and any clipping in `sequence_catalogue.tsv`.
 
-New tables include `model_quality.tsv`, `target_pairs.tsv`, `paralog_pairs.tsv`, `conservation_summary.tsv` and `species_conservation_profile.tsv`. `selected.upstream.fna` and `selected.downstream.fna` and per-model flank files are exported. `START_HERE.html` and `README.md` make a complete result folder portable: extract it fully and open it in a modern browser with JavaScript; no internet or server is required for viewing.
+New tables include `model_quality.tsv`, `target_pairs.tsv`, `paralog_pairs.tsv`, `conservation_summary.tsv` and `species_conservation_profile.tsv`. `selected.upstream.fna`, `selected.downstream.fna` and per-model flank files are exported only with `--genomic-context`. The default does not require BLASTn/LASTZ, compare genomic windows, duplicate genomic FASTAs, or generate empty genomic-block figures. Saved STOP-2 context remains available as descriptive evidence without another genomic search. `START_HERE.html` and `README.md` make a complete result folder portable: extract it fully and open it in a modern browser with JavaScript; no internet or server is required for viewing.
 
 Presentation can be refreshed without repeating scientific computation:
 
@@ -87,7 +91,7 @@ The bottom of the main report contains the full protein/CDS alignment viewer, fo
 
 `primary_targets.tsv` (also `final_model_choices.tsv`) contains at most one proposed or reviewed target model per comparison gene/genome. `special_cases.tsv` contains the remaining STOP-2 selected copies and uncertain assignments. Both contain exact source identity, accession, assembly locus, selection reason, evidence and decision origin. Their CDS/protein FASTAs retain the exact native sequences. They partition only the selected STOP-2 set; previously discarded alternatives do not reappear.
 
-The main page opens with all-by-all protein/CDS alignments, followed by these two tables. Change choice / Use as target opens a single editor, including a no-primary option. Saving requires a reason and marks that assignment reviewed. Existing primaries move to Separate cases when replaced. Notes for individual separate cases are editable. Changes persist per reviewed sequence set in browser storage. Download split package exports the **current** tables, four exact-sequence FASTAs and portable decisions JSON. Static files beside the report retain the generated state; browser edits do not write local files automatically.
+The main page opens with all-by-all protein/CDS alignments, followed by these two tables. Change choice / Use as target opens a single editor, including a no-primary option. Saving requires a reason and marks that assignment reviewed. Existing primaries move to Separate cases when replaced. Notes for individual separate cases are editable. Changes persist per reviewed sequence set in browser storage. Export all chosen models + comments exports the **current** tables, four exact-sequence FASTAs and portable decisions JSON. Static files beside the report retain the generated state; browser edits do not write local files automatically.
 
 Initial assignments are explicitly suggestions. Specifically known non-target copy labels are excluded from automatic primary selection. Remaining models rank by complete coding structure, then named target-query identity × minimum coverage; source identity and exact annotation/Tiberius CDS agreement break ties. If there is no query named for the target, the supplied panel is used explicitly. This heuristic does not establish orthology, gene function or family membership for unresolved copies. `gene_identities.tsv` retains source naming separately from comparison groups. Query preference is evidence, not automatic renaming.
 
@@ -97,3 +101,45 @@ gene-context stage3-finalize --results COMPLETED_STAGE3 \
 ```
 
 This validates the exact source review and sequence-set fingerprint, every gene/genome bucket, permitted model IDs, reasons and reviewed flags. It generates a separate sealed report and split exports without running alignment or changing original STOP-2 selection. `finalization.decisions.json` and `finalization.evidence.json` retain assignment state and evidence. `model_choice_history.tsv` and `model_decision_audit.tsv` retain the original candidate and observation decisions in the technical appendix. No cross-species copy orthology is inferred from local copy numbering.
+
+## Explicit final reference approval
+
+The alignment-first workflow has a **separate STOP3 for genomic context and
+synteny**, after STOP2 model choice, alignment, tree and confirmed-set handoff.
+**«Approve model as reference»** belongs at the end of that synteny page,
+followed by **«Prepare AlphaFold Server submission»**. The legacy comparison
+sheet described above no longer contains these buttons. Its saved choices,
+comments and previously approved exports remain intact.
+
+STOP2 confirmation alone does not approve a reference. The new action binds the
+confirmed set, exact model/native protein and physical locus after synteny review.
+Changing that set or protein, or revoking approval, blocks preparation again.
+Reference approvals use a separate browser key and JSON; they never rewrite
+model choices, alignments, tree settings or the one-step undo store. Opening the
+report starts no prediction and approves nothing. The Server action downloads
+one native-sequence JSON for manual upload/launch. See
+[the synteny approval contract](SYNTENY_REFERENCE.md).
+
+## One export per gene report, with previous comments
+
+Each standalone STOP3 report has an **Export all chosen models + comments · ZIP** button above the alignments and below Final assignment. Review the organisms in that report, change any necessary assignments, then export once for the whole gene. Unchanged rows need no individual Save action: their proposed defaults are included. The package uses the current saved browser choices. A separate **Export original defaults · ZIP** button always uses the report's original defaults, even if browser choices have changed.
+
+Both buttons build the ZIP directly from the report's embedded data, including offline. No collection page, server request or per-model download is needed. The export includes all STOP2 selected models, partitioned into primary targets and special cases, complete native protein/CDS FASTAs (also combined in `all_selected.*`), portable decisions, and `models_with_comments.tsv`. Available original STOP1 input/snapshot files and complete STOP2 decisions remain under `comments/`, including remarks on unselected alternatives and neighboring models. Literal source text is preserved; missing historical sources are explicit. Exporting never marks unchanged suggestions as reviewed.
+
+The generated `default_models_with_comments.zip` beside the report remains available for direct file access. Export does not repeat genomic search, gene prediction or alignment. Each gene's report and exports work independently in the released pipeline.
+
+The ZIP includes every supplied query protein in `query_references.faa`; `query_references.tsv/json` retain the alignment ID, original accession, species, aliases and saved-input SHA256. `primary_targets_with_queries.proteins.faa` combines current primary representatives with all query proteins; `all_selected_with_queries.proteins.faa` also retains separate cases. Distinct query IDs remain distinct even for identical protein sequences. Query references are separate from the model-choice state. The exact saved `proteins.input.faa` is used; a missing or conflicting query stops export rather than silently dropping it. Query CDS was not supplied to STOP3 and is explicitly marked unavailable; it is never reconstructed from protein. Both original-default and current-browser-choice packages include the queries.
+
+### Rebuild a selected alignment locally
+
+The interactive workspace includes the exact STOP2-selected models, query
+proteins and alternative CDS models of the same source genes. Remove or restore
+models and press Recalculate: MAFFT runs on the new native protein set, then CDS
+is back-translated by codon with translation checks. This rebuilds the MSA rather
+than hiding existing rows. Query CDS is omitted when none was supplied.
+
+Each verified result is saved atomically in `review_results/<input-hash>` with
+native and aligned FASTA, imported decisions/comments, method and checksums.
+The current result can be exported as ZIP. Failed calculations retain earlier
+results. Membership is independent of the original saved MSA and final assignment;
+no reviewed flags or biological approvals are inferred from a comparison click.

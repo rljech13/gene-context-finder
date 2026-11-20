@@ -7,6 +7,37 @@ from pathlib import Path
 from .sequence import union_length, sha256
 
 
+def exact_full_protein_hit(hit):
+    """A local identical fragment must not stand in for an identical protein."""
+    try:
+        return all(float(hit.get(key, 0)) == 1.0 for key in
+                   ('identity', 'coverage_query', 'coverage_subject'))
+    except (TypeError, ValueError):
+        return False
+
+
+def protein_name_reconciliation(model, query_members, expected):
+    """Explain a symbol disagreement backed by the same full-length protein.
+
+    This only prevents an unsupported 'another family' assertion. It does not
+    rename either source, establish aliases, or identify a genomic paralog.
+    """
+    queries = [h for h in model.get('target_support', []) if exact_full_protein_hit(h)
+               and any(v.get('gene_symbol', '').upper() in expected
+                       for v in query_members.get(h.get('subject'), []))]
+    proteins = [h for h in model.get('identification', {}).get('near_best', [])
+                if h.get('gene_symbol') and exact_full_protein_hit(h)]
+    if not queries or not proteins:
+        return None
+    return dict(basis='identical_full_length_query_and_database_protein',
+                query_ids=sorted({h['subject'] for h in queries}),
+                database_accessions=sorted({h.get('accession', '') for h in proteins} - {''}),
+                note='Protein-database symbols differ from the query symbols, but the model '
+                     'matches a named target query and a database protein at 100% identity '
+                     'and 100% coverage in both directions. This name difference alone '
+                     'does not indicate another gene family; paralog identity remains separate.')
+
+
 def verify_checkpoint(path):
     root = Path(path).resolve()
     seal=json.loads((root / 'seal.json').read_text())
@@ -83,13 +114,18 @@ def constraints(data):
         if not m.get('target_support'): warnings.append('No retained target-query support')
         ident = m.get('identification', {})
         names = {h.get('gene_symbol','').upper() for h in ident.get('near_best', [])} - {''}
+        name_evidence = None
         if expected and names and not names & expected:
-            warnings.append('Protein identification points to another gene/family')
+            name_evidence = protein_name_reconciliation(m, data.get('query_members', {}), expected)
+            if not name_evidence:
+                warnings.append('Protein identification points to another gene/family')
         if 'overlaps_multiple_annotated_genes' in m.get('issues', []):
             warnings.append('Prediction overlaps several annotated genes')
         warnings.extend(quality[m['model_id']]['warnings'])
         result[m['model_id']] = dict(physical_id=physical[m['gene_group']], target_warnings=warnings,
                                     quality=quality[m['model_id']])
+        if name_evidence:
+            result[m['model_id']]['protein_name_reconciliation'] = name_evidence
     return result
 
 
@@ -144,22 +180,22 @@ def validate_choices(data, state):
             issue('Supply a region reason', rid)
         own = [m for m in models.values() if m['region_id'] == rid]
         kept = [m for m in own if state.get('models', {}).get(m['model_id'], {}).get('decision') == 'inspect']
-        targets = [m for m in kept if state['models'][m['model_id']].get('role') == 'target']
+        targets = [m for m in kept if state['models'][m['model_id']].get('role') in {'target','alignment_candidate'}]
         if choice.get('decision') == 'inspect' and not targets: issue('Choose a target CDS model', rid)
         if choice.get('decision') == 'exclude' and kept: issue('Clear selected models in an excluded region', rid)
         if choice.get('decision') != 'inspect' and kept: issue('Selected models conflict with excluded/unresolved region decision', rid)
         for m in kept:
             mid = m['model_id']; c = state['models'][mid]
             retained.append(m)
-            if c.get('role') not in {'target','neighbor'} or not isinstance(c.get('notes'), str):
+            if c.get('role') not in {'target','neighbor','alignment_candidate'} or not isinstance(c.get('notes'), str):
                 issue('Invalid model role/comment', rid, mid); continue
             if type(c.get('target_override', False)) is not bool:
                 issue('Expert override must be an explicit boolean', rid, mid)
             if m['coding_status'] == 'disrupted': issue('Disrupted CDS cannot enter comparison', rid, mid)
             if (m['coding_status'] != 'complete_predicted' or m['window_edge']) and not c['notes'].strip():
                 issue('Explain partial/edge model selection', rid, mid)
-            if c['role'] == 'target':
-                warnings = target_warnings(m, c, metadata)
+            if c['role'] in {'target','alignment_candidate'}:
+                warnings = target_warnings(m, c, metadata) if c['role']=='target' else []
                 if warnings and not (c.get('target_override') is True and c['notes'].strip()):
                     issue('; '.join(warnings) + ': explicit expert override and reason required', rid, mid)
                 if any(x in c.get('copy_label','') for x in '\t\r\n'):
@@ -174,7 +210,9 @@ def validate_choices(data, state):
         if not isinstance(c, dict) or c.get('decision') not in {'','inspect','reject','unresolved','not_selected'}:
             issue('Invalid model decision', models[mid]['region_id'], mid)
     by_retained = defaultdict(list)
-    for m in retained:by_retained[metadata[m['model_id']]['physical_id']].append(m)
+    for m in retained:
+        if state['models'][m['model_id']].get('role')!='alignment_candidate':
+            by_retained[metadata[m['model_id']]['physical_id']].append(m)
     for ms in by_retained.values():
         if len({m.get('cds_sha256') for m in ms})>1:
             for m in ms:issue('Conflicting coding models selected for one physical gene',m['region_id'],m['model_id'])
@@ -185,7 +223,8 @@ def validate_choices(data, state):
                 for m in own_models:issue('Choose one model per physical gene in this region',m['region_id'],m['model_id'])
     by_physical = defaultdict(list); by_copy_label = defaultdict(list)
     for m, label, physical in selected:
-        by_physical[physical].append(m)
+        if state['models'][m['model_id']].get('role')!='alignment_candidate':
+            by_physical[physical].append(m)
         by_copy_label[m['genome_id'], label, copy_label(m, state['models'][m['model_id']])].append(m)
     for ms in by_physical.values():
         if len(ms) > 1:

@@ -87,6 +87,34 @@ class NewReviewChoices(unittest.TestCase):
         s['models'][d['models'][0]['model_id']]=None
         self.assertTrue(validate_choices(d,s))
 
+    def test_exact_query_and_database_protein_do_not_require_symbol_override(self):
+        d,s,*_=fixture();m=d['models'][0]
+        d['query_members']={'q':[dict(gene_symbol='dnd1')]}
+        m['identification']={'near_best':[dict(gene_symbol='dnd',accession='sp|Q7T1H5|DND1_DANRE',
+            identity=1.0,coverage_query=1.0,coverage_subject=1.0)]}
+        m['target_support']=[dict(subject='q',identity=1.0,coverage_query=1.0,coverage_subject=1.0)]
+        d['models'][1]['identification']={'near_best':[dict(gene_symbol='dnd1')]}
+        self.assertEqual(validate_choices(d,s),[])
+        info=constraints(d)[m['model_id']]['protein_name_reconciliation']
+        self.assertEqual(info['query_ids'],['q'])
+        self.assertEqual(m['identification']['near_best'][0]['gene_symbol'],'dnd')
+        # Other safeguards remain active despite the full-protein name evidence.
+        m['overlaps_anchor']=False
+        self.assertTrue(any('Outside selected interval' in x['message'] for x in validate_choices(d,s)))
+
+    def test_partial_or_unlinked_exact_matches_do_not_clear_family_conflicts(self):
+        for altered in ['query_fragment','database_fragment','different_protein','unknown_query']:
+            with self.subTest(altered=altered):
+                d,s,*_=fixture();m=d['models'][0]
+                m['identification']={'near_best':[dict(gene_symbol='OTHER',identity=1.0,
+                    coverage_query=1.0,coverage_subject=1.0)]}
+                m['target_support']=[dict(subject='q',identity=1.0,coverage_query=1.0,coverage_subject=1.0)]
+                if altered=='query_fragment':m['target_support'][0]['coverage_subject']=.99
+                elif altered=='database_fragment':m['identification']['near_best'][0]['coverage_query']=.99
+                elif altered=='different_protein':m['identification']['near_best'][0]['identity']=.99
+                else:m['target_support'][0]['subject']='not_in_panel'
+                self.assertTrue(any('another gene' in x['message'] for x in validate_choices(d,s)))
+
     def test_duplicate_physical_gene_and_comparison_copies(self):
         d,s,*_=fixture();a=d['models'][0];other=dict(a,model_id='repeat')
         d['models'].append(other);s['models']['repeat']=dict(s['models'][a['model_id']])
@@ -135,9 +163,16 @@ class NewReviewChoices(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'hash or integrity'):prepare_inputs(d,s,root)
 
 
-@unittest.skipUnless(shutil.which('mafft') and shutil.which('blastn'),'requires real MAFFT and BLASTN')
+@unittest.skipUnless(shutil.which('mafft'),'requires real MAFFT')
 class RealStage3(unittest.TestCase):
     def test_reviewed_models_reach_actual_alignments_and_catalogue_without_predictor(self):
+        self.check_run(False)
+
+    @unittest.skipUnless(shutil.which('blastn'),'requires real BLASTN for explicit genomic option')
+    def test_genomic_context_is_explicit_opt_in(self):
+        self.check_run(True)
+
+    def check_run(self, genomic_context):
         d,s,windows,cds,aa=fixture();add_paralog(d,s,windows,cds,aa)
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);source=root/'source';source.mkdir()
@@ -150,13 +185,23 @@ class RealStage3(unittest.TestCase):
             (source/'evidence.json').write_text(json.dumps(d));write_outputs(source,d)
             decisions=root/'choices.json';decisions.write_text(json.dumps(s))
             args=parser().parse_args(['stage3','--results',str(source),'--decisions',str(decisions),'--out',str(root/'result'),'--threads','1','--control-run'])
+            args.genomic_context=genomic_context
             args.validate_only=True;self.assertEqual(run(args),0);self.assertFalse((root/'result').exists())
             args.validate_only=False;self.assertEqual(run(args),0)
             manifest=json.loads((root/'result/manifest.json').read_text());self.assertTrue(manifest['control_run'])
             self.assertEqual(manifest['selected_models'],3)
             self.assertEqual(manifest['selected_species'],2)
             commands=[Path(c['argv'][0]).name for c in manifest['commands']]
-            self.assertIn('mafft',commands);self.assertIn('blastn',commands)
+            self.assertIn('mafft',commands)
+            self.assertEqual('blastn' in commands,genomic_context)
+            self.assertEqual(set(manifest['tools']),{'mafft','blastn'} if genomic_context else {'mafft'})
+            self.assertEqual(manifest['genomic_context']['status'],'completed' if genomic_context else 'not_requested')
+            self.assertEqual((root/'result/selected.genomic_windows.fna').exists(),genomic_context)
+            self.assertEqual(bool(list((root/'result/queries').glob('*/genomic_blocks.*.svg'))),genomic_context)
+            if not genomic_context:
+                import csv
+                with (root/'result/dna_pairs.tsv').open() as h:self.assertEqual(list(csv.DictReader(h,delimiter='\t')),[])
+                self.assertEqual({r['window_fasta'] for r in json.loads((root/'result/comparison.json').read_text())['selected']},{''})
             self.assertFalse(any(x in commands for x in ['tblastn','blastp','miniprot','tiberius']))
             self.assertTrue(list((root/'result/queries').glob('*/cds.codon.aligned.fna')))
             from genecontext.sequence import read_fasta
@@ -169,7 +214,7 @@ class RealStage3(unittest.TestCase):
             self.assertIn('TEST_copy2',(root/'result/report.html').read_text())
             self.assertIn('SOFTWARE CONTROL',(root/'result/report.html').read_text())
             self.assertTrue((root/'result/context.html').exists())
-            self.assertTrue((root/'result/selected.upstream.fna').exists())
+            self.assertEqual((root/'result/selected.upstream.fna').exists(),genomic_context)
             self.assertTrue((root/'result/model_quality.tsv').exists())
             with (root/'result/species_conservation_profile.tsv').open() as handle:
                 self.assertEqual({r['eligible_species'] for r in csv.DictReader(handle,delimiter='\t')},{'2'})

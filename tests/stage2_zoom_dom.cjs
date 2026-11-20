@@ -20,33 +20,41 @@ for(const view of ['distance','models']){
   assert.equal(pane.scrollTop,37,'Zoom must preserve vertical review position');
   const marker=view==='distance'?'.cluster-model-span':'.cds-block';
   for(const shape of svg().querySelectorAll(marker)){
+   const row=shape.closest('.gene-arrow')?.dataset.row;
+   const rowScale=view==='distance'?Number(svg().querySelector(`.cluster-row-ruler[data-row="${row}"]`).dataset.pxPerBp):scale();
    const bp=Number(shape.dataset.end)-Number(shape.dataset.start);
    const xs=shape.getAttribute('points')?.split(/\s+/).map(p=>Number(p.split(',')[0]));
    const width=xs?Math.max(...xs)-Math.min(...xs):Number(shape.getAttribute('width'));
-   assert.ok(Math.abs(width-bp*scale())<1e-7,'Zoom must retain native bp lengths');
+   assert.ok(Math.abs(width-bp*rowScale)<1e-7,'Zoom must retain native bp lengths on the applicable row ruler');
   }
   results.push({view,zoom,pxPerBp:scale()});
  }
 }
-// Source filters, focal loci, neighbor counts and comparison subsets must
-// not change the meaning of one bp or redraw the reviewed window endpoints.
+// Clusters fit each reviewed window independently; details retain the common
+// scale. Source filters and comparison subsets must not alter a row's scale.
 const scaleChecks=[];
-change('scale','distance');change('genomeZoom','1');
+change('scale','models');change('genomeZoom','1');
 const commonScale=Number(d.querySelector('#links svg').dataset.pxPerBp);
+change('scale','distance');
 assert.equal(parseFloat(d.querySelector('#links svg').style.width),1260,'Fit must use the whole panel without a global horizontal overflow (JSDOM fallback width)');
 const checkScale=()=>{
  const svg=d.querySelector('#links svg'),px=Number(svg.dataset.pxPerBp);
- assert.equal(px,commonScale,'One bp must have the same width in every source/locus/comparison view');
+ const cluster=d.getElementById('scale').value==='distance';
+ if(!cluster)assert.equal(px,commonScale,'Detailed models retain one common physical scale');
+ else assert.equal(svg.dataset.scaleMode,'per-row');
  assert.equal(parseFloat(svg.style.width),Number(svg.getAttribute('viewBox').split(' ')[2]),'The browser must not fit-rescale the genomic SVG');
  const rows=w.eval('comparisonRows()');
  for(const [i,r]of rows.entries()){
   const a=svg.querySelector(`[data-window-edge="left"][data-row="${i}"]`),b=svg.querySelector(`[data-window-edge="right"][data-row="${i}"]`);
-  assert.ok(Math.abs(Number(b.getAttribute('x1'))-Number(a.getAttribute('x1'))-(r.window_end-r.window_start)*px)<1e-7,'Window width must equal its saved native bp span');
+  const local=cluster?svg.querySelector(`.cluster-row-ruler[data-row="${i}"]`):null,rowPx=local?Number(local.dataset.pxPerBp):px;
+  const span=Number(b.getAttribute('x1'))-Number(a.getAttribute('x1'));
+  assert.ok(Math.abs(span-(r.window_end-r.window_start)*rowPx)<1e-7,'Window width must equal its saved bp span on its own ruler');
+  if(cluster)assert.ok(Math.abs(span-(Number(svg.getAttribute('viewBox').split(' ')[2])-300))<1e-7,'Every complete cluster window fills the same row width');
   assert.equal(Number(a.dataset.coordinate),r.strand==='-'?r.window_end:r.window_start);
   assert.equal(Number(b.dataset.coordinate),r.strand==='-'?r.window_start:r.window_end);
   if(d.getElementById('scale').value==='distance'){
-   const local=svg.querySelector(`.cluster-row-ruler[data-row="${i}"]`);assert.ok(local,'Every cluster row needs its own aligned kb ruler');
-   const ticks=[...local.querySelectorAll('[data-ruler-bp]')];for(let j=1;j<ticks.length;j++){const delta=Number(ticks[j].dataset.rulerBp)-Number(ticks[j-1].dataset.rulerBp);assert.ok(Math.abs(Number(ticks[j].getAttribute('x1'))-Number(ticks[j-1].getAttribute('x1'))-delta*px)<1e-8)}
+   assert.ok(local,'Every cluster row needs its own aligned kb ruler');
+   const ticks=[...local.querySelectorAll('[data-ruler-bp]')];for(let j=1;j<ticks.length;j++){const delta=Number(ticks[j].dataset.rulerBp)-Number(ticks[j-1].dataset.rulerBp);assert.ok(Math.abs(Number(ticks[j].getAttribute('x1'))-Number(ticks[j-1].getAttribute('x1'))-delta*rowPx)<1e-8)}
    assert.equal(svg.querySelectorAll('.target-span-label').length,0,'Original NANOG captions should not gain model-span summary rows');
   }
   for(const label of svg.querySelectorAll(`.cluster-gene-label[data-row="${i}"]`)){
@@ -62,7 +70,7 @@ for(const view of ['distance','models']){
 }
 change('scale','distance');change('modelSource','all');
 for(const r of w.eval('DATA.regions')){change('region',r.region_id);checkScale()}
-Object.defineProperty(d.getElementById('links'),'clientWidth',{configurable:true,value:760});w.dispatchEvent(new w.Event('resize'));assert.equal(parseFloat(d.querySelector('#links svg').style.width),760,'Fit must follow the inner panel width after resizing');Object.defineProperty(d.getElementById('links'),'clientWidth',{configurable:true,value:0});w.dispatchEvent(new w.Event('resize'));checkScale();
+Object.defineProperty(d.getElementById('links'),'clientWidth',{configurable:true,value:760});w.dispatchEvent(new w.Event('resize'));assert.equal(parseFloat(d.querySelector('#links svg').style.width),1020,'Narrow panels retain a readable canvas with horizontal scrolling');Object.defineProperty(d.getElementById('links'),'clientWidth',{configurable:true,value:0});w.dispatchEvent(new w.Event('resize'));checkScale();
 change('neighborsShown','5');checkScale();change('neighborsShown','10');checkScale();
 const other=[...d.getElementById('other').options].find(o=>o.value!=='all');
 if(other){change('other',other.value);checkScale();change('other','all')}

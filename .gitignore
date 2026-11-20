@@ -4,5 +4,11 @@ __pycache__/
 .venv/
 build/
 dist/
+node_modules/
+.gcf/
 results/
 data/
+
+# Optional launcher build outputs
+portable-review/bin/
+genecontext/vendor/review/review-*

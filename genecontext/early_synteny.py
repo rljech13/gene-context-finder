@@ -38,9 +38,9 @@ def save(path, value):
 
 
 def settings(args):
-    return dict(neighbors=getattr(args, 'synteny_neighbors', 5),
+    return dict(neighbors=getattr(args, 'synteny_neighbors', 10),
                 max_neighbors=getattr(args, 'synteny_max_neighbors', 10),
-                max_distance=getattr(args, 'synteny_max_distance', 1000000),
+                max_distance=getattr(args, 'synteny_max_distance', 0),
                 min_coverage=.5, min_identity=.3, competing_ratio=.95, evalue=1e-5)
 
 
@@ -462,7 +462,7 @@ class GeneIndex:
                 gene=values[i];i += -1 if side=='left' else 1
                 if gene['gene_id'] in excluded:
                     continue
-                if (side=='left' and gene['start']<max(0,start-cap)) or (side=='right' and gene['end']>end+cap):
+                if cap and ((side=='left' and gene['start']<max(0,start-cap)) or (side=='right' and gene['end']>end+cap)):
                     limited='distance_cap';break
                 count+=1
                 result.append(dict(gene,side=side,side_rank=count,
@@ -477,10 +477,12 @@ class GeneIndex:
         positions, values = self.starts.get(contig, ([], []))
         overlapping = values[:bisect_left(positions, end)]
         extras = {g['gene_id']: g for g in overlapping if g['end'] > start}
+        visible_start=min([start]+[g['start'] for g in result]) if not cap else start-cap
+        visible_end=max([end]+[g['end'] for g in result]) if not cap else end+cap
         extras.update({gid: self.genes[gid] for gid in excluded if gid in self.genes
                        and self.genes[gid]['contig'] == contig
-                       and self.genes[gid]['end'] > start-cap
-                       and self.genes[gid]['start'] < end+cap})
+                       and self.genes[gid]['end'] > visible_start
+                       and self.genes[gid]['start'] < visible_end})
         for gid, gene in sorted(extras.items()):
             is_anchor = gid == anchor_gene if anchor_gene else (
                 gene['start'] == start and gene['end'] == end and gene['strand'] == strand)
@@ -684,10 +686,10 @@ def run_early_synteny(data, *, genomes_manifest, source_genomes_manifest=None,
     if cache==out.resolve() or cache in out.resolve().parents or out.resolve() in cache.parents:
         raise ValueError('Cache and evidence output must be separate directories')
     cache.mkdir(parents=True,exist_ok=True)
-    cfg=dict(neighbors=5,max_neighbors=10,max_distance=1000000,min_coverage=.5,min_identity=.3,competing_ratio=.95,evalue=1e-5)
+    cfg=dict(neighbors=10,max_neighbors=10,max_distance=0,min_coverage=.5,min_identity=.3,competing_ratio=.95,evalue=1e-5)
     cfg.update(config or {})
-    if not (0<cfg['neighbors']<=cfg['max_neighbors']<=10 and cfg['max_distance']>0):
-        raise ValueError('Require 0 < neighbors <= max_neighbors <= 10 genes per side and positive max_distance')
+    if not (0<cfg['neighbors']<=cfg['max_neighbors']<=10 and cfg['max_distance']>=0):
+        raise ValueError('Require 0 < neighbors <= max_neighbors <= 10 genes per side; max_distance >= 0 (0: count-first, no distance cutoff)')
     if not (0<cfg['min_coverage']<=1 and 0<cfg['min_identity']<=1 and 0<cfg['competing_ratio']<=1 and cfg['evalue']>0):
         raise ValueError('Invalid preliminary homology thresholds')
     runner=runner or Runner(out)
@@ -844,9 +846,9 @@ def main(argv=None):
     ap.add_argument('--cache',required=True)
     ap.add_argument('--out',required=True,help='New output directory, outside the saved checkpoint')
     ap.add_argument('--threads',type=int,default=4)
-    ap.add_argument('--neighbors',type=int,default=5)
+    ap.add_argument('--neighbors',type=int,default=10)
     ap.add_argument('--max-neighbors',type=int,default=10)
-    ap.add_argument('--max-distance',type=int,default=1000000)
+    ap.add_argument('--max-distance',type=int,default=0,help='0: take the requested nearest coding genes without a distance cutoff')
     args=ap.parse_args(argv)
     source,data=verify(args.results);out=Path(args.out).resolve()
     if source==out or source in out.parents or out in source.parents:

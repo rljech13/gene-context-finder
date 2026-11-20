@@ -1,0 +1,36 @@
+{
+  "purpose": "Pinned current review UI for rebuilding completed legacy reports only",
+  "source_snapshot_sha256": {
+    "stage2_review.txt": "87cc2b1bb5815555f06edf897c87cda4f773f4459248cdd23015ab785b2c9799",
+    "stage2_neighborhood.txt": "e7be5e9d158d2e403999054527453fcea7ee318eff63153e01f534fb220c4bb1",
+    "stage2_cluster.txt": "840be5366d28c73db01e84620d7ea15334a6c7f216d2e5ac9696b7c4f521fdd8",
+    "stage2_review_queue.txt": "36a84fa07629bb442fedcdc6e4bc320505e4f17a78b0bb04dbceb7911f2c6483",
+    "stage2_model_compare.txt": "db7ebb4145bbbaa753f237b6ea175b1ddb86a1733fc92d90e614464f0cdcdf06",
+    "review_realign.txt": "341172dd7929628971101e0ea01c5d11a3fd532c28a0c0c849e99b871c49cb39",
+    "alignment_review_steps.txt": "38c63ff0a7f55065dc3b026355bc2c1c880c63d6239559dcf82ed9ddef2a2921",
+    "synteny_review_page.txt": "42ff93208bb0ab2f801f4d5058614fcbd08ac5034d84feb6363af1434b5f450e",
+    "stop4_handoff.txt": "dcb9dbcd5e7473b7558f6145f26e268c3cb5df270c0c4afa6d247dc18b954967",
+    "review_undo.txt": "fa4639e383a8920b7389b23f78f22221db6928e31aa48703ff447c1f4e20968f"
+  },
+  "adapted_sha256": {
+    "legacy_controls.txt": "937a96ce1e753f32ab88ebe109106a610f3abe537d87eb24761abfb007da8d46",
+    "synteny_review_page.txt": "42ff93208bb0ab2f801f4d5058614fcbd08ac5034d84feb6363af1434b5f450e",
+    "review_realign.txt": "1b412402cb1a99bdbf6a3109c258e80e23f50a04cb219f82d63facf8f038aa32",
+    "stage2_cluster.txt": "840be5366d28c73db01e84620d7ea15334a6c7f216d2e5ac9696b7c4f521fdd8",
+    "alignment_review_steps.txt": "38c63ff0a7f55065dc3b026355bc2c1c880c63d6239559dcf82ed9ddef2a2921",
+    "stage2_neighborhood.txt": "e7be5e9d158d2e403999054527453fcea7ee318eff63153e01f534fb220c4bb1",
+    "stage2_review_queue.txt": "36a84fa07629bb442fedcdc6e4bc320505e4f17a78b0bb04dbceb7911f2c6483",
+    "stage2_review.txt": "87cc2b1bb5815555f06edf897c87cda4f773f4459248cdd23015ab785b2c9799",
+    "link_contrast.css": "c610740b5cdd64b09bd1037ef7bbf6423f6f7715947a92921dee14a5c3ca5a33",
+    "legacy_bootstrap.txt": "13903338b3a081a9e358f5a92654a1073c4f8ec0071d009dd03f36cb7d7943ca",
+    "interactive_style.txt": "958c8b619ad9d0eddd974aa82b1b3dff92e376f82b82175cdc29ff9d003f94e4",
+    "stage2_model_compare.txt": "db7ebb4145bbbaa753f237b6ea175b1ddb86a1733fc92d90e614464f0cdcdf06",
+    "stop4_handoff.txt": "ba2fdf673dbef8e0bb0b051c61011c581367845832ad3ffcefb12cc7266bdd0f",
+    "synteny_reference_approval.txt": "5b318bcaddcdaef1902e89fbd57ba45f76fa45886c4b52dda57f6e8378f491fb",
+    "review_undo.txt": "dde47eb4835a5f24792ad631eefe98e6570a432d67a722f4d93f1993778eb7bc"
+  },
+  "adaptations": [
+    "English interface messages",
+    "Hosted legacy pages view saved results; recalculation uses the included current local launcher"
+  ]
+}

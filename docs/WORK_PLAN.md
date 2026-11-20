@@ -1,5 +1,10 @@
 # Work plan: target-gene conservation and sequence selection
 
+For the current general study runner and supported STOP1–4 handoffs, use
+[PROJECTS.md](PROJECTS.md). The 0.10.0 implementation inventory below records its
+historical scope; current projects configure arbitrary target and genome panels,
+retain review history and adopt existing sealed results in place.
+
 Updated for version 0.10.0 on 2026-11-09. The [original audit](WORKFLOW_AUDIT_2026-11-09.md) is a historical baseline: it records the reproduced gaps before these fixes. The current implementation includes shared prediction intervals, shared STOP-2 validation, and the new `stage3` comparison consumer. Study-specific run receipts distinguish software controls from biological review.
 
 ## Intended result

@@ -1,0 +1,32 @@
+{
+  "schema": "gene_context_project_v1",
+  "name": "Synthetic two-family control",
+  "workflow": "sequential_v2",
+  "genomes": "genomes.tsv",
+  "targets": [
+    {
+      "id": "family_a",
+      "gene": "FACTOR_A",
+      "query": "FACTOR_A.faa",
+      "query_type": "protein"
+    },
+    {
+      "id": "family_b",
+      "gene": "FACTOR_B",
+      "query": "FACTOR_B.cds.fna",
+      "query_type": "cds"
+    }
+  ],
+  "options": {
+    "stage1": {
+      "early_synteny": "off",
+      "query_metadata_lookup": "off",
+      "threads": 1
+    }
+  },
+  "execution": {
+    "stage2": {
+      "mode": "plan"
+    }
+  }
+}

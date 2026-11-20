@@ -1,0 +1,2 @@
+id	gene	query	query_type	query_metadata
+pou5	POU5	../queries/pou5_test/proteins.faa	protein	../queries/pou5_test/queries.tsv

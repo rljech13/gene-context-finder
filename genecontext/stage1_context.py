@@ -10,7 +10,9 @@ from .stage1 import dump, new_output, now, verify, write_outputs
 
 
 def attach(args, root, data, runner=None):
+    from .stage1_limit import apply_limit
     if getattr(args,'early_synteny','auto')=='off':
+        apply_limit(args,root,data)
         return False
     from .early_synteny import run_early_synteny, settings
     runner=runner or Runner(root)
@@ -29,6 +31,7 @@ def attach(args, root, data, runner=None):
         for locus in data['loci']:
             species=sorted({m['species'] for qid in locus['query_ids'] for m in qmap[qid]['members'] if m.get('species')})
             locus.update(species=species,support_species=len(species))
+    apply_limit(args,root,data)
     source_manifest=getattr(args,'source_datasets',None)
     registered=Path(cache)/'source_datasets.tsv'
     if not source_manifest and registered.is_file():source_manifest=registered
@@ -64,7 +67,7 @@ def attach(args, root, data, runner=None):
         print('[early synteny] '+str(error),file=sys.stderr)
         result=dict(schema='early_synteny_v1',status='failed',parameters=settings(args),references=[],source_resolution=[],datasets=[],
                     errors=[dict(stage='early_synteny',error=str(error))],loci=[dict(genome_id=l['genome_id'],locus_id=l['locus_id'],
-                    status='early_synteny_error',neighbors_requested=getattr(args,'synteny_neighbors',5),neighbors_used=0,
+                    status='early_synteny_error',neighbors_requested=getattr(args,'synteny_neighbors',10),neighbors_used=0,
                     window_start=l['start'],window_end=l['end'],neighbors=[],comparisons=[],flags=[str(error)]) for l in data['loci']])
     result['artifact']='raw/early_synteny/evidence.json'
     result['source_review_id']=data.get('parent_review',data['review_id'])
@@ -85,9 +88,15 @@ def context(args):
     if source in root.parents or root in source.parents:raise ValueError('Context report must be separate from its source')
     for name in ['queries.fasta','loci.fna']:
         if (source/name).exists():shutil.copyfile(source/name,root/name)
-    shutil.copytree(source/'raw',root/'raw',ignore=lambda folder,names:['early_synteny'] if Path(folder)==source/'raw' and 'early_synteny' in names else [])
-    if (source/'raw/early_synteny').exists():
-        shutil.copytree(source/'raw/early_synteny',root/'raw/prior_early_synteny'/data['review_id'])
+    # Preserve the parent scientific checkpoint by reference. A context update
+    # must not copy old BLAST/context evidence trees into every new result.
+    (root/'raw').mkdir()
+    parent=dict(path=str(source),review_id=data['review_id'],
+        evidence_sha256=sha256(source/'evidence.json'),seal_sha256=sha256(source/'seal.json'),
+        raw_base='_source/'+data.get('source_checkpoint',{}).get('raw_base','raw/'))
+    data['source_checkpoint']=parent
+    (root/'_source').symlink_to(source,target_is_directory=True)
+    dump(root/'raw/source_checkpoint.json',parent)
     data['parent_review']=data['review_id'];data['review_id']=str(uuid4());data['created']=now()
     data['source_evidence_sha256']=sha256(source/'evidence.json')
     data.pop('early_synteny',None)

@@ -118,7 +118,7 @@ class FailureAndIntegrity(unittest.TestCase):
             (source/'evidence.json').write_text(json.dumps(data))
             write_tsv(root/'datasets.tsv',[dict(genome_id='a',fasta=str(root/'genome.fa'),gff3=str(root/'genes.gff'))],['genome_id','fasta','gff3'])
             write_tsv(root/'decisions.tsv',[dict(review_id='stress',genome_id='a',locus_id='l',decision='inspect',reason='check_context',notes='software control only')],['review_id','genome_id','locus_id','decision','reason','notes'])
-            args=parser().parse_args(['stage2','--results',str(source),'--decisions',str(root/'decisions.tsv'),'--genomes',str(root/'datasets.tsv'),'--protein-db',str(root/'db'),'--out',str(root/'result')])
+            args=parser().parse_args(['stage2','--window-policy','pre-synteny','--results',str(source),'--decisions',str(root/'decisions.tsv'),'--genomes',str(root/'datasets.tsv'),'--protein-db',str(root/'db'),'--out',str(root/'result')])
             def failed(args,out,rows,windows,runner,errors):
                 errors.append(dict(stage='context_prediction',locus_id='l',error='Deliberate software failure control'))
                 return {},dict(batches=[dict(loci=['l'],status='error')])
