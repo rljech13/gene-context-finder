@@ -52,30 +52,42 @@ type Sequence struct {
 	Metadata  json.RawMessage
 }
 type Dataset struct {
-	Schema    string
-	ReviewID  string `json:"review_id"`
-	Stage     int
-	Sequences []Sequence
-	History   json.RawMessage
+	SourceReviewID string `json:"source_review_id"`
+	Schema         string
+	ReviewID       string `json:"review_id"`
+	Stage          int
+	Sequences      []Sequence
+	History        json.RawMessage
 }
 type Request struct {
-	Decisions json.RawMessage `json:"decisions"`
-	IDs       []string        `json:"ids"`
-	Group     string          `json:"group"`
+	Notes             string          `json:"notes"`
+	Phase             string          `json:"phase"`
+	AlignmentResultID string          `json:"alignment_result_id"`
+	OutgroupIDs       []string        `json:"outgroup_ids"`
+	TrimMode          string          `json:"trim_mode"`
+	RootBasis         string          `json:"root_basis"`
+	Decisions         json.RawMessage `json:"decisions"`
+	IDs               []string        `json:"ids"`
+	Group             string          `json:"group"`
 }
 type Result struct {
-	ID       string            `json:"id"`
-	ReviewID string            `json:"review_id"`
-	InputSHA string            `json:"input_sha256"`
-	IDs      []string          `json:"ids"`
-	Group    string            `json:"group"`
-	Protein  map[string]string `json:"protein"`
-	CDS      map[string]string `json:"cds"`
-	MAFFT    string            `json:"mafft_version"`
-	Created  string            `json:"created"`
+	Phase       string            `json:"phase,omitempty"`
+	AlignmentID string            `json:"alignment_id,omitempty"`
+	Phylogeny   map[string]any    `json:"phylogeny,omitempty"`
+	Provenance  map[string]any    `json:"provenance,omitempty"`
+	ID          string            `json:"id"`
+	ReviewID    string            `json:"review_id"`
+	InputSHA    string            `json:"input_sha256"`
+	IDs         []string          `json:"ids"`
+	Group       string            `json:"group"`
+	Protein     map[string]string `json:"protein"`
+	CDS         map[string]string `json:"cds"`
+	MAFFT       string            `json:"mafft_version"`
+	Created     string            `json:"created"`
 }
 type App struct {
 	root, token, origin, temporary, mafft, version string
+	iqtree, iqtreeVersion, iqtreeTemporary         string
 	data                                           Dataset
 	raw                                            []byte
 	byID                                           map[string]Sequence
@@ -123,7 +135,11 @@ func parseFASTA(raw []byte) (map[string]string, error) {
 			continue
 		}
 		if strings.HasPrefix(l, ">") {
-			id = strings.Fields(l[1:])[0]
+			words := strings.Fields(l[1:])
+			if len(words) == 0 {
+				return nil, errors.New("Missing FASTA ID")
+			}
+			id = words[0]
 			if _, ok := out[id]; ok {
 				return nil, errors.New("Duplicate FASTA ID")
 			}
@@ -427,6 +443,7 @@ func (a *App) ensureMAFFT() error {
 	return nil
 }
 func (a *App) cleanup() {
+	a.cleanupIQTREE()
 	if a.temporary == "" {
 		return
 	}
@@ -502,7 +519,13 @@ func codingAlignment(protein map[string]string, selected map[string]Sequence) (m
 	return out, nil
 }
 func (a *App) align(q Request) (Result, error) {
-	r := Result{ReviewID: a.data.ReviewID, Group: q.Group, Created: time.Now().UTC().Format(time.RFC3339)}
+	if q.Phase == "tree" {
+		return a.tree(q)
+	}
+	if q.Phase != "" && q.Phase != "alignment" {
+		return Result{}, errors.New("Unknown review operation")
+	}
+	r := Result{Phase: "alignment", ReviewID: a.data.ReviewID, Group: q.Group, Created: time.Now().UTC().Format(time.RFC3339)}
 	selected := map[string]Sequence{}
 	proteins := map[string]string{}
 	for _, id := range q.IDs {
@@ -525,13 +548,14 @@ func (a *App) align(q Request) (Result, error) {
 	r.MAFFT = a.version
 	r.IDs = append([]string{}, q.IDs...)
 	sort.Strings(r.IDs)
-	signature, _ := json.Marshal([]any{digest(a.raw), digest(q.Decisions), r.IDs, a.version, []string{"--auto", "--amino", "--thread", "2"}})
+	r.Provenance = map[string]any{"method": "portable_review23_v2", "helper_source_sha256": buildHash,
+		"dataset_sha256": digest(a.raw), "model_choice_notes": q.Notes}
+	signature, _ := json.Marshal([]any{r.Provenance, digest(q.Decisions), r.IDs, a.version, []string{"--auto", "--amino", "--thread", "2"}})
 	r.InputSHA = digest(signature)
 	r.ID = r.InputSHA[:20]
 	dest := filepath.Join(a.root, "review_results", r.ID)
-	if b, e := os.ReadFile(filepath.Join(dest, "result.json")); e == nil {
-		e = json.Unmarshal(b, &r)
-		return r, e
+	if _, e := os.Stat(filepath.Join(dest, "result.json")); e == nil {
+		return a.verifiedResult(r.ID)
 	}
 	work, e := markedTemp("gcf-review-align-")
 	if e != nil {
@@ -636,11 +660,13 @@ func (a *App) handle(w http.ResponseWriter, r *http.Request) {
 		}
 		a.touch()
 		switch r.URL.Path {
+		case "/api/state":
+			a.handleState(w, r)
 		case "/api/status":
 			a.mu.Lock()
 			loaded := a.mafft != ""
 			a.mu.Unlock()
-			writeJSON(w, map[string]any{"ready": true, "review_id": a.data.ReviewID, "mafft_loaded": loaded})
+			writeJSON(w, map[string]any{"ready": true, "review_id": a.data.ReviewID, "mafft_loaded": loaded, "trimal_supported": true, "scaled_tree_views": true})
 		case "/api/data":
 			writeJSON(w, a.data)
 		case "/api/align":
@@ -668,6 +694,21 @@ func (a *App) handle(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			writeJSON(w, v)
+		case "/api/checkpoint":
+			if r.Method != http.MethodGet {
+				http.Error(w, "GET required", http.StatusMethodNotAllowed)
+				return
+			}
+			checkpoint, e := a.verifiedResult(r.URL.Query().Get("id"))
+			if e != nil {
+				fail(w, e)
+				return
+			}
+			if e := scaledTreeViews(&checkpoint); e != nil {
+				fail(w, e)
+				return
+			}
+			writeJSON(w, checkpoint)
 		case "/api/export":
 			if r.Method != "POST" {
 				http.Error(w, "POST required", 405)
@@ -675,7 +716,7 @@ func (a *App) handle(w http.ResponseWriter, r *http.Request) {
 			}
 			var v struct{ ID string }
 			json.NewDecoder(io.LimitReader(r.Body, 1024)).Decode(&v)
-			if len(v.ID) != 20 || strings.Trim(v.ID, "0123456789abcdef") != "" {
+			if !validResultID(v.ID) {
 				fail(w, errors.New("Invalid result ID"))
 				return
 			}
@@ -735,8 +776,8 @@ func (a *App) handle(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid host", 403)
 		return
 	}
-	if r.URL.Path == "/" {
-		http.ServeFile(w, r, filepath.Join(a.root, "report.html"))
+	if r.URL.Path == "/" || r.URL.Path == "/report.html" {
+		a.serveReview(w, r)
 		return
 	}
 	// No directory listings and no executable/script downloads from the helper.
@@ -775,6 +816,7 @@ func main() {
 		}
 	}
 	cleanupStaleTemps()
+	cleanupIQTREEStaleCaches()
 	absolute, _ := filepath.Abs(*root)
 	raw, e := os.ReadFile(filepath.Join(absolute, "review_data.json"))
 	if e != nil {

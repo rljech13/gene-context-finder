@@ -164,6 +164,11 @@ def parser():
     package.add_argument('--results', required=True)
     package.add_argument('--out', required=True)
     package.add_argument('--platform', choices=['current', 'all', 'darwin-arm64', 'darwin-amd64', 'linux-arm64', 'linux-amd64', 'windows-arm64', 'windows-amd64'], default='current')
+    models = commands.add_parser('model-review', help='Build the current STOP2/STOP3 workspace from sealed prepared models; no prediction or alignment calculation')
+    models.add_argument('--results', required=True, help='Sealed stage2 model-preparation checkpoint')
+    models.add_argument('--out', required=True)
+    models.add_argument('--title', default='Candidate models')
+    models.add_argument('--prepared-models', '--legacy-stage2', action='store_true', help='Compatibility flag: prepared models are always required')
     doctor = commands.add_parser("doctor", help="Check sequence tools and the selected predictor")
     predictor_options(doctor)
     setup = commands.add_parser("setup-predictor", help="Install the pinned Tiberius CPU runtime and prepare shared model weights")
@@ -368,7 +373,9 @@ def parser():
     final.add_argument("--decisions",required=True,help="Exported stage3.final.decisions.json")
     final.add_argument("--out",required=True)
     s4=commands.add_parser('stage4',help='Build a compact candidate dossier, per-group gene trees and optional exact-sequence structural comparisons')
-    s4.add_argument('--results',required=True,help='Completed sealed STOP 3 result')
+    source4=s4.add_mutually_exclusive_group(required=True)
+    source4.add_argument('--results',help='Completed sealed legacy STOP 3 result')
+    source4.add_argument('--handoff',help='Verified export from the current STOP3; reuse its saved alignment and tree')
     s4.add_argument('--decisions',help='Exported STOP 3 final choices; otherwise use saved finalization state')
     s4.add_argument('--out',required=True)
     s4.add_argument('--preview',action='store_true',help='Explicitly allow unreviewed primary suggestions, visibly marked as preview')
@@ -470,6 +477,15 @@ def main(argv=None):
         except (OSError,ValueError,RuntimeError,KeyError) as error:
             print(f'ERROR: {error}',file=sys.stderr)
             return 2
+    if args.command == 'model-review':
+        from .alignment_review import build
+        try:
+            root,pool=build(args.results,args.out,legacy=True,title=args.title)
+            print(json.dumps(dict(report=str(root/'report.html'),review_id=pool['review_id'],calculations_started=False)))
+            return 0
+        except (OSError,ValueError,RuntimeError,KeyError) as error:
+            print(f'ERROR: {error}',file=sys.stderr)
+            return 2
     if args.command == 'review-package':
         from .interactive_review import package_review
         try:
@@ -501,6 +517,9 @@ def main(argv=None):
         from .stage4 import run as stage4
         try:
             if args.bootstrap<1000: raise ValueError('UFBoot requires at least 1000 replicates')
+            if args.handoff:
+                from .stage4_handoff import run as handoff
+                return handoff(args)
             return stage4(args)
         except (OSError,ValueError,RuntimeError,KeyError) as error:
             print(f'ERROR: {error}',file=sys.stderr)

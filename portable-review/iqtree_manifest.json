@@ -1,0 +1,32 @@
+{
+  "darwin-arm64": {
+    "URL": "https://github.com/iqtree/iqtree3/releases/download/v3.0.1/iqtree-3.0.1-macOS-arm.zip",
+    "SHA256": "0c9d39915ef773c06d261af738499a71b706068ff07707b1f0c3c260dfaea664",
+    "Archive": "iqtree-3.0.1-macOS-arm.zip",
+    "Entry": "iqtree-3.0.1-macOS-arm/bin/iqtree3"
+  },
+  "darwin-amd64": {
+    "URL": "https://github.com/iqtree/iqtree3/releases/download/v3.0.1/iqtree-3.0.1-macOS-intel.zip",
+    "SHA256": "366f65557f21662cfa91a96b2d208cfb53efcd6f17c005b341cd6c764c524d13",
+    "Archive": "iqtree-3.0.1-macOS-intel.zip",
+    "Entry": "iqtree-3.0.1-macOS-intel/bin/iqtree3"
+  },
+  "linux-amd64": {
+    "URL": "https://github.com/iqtree/iqtree3/releases/download/v3.0.1/iqtree-3.0.1-Linux-intel.tar.gz",
+    "SHA256": "2fe1f38daba07a7fb00b696572291e9a72a4e18918619c57c70f63857096bdbc",
+    "Archive": "iqtree-3.0.1-Linux-intel.tar.gz",
+    "Entry": "iqtree-3.0.1-Linux-intel/bin/iqtree3"
+  },
+  "linux-arm64": {
+    "URL": "https://github.com/iqtree/iqtree3/releases/download/v3.0.1/iqtree-3.0.1-Linux-arm.tar.gz",
+    "SHA256": "8a2c72418356b6e7a43462322fc33d7b68a6a485662ef92b6fa0b512d723db19",
+    "Archive": "iqtree-3.0.1-Linux-arm.tar.gz",
+    "Entry": "iqtree-3.0.1-Linux-arm/bin/iqtree3"
+  },
+  "windows-amd64": {
+    "URL": "https://github.com/iqtree/iqtree3/releases/download/v3.0.1/iqtree-3.0.1-Windows.zip",
+    "SHA256": "16cd257d58e4677a1f50657f443f6b2490916746a23c8451ebadeaf9ac1e5d43",
+    "Archive": "iqtree-3.0.1-Windows.zip",
+    "Entry": "iqtree-3.0.1-Windows/bin/iqtree3.exe"
+  }
+}

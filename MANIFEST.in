@@ -1,0 +1,11 @@
+include README.md LICENSE
+recursive-include portable-review *.go *.mod *.json *.js
+recursive-include scripts *.py
+recursive-include examples/minimal *.md *.json *.tsv *.faa *.fna *.gff3
+recursive-include tests *.py *.cjs *.mjs
+recursive-exclude genecontext/vendor/review review-*
+prune results
+prune data
+include package.json package-lock.json
+recursive-include docs *.md *.json
+recursive-include tests/fixtures *

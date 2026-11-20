@@ -130,12 +130,25 @@ def search_annotated(row, args, config, queries, root, work, runner, record, ver
                 subject_coverage=union_length([(h['start'],h['end']) for h in c['hsps']])/lengths[pid],
                 annotation_model=model, shared_product_loci=sorted({m['gene_id'] for m in product['mappings']}))
             assigned[gid].append(own)
+    contigs=dict(catalog['contigs'])
+    missing={genes[gid]['contig'] for gid in assigned}-set(contigs)
+    if missing and row.get('fasta'):
+        # GFF3 sequence-region directives are optional. With supplied products,
+        # the catalogue intentionally avoided reading genomic DNA; obtain an
+        # exact, separately verified FASTA index only when bounds are missing.
+        from .search_cache import prepare_genome
+        genome,index_receipt=prepare_genome(row['fasta'],cache/'search_inputs',runner,versions=versions)
+        try:
+            for contig in missing:
+                if contig in genome.index:contigs[contig]=(0,genome.length(contig))
+        finally:genome.close()
+        record.update(fasta_read=True,contig_extent_source='verified_genomic_fasta',contig_index=index_receipt)
     loci = []
     for gid, own in assigned.items():
         gene = genes[gid]; qids = sorted({c['query'] for c in own})
         members = [m for qid in qids for m in queries[qid]['members']]
         species = sorted({m['species'] for m in members if m.get('species')})
-        region = catalog['contigs'].get(gene['contig'])
+        region = contigs.get(gene['contig'])
         if not region or region[1] < gene['end']:
             raise ValueError('Missing/invalid contig extent for annotated locus: '+gene['contig'])
         lid = 'locus_'+hashlib.sha256(json.dumps([row['genome_id'], config['gene'], gid]).encode()).hexdigest()[:16]

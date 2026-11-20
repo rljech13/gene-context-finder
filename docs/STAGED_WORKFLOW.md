@@ -1,3 +1,5 @@
+> The current study route is documented in [PROJECTS.md](PROJECTS.md). Numeric native commands below retain their historical engine/checkpoint meaning; current STOP3 is the separate synteny review.
+
 # A workflow with two manual review stops
 
 This page describes the **legacy v0.5 model-first workflow**. For the new multi-reference, locus-first stage, start with [STAGE1.md](STAGE1.md). The checkpoint formats differ and cannot be mixed.

@@ -14,9 +14,10 @@ def write_report(project):
         for stage in STAGES:
             row = next(r for r in rows if r['target'] == tid and r['stage'] == stage)
             label = escape(row['status'].replace('_', ' '))
-            report = Path(row['report']) if row.get('report') else None
+            filename,_,query=(row.get('report') or '').partition('?')
+            report = Path(filename) if filename else None
             if report and report.is_file():
-                label = '<a href="'+escape(report.as_uri(), quote=True)+'">'+label+'</a>'
+                label = '<a href="'+escape(report.as_uri()+('?' + query if query else ''), quote=True)+'">'+label+'</a>'
             cells.append('<td>'+label+('<small>'+escape(row['detail'])+'</small>' if row['detail'] else '')+'</td>')
         body.append('<tr><th>'+escape(target['gene'])+'<small>'+escape(tid)+'</small></th>'+''.join(cells)+'</tr>')
     html = '''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -26,6 +27,10 @@ def write_report(project):
 <div class="scroll"><table><thead><tr><th>Gene / group</th><th>STOP 1 · loci</th><th>STOP 2 · models</th><th>STOP 3 · comparison</th><th>STOP 4 · dossier</th></tr></thead><tbody>__ROWS__</tbody></table></div>
 <p>Refresh with <code>gene-context project report --project /path/to/project.json</code>. Server checkpoints should be viewed on their owning host or through its existing viewer.</p></html>'''.replace('__NAME__', escape(project.data['name'])).replace('__ROWS__', ''.join(body))
     path = project.root/'project-report.html'
+    if project.workflow=='sequential_v2':
+        html=html.replace('Search loci → review models → compare sequences → final dossier.',
+            'Search loci → prepare annotation and prediction models → choose models, alignment and tree → review synteny → final dossier.')
+        html=html.replace('STOP 2 · models','STOP 2 · models, alignment and tree').replace('STOP 3 · comparison','STOP 3 · synteny and final models')
     if path.exists() and '<title>Gene Context study</title>' not in path.read_text():
         raise ValueError('Refusing to replace an unrelated project-report.html')
     path.write_text(html)

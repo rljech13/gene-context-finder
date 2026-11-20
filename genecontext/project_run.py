@@ -144,7 +144,7 @@ def status_rows(project, state=None):
                         row['decision_sha256'] = decision['sha256'] if decision else None
                         if stage != 'stage4' and decision:
                             row['status'] = 'reviewed' if decision['ready'] else 'review_incomplete' if decision['selected'] else 'closed_no_selection'
-                        if stage != 'stage1' and run.get('source_run_id'):
+                        if stage != 'stage1' and run.get('source_run_id') and not (project.workflow=='sequential_v2' and stage=='stage4'):
                             parent = project.current(state, tid, STAGES[STAGES.index(stage)-1])
                             d = project.decision(state, parent) if parent else None
                             if not previous_ok or not parent or parent['id'] != run['source_run_id'] or (d and d['sha256'] != run.get('decision_sha256')):
@@ -159,11 +159,19 @@ def status_rows(project, state=None):
             else:
                 previous_ok = False
             rows.append(row)
+    if project.workflow=='sequential_v2':
+        from .project_review import status
+        return status(project,state,rows)
     return rows
 
 
 def plan(project, tid, stage, new_attempt=False, state=None):
     state = state or project.load(); project.target(tid)
+    if project.workflow=='sequential_v2' and stage=='stage3':
+        raise ValueError('STOP3 is the synteny review page. Use project review, then project handoff with its explicit final export.')
+    if project.workflow=='sequential_v2' and stage=='stage4':
+        from .project_review import plan_final
+        return plan_final(project,tid,new_attempt,state)
     current = project.current(state, tid, stage)
     parent = decision = None
     if stage != 'stage1':
@@ -320,7 +328,7 @@ def register_cli(commands):
     p.add_argument('--out', required=True); p.add_argument('--name', required=True)
     p.add_argument('--genomes', required=True); p.add_argument('--targets', required=True, help='TSV: id, gene, query, query_type, optional query_metadata')
     p.add_argument('--stage2-executor', choices=['plan', 'local'], default='plan')
-    for name in ['validate', 'status', 'plan', 'run', 'attach', 'decisions', 'sync', 'report']:
+    for name in ['validate', 'status', 'plan', 'run', 'attach', 'decisions', 'sync', 'report', 'review', 'handoff']:
         p = sub.add_parser(name); p.add_argument('--project', required=True, help='project.json or its directory')
         if name in {'plan', 'run', 'attach', 'decisions'}:
             p.add_argument('--target', required=True, help='Target ID; run/plan also accept all')
@@ -333,6 +341,10 @@ def register_cli(commands):
             p.add_argument('--file', required=True)
         if name == 'status':
             p.add_argument('--json', action='store_true')
+        if name in {'review','handoff'}:
+            p.add_argument('--target',required=True)
+        if name=='review':p.add_argument('--new-attempt',action='store_true')
+        if name=='handoff':p.add_argument('--file',required=True)
 
 
 def main(args):
@@ -374,6 +386,11 @@ def main(args):
             result = attach(project, args.target, args.stage, args.results, args.new_attempt)
         elif action == 'decisions':
             result = record_decision(project, args.target, args.stage, args.file)
+        elif action in {'review','handoff'}:
+            if project.workflow!='sequential_v2':
+                raise ValueError('This project retains its legacy workflow. Create a new sequential project and attach the existing prepared checkpoint.')
+            from .project_review import prepare,record_handoff
+            result=prepare(project,args.target,args.new_attempt) if action=='review' else record_handoff(project,args.target,args.file)
         elif action == 'sync':
             result = sync(project)
         elif action == 'report':

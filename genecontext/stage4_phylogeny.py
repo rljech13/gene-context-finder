@@ -69,7 +69,17 @@ def tip_names(node):
     return sum((tip_names(c) for c in node['children']), []) if node['children'] else [node['name']]
 
 
-def tree_svg(newick, leaves):
+def phylogram_scale(scale, x, y):
+    target = 100 / scale
+    order = 10 ** math.floor(math.log10(target))
+    value = max(m * order for m in (1, 2, 5) if m * order <= target)
+    end = x + value * scale
+    return (f'<g class="tree-distance-scale" data-substitutions-per-site="{value:.8g}">'
+            f'<path d="M{x:g},{y:g} h{value*scale:.6g} M{x:g},{y-4:g} v8 M{end:.6g},{y-4:g} v8" '
+            f'stroke="#27464a" fill="none"/><text x="{x:g}" y="{y+17:g}">{value:.8g} substitutions / site</text></g>')
+
+
+def tree_svg(newick, leaves, *, scale_bar=True):
     tree = parse_newick(newick)
     by_id = {l['tree_id']: l for l in leaves if l['included']}
     if set(tip_names(tree)) != set(by_id) or len(tip_names(tree)) != len(by_id):
@@ -100,8 +110,11 @@ def tree_svg(newick, leaves):
             suffix = f' (+{len(leaf["labels"])-1} identical)' if len(leaf['labels']) > 1 else ''
             out.append(f'<text x="{x+7}" y="{y+4}"><title>{escape("; ".join(leaf["labels"]))}</title>{escape(label+suffix)}</text>')
     draw(tree)
-    bar = .1 if maximum >= .1 else .01
-    out.append(f'<path d="M18,{height-24} h{bar*scale}" stroke="#27464a"/><text x="18" y="{height-7}">{bar:g} substitutions / site</text></g></svg>')
+    if scale_bar:
+        out.append(phylogram_scale(scale, 18, height-26))
+    else:
+        out.append(f'<text x="18" y="{height-7}">Topology layout · branch lengths not to scale</text>')
+    out.append('</g></svg>')
     return ''.join(out)
 
 

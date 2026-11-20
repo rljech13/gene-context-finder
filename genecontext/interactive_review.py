@@ -90,13 +90,14 @@ def stage3_dataset(root, data, source=None, source_display=None):
 def attach(html,data):
     from .synteny_reference import attach as attach_reference
     if MARKER in html:return attach_reference(html)
-    text=json.dumps(data,ensure_ascii=True,separators=(',',':')).replace('<','\\u003c').replace('&','\\u0026')
+    text=json.dumps(data,ensure_ascii=True,separators=(',',':')).replace('<',chr(92)+'u003c').replace('&',chr(92)+'u0026')
     section='<section id="interactiveReview"></section><script id="interactiveReviewData" type="application/json">'+text+'</script>'
     if '<details id="alignmentPanel"' in html:
         html=html.replace('<details id="alignmentPanel"',section+'<details id="alignmentPanel"',1)
     else:html=html.replace('</main>',section+'</main>',1)
-    html=html.replace('</head>','<style>'+STYLE+'</style></head>',1)
+    html=html.replace('</head>','<script>'+Path(__file__).with_name('review_storage.txt').read_text()+'</script><style>'+STYLE+'</style></head>',1)
     script=Path(__file__).with_name('review_realign.txt').read_text()
+    script+='\n'+Path(__file__).with_name('review_undo.txt').read_text()
     return attach_reference(MARKER+'\n'+html.replace('</body>','<script>'+script+'</script></body>',1))
 
 def write_dataset(root, data):
@@ -104,12 +105,18 @@ def write_dataset(root, data):
     path.write_text(json.dumps(data,ensure_ascii=True,separators=(',',':'))+'\n')
 
 
-def write_kit(root,data,bin_dir=None,platforms=None):
+def write_kit(root,data,bin_dir=None,platforms=None,*,page=None):
     """The tiny app is independent of source scientific trees and environments."""
     data=dict(data,portable_available=True)
+    if page is not None:
+        import re
+        text=json.dumps(data,ensure_ascii=True,separators=(',',':')).replace('<',chr(92)+'u003c').replace('&',chr(92)+'u0026')
+        page,count=re.subn(r'(<script id="interactiveReviewData" type="application/json">).*?(</script>)',lambda m:m[1]+text+m[2],page,count=1,flags=re.S)
+        if count!=1:raise ValueError('Expected one embedded review dataset')
     root=Path(root);write_dataset(root,data)
     binary_root=Path(bin_dir or os.environ.get('GCF_REVIEW_BIN_DIR') or Path(__file__).parent/'vendor/review')
-    if not binary_root.is_dir():raise ValueError('Review launcher binaries were not packaged')
+    if not binary_root.is_dir() or not list(binary_root.glob('review-*')):
+        raise ValueError('Build the optional local launcher with scripts/build_review.py and set GCF_REVIEW_BIN_DIR; ordinary report generation needs no launcher')
     files={'review_data.json':(root/'review_data.json').read_bytes()}
     launcher=r'''#!/bin/sh
 cd "$(dirname "$0")" || exit 1
@@ -135,7 +142,7 @@ exec ".review/bin/review-$os-$arch" --root "$PWD"
             raise ValueError('Use a new output directory for changed launcher binaries')
         files['.review/bin/'+p.name]=p.read_bytes()
     mini='<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gene context · interactive alignment</title></head><body><main style="max-width:1400px;margin:24px auto;padding:16px"><h1>Gene context · CDS model comparison</h1><p>Exact native models and query references. Original decisions are retained; comparison membership does not approve a target.</p></main></body></html>'
-    files['report.html']=attach(mini,data).encode()
+    files['report.html']=(page if page is not None else attach(mini,data)).encode()
     files['README.txt']=b'Extract all files. Start Start_review.command (macOS), Start_review.sh (Linux), or Start_review.cmd (Windows). No Python/Conda/Docker is required. The launcher opens the report on localhost. MAFFT is used from PATH when suitable; otherwise the verified official portable package is downloaded only when Recalculate is pressed. Finish and clean up waits for all calculations and saved results. Other live report sessions retain their leased MAFFT. Native inputs, comments, imported choices and review_results remain. A disconnected tab does not abort a calculation. Unsupported native MAFFT architectures need a preinstalled compatible MAFFT. Source history is not human final approval.\n'
     files['THIRD_PARTY.txt']=b'The local launcher uses the Go standard library. MAFFT is downloaded separately from its official distribution with a pinned SHA256. MAFFT Unix portable packages are BSD; the Windows all-in-one package is GPL and includes MSYS. Upstream sources and notices: https://mafft.ddbj.nig.ac.jp/alignment/software/ . Package notices are retained in the extracted runtime. The residue palette follows Jalview GeCoS Blossom.\n'
     files['LICENSE-Go.txt']=(binary_root/'LICENSE-Go.txt').read_bytes()
@@ -143,6 +150,9 @@ exec ".review/bin/review-$os-$arch" --root "$PWD"
     (root/'REVIEW_RUNTIME.txt').write_bytes(files['README.txt']+b'\n'+files['THIRD_PARTY.txt'])
     checks={n:hashlib.sha256(v).hexdigest() for n,v in files.items()}
     files['PACKAGE_CHECKSUMS.json']=json.dumps(checks,indent=2).encode()
+    for name,raw in files.items():
+        path=root/name;path.parent.mkdir(parents=True,exist_ok=True)
+        if not path.exists() or path.read_bytes()!=raw:path.write_bytes(raw)
     with zipfile.ZipFile(root/'review_app.zip','w',compression=zipfile.ZIP_DEFLATED,compresslevel=6) as z:
         for name,raw in files.items():
             info=zipfile.ZipInfo('Gene_context_review/'+name);info.compress_type=zipfile.ZIP_DEFLATED
@@ -160,7 +170,17 @@ def package_review(args):
         raise ValueError('Use a separate portable-package output directory')
     data=json.loads((source/'review_data.json').read_text())
     if data.get('schema')!='gcf_interactive_review_v1':raise ValueError('Expected saved interactive review data')
-    if data.get('stage')==2:
+    page=None
+    if data.get('workflow')=='gcf_alignment_first_v1':
+        seal=json.loads((source/'seal.json').read_text())
+        for name in ('manifest.json','review_data.json','report.html'):
+            if hashlib.sha256((source/name).read_bytes()).hexdigest()!=seal.get(name):
+                raise ValueError('Review presentation seal differs: '+name)
+        manifest=json.loads((source/'manifest.json').read_text())
+        if manifest.get('review_id')!=data['review_id']:
+            raise ValueError('Review dataset belongs to another workspace')
+        review_id=data['review_id'];page=(source/'report.html').read_text()
+    elif data.get('stage')==2:
         from .stage2_choices import verify_checkpoint
         _,scientific=verify_checkpoint(source);review_id=scientific['review_id']
     elif data.get('stage')==3:
@@ -175,4 +195,4 @@ def package_review(args):
         if not osname or not arch:raise ValueError('Choose a supported viewer platform explicitly')
         chosen=osname+'-'+arch
     root=new_output(target)
-    return write_kit(root,data,platforms=None if chosen=='all' else {chosen})
+    return write_kit(root,data,platforms=None if chosen=='all' else {chosen},page=page)

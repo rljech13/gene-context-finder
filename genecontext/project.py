@@ -23,7 +23,7 @@ PATH_OPTIONS = {'datasets', 'source_datasets', 'neighbor_cache', 'protein_db',
                 'predictor_cache', 'prediction_models', 'tiberius_python',
                 'reference_panel', 'structures', 'structure_cache', 'iqtree', 'usalign'}
 RESERVED = {'command', 'results', 'out', 'decisions', 'selection', 'draft',
-            'validate_only', 'resume', 'gene', 'query', 'query_type', 'genomes',
+            'validate_only', 'resume', 'gene', 'query', 'query_type', 'genomes', 'handoff',
             'query_metadata', 'help', 'version'}
 
 
@@ -68,9 +68,12 @@ class Project:
         self.data = json.loads(self.path.read_text())
         if not isinstance(self.data, dict) or self.data.get('schema') != SCHEMA:
             raise ValueError('Expected '+SCHEMA)
-        unknown = set(self.data)-{'schema', 'name', 'genomes', 'targets', 'options', 'execution'}
+        unknown = set(self.data)-{'schema', 'name', 'genomes', 'targets', 'options', 'execution', 'workflow'}
         if unknown:
             raise ValueError('Unknown project fields: '+', '.join(sorted(unknown)))
+        self.workflow=self.data.get('workflow','legacy_v1')
+        if self.workflow not in {'legacy_v1','sequential_v2'}:
+            raise ValueError('workflow must be sequential_v2 or legacy_v1')
         if not isinstance(self.data.get('name'), str) or not self.data['name'].strip():
             raise ValueError('Project needs a name')
         self.genomes = path_from(self.root, self.data.get('genomes'))
@@ -219,7 +222,7 @@ def checkpoint(stage, folder, full=True):
             if full:
                 checked_source(root)
         data = json.loads((root/'finalization.decisions.json').read_text())
-        review_id = data['review_id']; gene = None
+        review_id = (manifest['source_review_id'] if stage=='stage4' and manifest.get('alignment_review_id') else data['review_id']); gene = None
         errors = manifest.get('errors', [])
     status = 'completed_with_errors' if errors or 'error' in str(manifest.get('status', '')) or 'error' in str(data.get('status', '')) else 'awaiting_review'
     if stage == 'stage4' and status != 'completed_with_errors':
@@ -354,7 +357,7 @@ def init(args):
             if row.get(key):
                 target[key] = os.path.relpath(path_from(target_file.parent, row[key]), root)
         targets.append(target)
-    data = dict(schema=SCHEMA, name=args.name, genomes=os.path.relpath(genomes, root), targets=targets,
+    data = dict(schema=SCHEMA, name=args.name, workflow='sequential_v2', genomes=os.path.relpath(genomes, root), targets=targets,
                 options={}, execution=dict(stage2=dict(mode=args.stage2_executor)))
     # Validate using a temporary config outside the user's results, then publish.
     root.mkdir(parents=True, exist_ok=True)

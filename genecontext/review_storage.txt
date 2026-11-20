@@ -1,0 +1,5 @@
+// gcf-safe-review-storage-v1
+const localStorage=(()=>{
+ try{const store=window.localStorage,key='gcf-storage-check-'+Math.random();store.setItem(key,'1');store.removeItem(key);window.GCFStorage=store;return store}
+ catch(error){const values=new Map(),store={getItem:key=>values.get(String(key))??null,setItem:(key,value)=>values.set(String(key),String(value)),removeItem:key=>values.delete(String(key))};window.GCFStorage=store;window.GCFStorageUnavailable=true;return store}
+})();

@@ -92,7 +92,7 @@ def render_document(payload, root=None):
     template=template.replace('__CLUSTER__',Path(__file__).with_name('stage2_cluster.txt').read_text())
     template=template.replace('__REVIEW_QUEUE__',Path(__file__).with_name('stage2_review_queue.txt').read_text())
     template=template.replace('__MODEL_COMPARE__',Path(__file__).with_name('stage2_model_compare.txt').read_text())
-    text=json.dumps(payload,ensure_ascii=True,separators=(',',':')).replace('<','\\u003c').replace('&','\\u0026')
+    text=json.dumps(payload,ensure_ascii=True,separators=(',',':')).replace('<',chr(92)+'u003c').replace('&',chr(92)+'u0026')
     html='<!-- '+UI_VERSION+' -->\n'+template.replace('__DATA__',text)
     if root is not None:
         from .interactive_review import attach,stage2_dataset,write_dataset

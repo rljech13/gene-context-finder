@@ -8,3 +8,7 @@ node_modules/
 .gcf/
 results/
 data/
+
+# Optional launcher build outputs
+portable-review/bin/
+genecontext/vendor/review/review-*

@@ -21,6 +21,9 @@ jobs:
           cd "$RUNNER_TEMP"
           "$RUNNER_TEMP/gcf-install/bin/gene-context" --help
           "$RUNNER_TEMP/gcf-install/bin/gene-context" project --help
+          "$RUNNER_TEMP/gcf-install/bin/gene-context" model-review --help
+          "$RUNNER_TEMP/gcf-install/bin/gene-context" stage4 --help
+          python -c 'import os,pathlib,zipfile; p=next((pathlib.Path(os.environ["RUNNER_TEMP"])/"gcf-wheel").glob("*.whl")); assert p.stat().st_size < 2_000_000; assert not any("/review-" in n and not n.endswith(".txt") for n in zipfile.ZipFile(p).namelist())'
   integration:
     runs-on: ubuntu-latest
     steps:
@@ -55,3 +58,13 @@ jobs:
           cache: false
       - run: go test ./...
         working-directory: portable-review
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build the native optional launcher
+        run: python scripts/build_review.py --out "$RUNNER_TEMP/gcf-runtime"
+      - name: Retain the launcher and its source/binary hashes
+        uses: actions/upload-artifact@v4
+        with:
+          name: review-linux-amd64
+          path: ${{ runner.temp }}/gcf-runtime

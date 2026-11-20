@@ -91,6 +91,36 @@ class ReviewService:
             response['job'] = self.view(json.loads(latest.read_text())['job_id'])
         return response
 
+    def restore(self, report, workspace, body):
+        """Rebind this workspace to a verified result; never launch computation."""
+        group, wanted = body.get('group'), body.get('ID')
+        if not isinstance(group, str) or wanted is not None and not isinstance(wanted, str):
+            raise ValueError('Invalid restore request')
+        if sha(report['dataset']) != report['dataset_sha256']:
+            raise ValueError('Pinned source dataset changed')
+        dataset = json.loads(Path(report['dataset']).read_text())
+        if group not in {s['group'] for s in dataset['sequences']}:
+            raise ValueError('Unknown gene group')
+        with self.lock:
+            latest = self.workspace(report, workspace, group)
+            if latest.exists() and self.view(json.loads(latest.read_text())['job_id'])['status'] in ['queued', 'running']:
+                raise ValueError('Wait for the current calculation before going back')
+            if wanted is None:
+                latest.unlink(missing_ok=True)
+                return {'restored': True, 'job': None}
+            for path in (self.state / 'jobs').glob('*/job.json'):
+                job = json.loads(path.read_text())
+                if job['report'] != report['id'] or job['dataset_sha256'] != report['dataset_sha256'] or job['request']['group'] != group:
+                    continue
+                status_path = path.parent / 'status.json'
+                if not status_path.exists() or json.loads(status_path.read_text()).get('result_id') != wanted:
+                    continue
+                saved = self.view(path.parent.name)
+                if saved['status'] == 'done' and saved['result']['id'] == wanted:
+                    write_json(latest, {'job_id': path.parent.name})
+                    return {'restored': True, 'job': saved}
+            raise ValueError('The previous result is not available for this checkpoint')
+
     def align(self, report, workspace, body):
         ids, group = body.get('ids'), body.get('group')
         if not isinstance(ids, list) or not 2 <= len(ids) <= 2000 or not all(isinstance(v, str) for v in ids) or len(set(ids)) != len(ids):
@@ -105,6 +135,44 @@ class ReviewService:
         if decisions is not None and (not isinstance(decisions, dict) or decisions.get('review_id') != report['review_id']):
             raise ValueError('Decisions belong to a different checkpoint')
         request = {'ids': sorted(ids), 'group': group}
+        phase = body.get('phase', 'combined')
+        if phase not in ['combined', 'alignment', 'tree']:
+            raise ValueError('Unknown review step')
+        alignment_source = None
+        if phase != 'combined':
+            if report['id'] not in self.config.get('sequential_reports', []):
+                raise ValueError('Sequential review is not enabled for this report')
+            request['phase'] = phase
+            if phase == 'alignment':
+                notes = body.get('notes', '')
+                if not isinstance(notes, str) or len(notes) > 32000:
+                    raise ValueError('Model selection notes are too long')
+                request['notes'] = notes
+            else:
+                alignment_id = body.get('alignment_result_id')
+                for path in (self.state / 'jobs').glob('*/job.json'):
+                    old = json.loads(path.read_text())
+                    if old['report'] != report['id'] or old['dataset_sha256'] != report['dataset_sha256'] or old['request'].get('phase') != 'alignment':
+                        continue
+                    saved = self.view(path.parent.name)
+                    if saved['status'] == 'done' and saved['result']['id'] == alignment_id:
+                        if not set(ids) <= set(saved['ids']) or saved['group'] != group:
+                            raise ValueError('Tree sequences must come from the saved alignment')
+                        alignment_source = saved['verified_directory']
+                        request['alignment_result_id'] = alignment_id
+                        break
+                if alignment_source is None:
+                    raise ValueError('Save and build the alignment before building its tree')
+        if self.config.get('phylogeny') and phase != 'alignment':
+            outgroup=body.get('outgroup_ids',[])
+            basis=body.get('root_basis','')
+            if not isinstance(outgroup,list) or len(outgroup)!=len(set(outgroup)) or set(outgroup)-set(ids):
+                raise ValueError('Outgroup must contain distinct selected sequences from this group')
+            if not isinstance(basis,str) or len(basis)>4000 or (outgroup and not basis.strip()):
+                raise ValueError('Explain the basis for the selected outgroup')
+            if outgroup and set(outgroup)==set(ids):
+                raise ValueError('The outgroup cannot contain every selected sequence')
+            request.update(outgroup_ids=sorted(outgroup),root_basis=basis if outgroup else '')
         if decisions is not None:
             request['decisions'] = decisions
         signature = json.dumps([report['id'], report['dataset_sha256'], request, self.config['engine_fingerprint']], sort_keys=True, separators=(',', ':')).encode()
@@ -127,6 +195,18 @@ class ReviewService:
                 job = dict(report=report['id'], review_id=report['review_id'], dataset=report['dataset'],
                            dataset_sha256=report['dataset_sha256'], runner=self.config['runner'],
                            runner_sha256=self.config['runner_sha256'], request=request, created=time.time())
+                if self.config.get('phylogeny'):
+                    job['phylogeny'] = self.config['phylogeny']
+                    job['reuse_results'] = list(dict.fromkeys(self.config.get('reuse_results',[]) +
+                        [str(p.parent) for p in (self.state / 'jobs').glob('*/status.json')
+                         if p.parent != root and json.loads(p.read_text()).get('status') == 'done']))
+                if alignment_source:
+                    job['alignment_source'] = alignment_source
+                if phase == 'alignment':
+                    write_json(root / 'model_selection.json', dict(schema='saved_model_selection_v1',
+                        review_id=report['review_id'], source_review_id=dataset.get('source_review_id'),
+                        ids=sorted(ids), group=group, notes=request['notes'], saved=time.time(),
+                        dataset_sha256=report['dataset_sha256'], biological_approval_asserted=False))
                 write_json(root / 'job.json', job)
                 write_json(root / 'status.json', {'status': 'queued', 'step': 'Submitting bounded MAFFT job'})
                 threading.Thread(target=self.submit, args=(root,), daemon=True).start()
@@ -169,7 +249,7 @@ class Handler(SimpleHTTPRequestHandler):
             if self.command == 'GET' and action == 'status':
                 value = self.service.status(report, workspace, params.get('group', [''])[0])
                 value['token'] = token
-            elif self.command == 'POST' and action in ['align', 'export']:
+            elif self.command == 'POST' and action in ['align', 'export', 'restore']:
                 size = int(self.headers.get('Content-Length', '0'))
                 if not 0 < size <= 1_048_576:
                     raise ValueError('Request too large')
@@ -178,6 +258,8 @@ class Handler(SimpleHTTPRequestHandler):
                     raise ValueError('Expected a model-selection object')
                 if action == 'align':
                     value = self.service.align(report, workspace, body)
+                elif action == 'restore':
+                    value = self.service.restore(report, workspace, body)
                 else:
                     path = self.service.workspace(report, workspace, body.get('group', ''))
                     job_id = json.loads(path.read_text())['job_id']

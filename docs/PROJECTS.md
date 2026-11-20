@@ -1,202 +1,89 @@
-# One study, arbitrary targets and assemblies
+# Studies with arbitrary targets and assemblies
 
-Gene Context Finder is a general locus/model comparison tool. Pluripotency is
-one study using that tool. Gene names, species and reference panels are study
-inputs, never dispatch rules in the program. Supported inputs are protein, CDS
-or genomic-DNA queries and local genome/annotation manifests. Predictor models
-must be appropriate for the organisms: the supplied Tiberius vertebrate and
-mammal weights do not establish support for every taxon. Custom model paths and
-per-genome model mappings use the native stage-2 options.
-
-The primary workflow is:
-
-| STOP | Computation | Human handoff |
-| --- | --- | --- |
-| 1 | Multi-reference search, loci, preliminary annotated synteny | Select loci, exclude or retain unresolved cases; optional family/copy groups |
-| 2 | Reviewed windows, source annotation, independent prediction, protein support | Select exact target/alternative/neighbor models with reasons |
-| 3 | Selected protein/CDS alignments, identity and coverage; optional genomic context | Final primary model and separate cases for each gene/genome |
-| 4 | Exact sequence dossier, optional gene trees and imported exact structures | Interpret/export; no automatic biological approval |
-
-Project commands call these existing stages. They never cross a manual STOP
-automatically. Old stage commands and checkpoint formats remain usable.
-
-## Configure and inspect
-
-Create `targets.tsv` with columns `id`, `gene`, `query`, `query_type`, optional
-`query_metadata`. Paths in this TSV are relative to the TSV. `id` is a safe,
-unique software identifier; `gene` is the reference search-group name, which
-can also name a family. The genome TSV remains the existing format: `genome_id`,
-`fasta`, optional matching `gff3`, `protein`, `cds` and model settings. Its paths
-are relative to that TSV. No species list is hardcoded.
-
-The bundled POU5 control uses six small genomic windows, not whole genomes:
-
-```sh
-gene-context project init --name 'POU5 controls' --out results/pou5-study \
-  --targets examples/studies/pou5.targets.tsv \
-  --genomes examples/queries/pou5_test/controls.genomes.tsv
-gene-context project validate --project results/pou5-study
-gene-context project plan --project results/pou5-study --target all --stage stage1
-gene-context project run --project results/pou5-study --target all --stage stage1
-gene-context project report --project results/pou5-study
-```
-
-Open `project-report.html` for the gene × STOP overview and native report links.
-`project status` prints the same status rows; `--json` is available. The overview
-is an offline snapshot: regenerate it to refresh status. Viewing starts no tools.
-`plan`, `status` and `validate` do not create computation outputs. Validation
-checks the configured local inputs and fully verifies attached checkpoint seals;
-it is not biological validation. Status uses compact identity pins, with full
-scientific verification repeated at every handoff and execution.
-
-`project.json` paths are relative to that file, independent of the current shell
-directory. Stage options are native CLI destinations written with underscores:
+A study is a `project.json` file plus its `.gcf/` ledger. Inputs stay read-only.
+References can represent a gene, a family or a reviewed copy group. Their
+labels do not select different code paths.
 
 ```json
 {
   "schema": "gene_context_project_v1",
-  "name": "My study",
+  "workflow": "sequential_v2",
+  "name": "My families",
   "genomes": "../inputs/genomes.tsv",
   "targets": [
-    {"id": "family_a", "gene": "FAMILY_A", "query": "../inputs/family_a.faa", "query_type": "protein"},
-    {"id": "family_b", "gene": "FAMILY_B", "query": "../inputs/family_b.cds.fna", "query_type": "cds",
-     "options": {"stage2": {"analysis_group": "reviewed_copy_b"}}}
+    {"id": "family_a", "gene": "FAMILY_A", "query": "../inputs/a.faa", "query_type": "protein"},
+    {"id": "family_b", "gene": "FAMILY_B", "query": "../inputs/b.cds.fna", "query_type": "cds"}
   ],
-  "options": {
-    "stage1": {"threads": 4, "neighbor_cache": "../shared-cache"},
-    "stage2": {"threads": 4, "protein_db": "../references/protein-db", "predictor_cache": "../shared-predictor"},
-    "stage3": {"threads": 4, "genomic_context": false},
-    "stage4": {"tree": "auto", "threads": 2}
-  },
+  "options": {"stage1": {"threads": 4}},
   "execution": {"stage2": {"mode": "plan"}}
 }
 ```
 
-Per-target options override project defaults. The project owns result paths and
-decision bindings; options cannot redirect `out`, `results`, `decisions` or the
-query/genome identity. To keep a shared family STOP1, configure each analysis
-target with that family search name, attach the same STOP1, and specify its
-reviewed `analysis_group` under stage2. Each downstream group has its own ledger.
+Paths are relative to `project.json`. Genome-manifest paths are relative to the
+TSV. Query types are `protein`, `cds` and `dna`. Options use native CLI destination
+names with underscores; unknown options fail validation. Input/output and
+handoff paths are owned by the project, never arbitrary option overrides.
+Global options can be overridden within a target's `options` object.
 
-## Import a review and run exactly one next stage
+## Commands
 
-After reviewing STOP1, export its TSV or fully saved/scoped group JSON:
+| Command | Effect |
+| --- | --- |
+| `project init` | Create a new sequential configuration from target/genome TSV files; start no calculations. |
+| `project validate` | Validate configured local inputs/options and attached seals. |
+| `project plan --target ID --stage stage1` | Plan discovery without running it. |
+| `project run --target ID --stage stage1` | Run discovery, then stop for locus review. |
+| `project decisions --target ID --stage stage1 --file EXPORT` | Store exact exported locus decisions after native validation. |
+| `project plan/run --target ID --stage stage2` | Plan/run annotation and Tiberius preparation after locus selection. |
+| `project attach --target ID --stage stage2 --results CHECKPOINT` | Reference an existing sealed preparation checkpoint in place. |
+| `project review --target ID` | Create the current STOP2/STOP3 workspace from prepared models; run no prediction/alignment/folding. |
+| `project handoff --target ID --file STOP4-input.json` | Validate and retain the exact final STOP3 export. |
+| `project plan/run --target ID --stage stage4` | Build the final dossier from the accepted handoff, reusing its MSA/tree. |
+| `project status/report` | Read state or refresh an offline target × STOP overview. |
 
-```sh
-gene-context project decisions --project STUDY --target family_a --stage stage1 --file /path/to/loci.decisions.tsv
-gene-context project plan --project STUDY --target family_a --stage stage2
-gene-context project run --project STUDY --target family_a --stage stage2
-```
+Every command above except `init` requires `--project PATH`. Plan/run also accept
+`--target all`. `project run --stage stage3` is deliberately rejected for new
+projects: STOP3 is the synteny page, not the legacy alignment computation.
+Preparation's `stage2` CLI name is retained as a stable engine/checkpoint API.
 
-Configure the stage2 executor first, as described below. After STOP2:
+The model/alignment/tree page and separate synteny view preserve source comments
+and warnings. Final outcomes and post-synteny reference approval are distinct.
+A candidate checkbox never authorizes folding. Export preparation never submits
+a Server job. Cached alignments/trees are reused only for the bound exact input.
 
-```sh
-gene-context project decisions --project STUDY --target family_a --stage stage2 --file /path/to/stage2.decisions.json
-gene-context project run --project STUDY --target family_a --stage stage3
-```
+## Existing data and revised decisions
 
-After reviewing the final models in STOP3:
+`attach` references the original sealed checkpoint; `review` writes only a new
+workspace under the study's `.gcf/`. Decisions and handoffs are content-addressed
+objects. The same valid review/result is reused; `--new-attempt` explicitly
+creates another while keeping history. Old review IDs and source choices are
+not overwritten or inherited as new approvals.
 
-```sh
-gene-context project decisions --project STUDY --target family_a --stage stage3 --file /path/to/stage3.final.decisions.json
-gene-context project run --project STUDY --target family_a --stage stage4
-```
+Handoff validation binds the source and alignment review IDs, all member
+sequences/metadata, model decisions, genomic regions and neighbor
+correspondences to the prepared workspace. The saved MSA/tree checksums and
+sequence identities are checked. A changed review or selected handoff makes
+an earlier final result stale. `project handoff` is repeated for the new export;
+existing finals are retained and rebuilt only with `--new-attempt`.
 
-An unreviewed STOP3 suggestion is retained as such and blocks the final handoff.
-An explicitly excluded set of STOP1 loci is retained without launching STOP2.
-Empty or contradictory model decisions, foreign review IDs, sequence mismatches
-and changed seals are rejected before scientific execution.
+Configurations without `workflow` retain [legacy behavior](PROJECTS_LEGACY.md).
+Create a new sequential study and attach their existing preparation checkpoints
+when adopting the current flow; do not relabel a live legacy ledger in place.
 
-## Keep existing work in place
+## Execution and dependencies
 
-Initialize a new compact control directory, then attach any completed native
-checkpoint. A STOP2 or STOP3 can be attached independently when the historical
-upstream directory is not locally available:
+Preparation is plan-only by default. Set `execution.stage2.mode` to `local` for
+explicit local computation, or configure `queue` with the existing deployment's
+`entrypoint`, `root`, `source` and optional `python`. A queued source must match
+the reviewed package. The tool creates no competing dispatcher. Live server
+jobs and their pinned source stay untouched.
 
-```sh
-gene-context project attach --project STUDY --target family_a --stage stage2 --results /path/to/existing/STOP2
-gene-context project decisions --project STUDY --target family_a --stage stage2 --file /path/to/exact/export.json
-```
+The study runner currently targets Linux/macOS; Windows users can run analysis
+under WSL. Optional portable review launchers also support Windows. External
+search/prediction tools and appropriate organism models are separate dependencies.
 
-Attach fully verifies the seal. It references the original directory without
-copying, resealing, rerendering, moving or editing it. When the upstream result
-is also attached, the review binding is checked. Attaching an existing output
-does not endorse its historical choices or assume it consumed today's export.
-Reattaching the same exact result is idempotent. A distinct result requires
-`--new-attempt`, which keeps the former result in history.
-
-Project metadata lives only in `.gcf/state.json`, logs, managed run directories
-and content-addressed decision objects. Every export's original bytes are saved
-once by SHA-256. Changing a selected export makes dependent results `stale`;
-their directories and old exports remain available. Rerunning a stage requires
-`--new-attempt` and allocates a new output directory. An unchanged completed
-managed stage is verified and reused. Failed/interrupted attempts are retained
-and never retried implicitly. Native `stage2 --resume` remains available for
-exact existing resumable runs; the project runner never silently restarts one.
-
-Live jobs continue under their original launcher and pinned source. Wait for
-completion and attach their sealed results. Run project commands on the host
-owning the data. Do not restore archived trees or make local genome/result
-copies merely to register them. Existing review IDs, decision registries, public
-aliases, Sheets and the corpus remain authoritative; this ledger does not
-rewrite them or automatically import browser localStorage.
-
-## Stage2 execution and the existing shared queue
-
-New projects default to `mode: plan`. This permits configuration and window
-planning without starting a predictor. For a separate local compute machine,
-explicitly select `--stage2-executor local` during init or set `mode: local`.
-Compute execution uses Python plus the native tools on Linux/macOS; the
-portable review app is also available for Windows.
-
-On host2 all new stage2 jobs must use the existing persistent queue and resource
-policy described in [STAGE2_QUEUE.md](STAGE2_QUEUE.md). Configure its existing
-entrypoint, queue root, immutable deployed source and Python:
-
-```json
-{"execution":{"stage2":{
-  "mode":"queue",
-  "entrypoint":"/absolute/path/to/submit_stage2.py",
-  "root":"/absolute/path/to/existing/queue",
-  "source":"/absolute/path/to/immutable/deployed/source",
-  "python":"/absolute/path/to/python3"
-}}}
-```
-
-These are placeholders, not host2's actual locators. Project execution submits
-one native pinned spec to that entrypoint. It never creates another queue,
-dispatcher, predictor pool or shared-cache copy. Existing FIFO/resource limits
-and deduplication remain in the queue. The deployed source must match the
-runner's reviewed code; publish a new immutable source instead of changing the
-source of live calculations. The returned ticket and its canonical
-output are retained, including when the queue reuses an earlier job. Run
-`project sync --project STUDY` after completion to verify and register the sealed
-result; sync starts no computations. The downstream stage still needs review.
-
-## Viewing and optional portable packages
-
-Ordinary STOP2/3 rendering writes HTML plus `review_data.json`. It does not need
-Go binaries and does not copy six launchers into every scientific result. The
-hosted review service and saved scientific comparisons keep their normal roles.
-For an independent portable review, create a separate package explicitly:
-
-```sh
-gene-context review-package --results /path/to/sealed/STOP3 \
-  --out /path/to/new/review-package --platform darwin-arm64
-```
-
-`--platform current` is the default; `all` builds a universal distribution.
-Other choices are `darwin-amd64`, `linux-amd64`, `linux-arm64`, `windows-amd64`
-and `windows-arm64`. MAFFT availability still follows the portable runtime's
-documented architecture support. Packaging never approves models, downloads
-genomes or starts alignments. Existing scientific results and old portable
-packages are left untouched.
-
-## Optional STOP4 structures
-
-Set `options.stage4.structure_provider` to `afdb` for existing exact-sequence
-structures, or `af3-prepare` for native AF3 and AlphaFold Server request files.
-`structure_limit` defaults to three unique proteins; `structure_cache` can point
-to a shared local cache. The default remains offline with no automatic folding
-or paid API job. See [the prototype guide](STAGE4.md#experimental-api-preparation-and-retrieval)
-and [provider/access comparison](STRUCTURE_SERVICES.md).
+`examples/minimal/` contains two unrelated synthetic targets, two assemblies,
+matching annotation and both protein/CDS queries. It is a discovery software
+control. `tests/test_project_review.py` separately covers the complete current
+prepared-models → review → final dossier route, without pretending to run a
+predictor on artificial genomes or assert a biological result.

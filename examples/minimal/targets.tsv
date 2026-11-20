@@ -1,0 +1,3 @@
+id	gene	query	query_type
+family_a	FACTOR_A	FACTOR_A.faa	protein
+family_b	FACTOR_B	FACTOR_B.cds.fna	cds

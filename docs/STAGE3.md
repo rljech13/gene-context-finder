@@ -1,3 +1,5 @@
+> The current study route is documented in [PROJECTS.md](PROJECTS.md). Numeric native commands below retain their historical engine/checkpoint meaning; current STOP3 is the separate synteny review.
+
 # Stage 3: compare the reviewed models
 
 STOP 3 prepares the selected models for STOP 4: gene trees and protein structure analysis. Its default scientific scope is protein/CDS comparison, including exact native sequences, model QC, protein MSA and codon-guided CDS MSA. Native proteins stay complete; any tree trimming is a separate derived artifact. Final assignments remain subject to manual review.
