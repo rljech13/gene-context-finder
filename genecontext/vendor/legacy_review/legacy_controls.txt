@@ -1,0 +1,20 @@
+// gcf-completed-review-controls-v1
+(()=>{
+const m=JSON.parse(document.getElementById('legacyReviewData').textContent),sid=m.source_review_id,key='gcf-stop4-final-'+sid,notice=document.getElementById('legacyImportNotice');
+const read=k=>{try{return JSON.parse(localStorage.getItem(k)||'null')}catch(e){return null}},ordered=o=>Object.fromEntries(Object.entries(o||{}).sort(([a],[b])=>a.localeCompare(b))),selection=d=>JSON.stringify([d?.review_id,ordered(d?.regions),ordered(d?.models)]);
+notice.textContent='Previous review IDs, saved decisions and exact sequences are preserved. Missing historical trees are labelled unavailable; no topology is invented. User drafts are stored in a separate review namespace.';
+if(document.documentElement.classList.contains('gcf-synteny-stop'))document.getElementById('legacyStudyNotice').hidden=false;
+const wanted=new URLSearchParams(location.search).get('legacy_model'),member=m.members.find(s=>s.id===wanted);
+if(member){const control=document.getElementById('region');control.value=member.metadata.region_id;control.dispatchEvent(new Event('change'));}
+const originalLabel='Original completed report';
+document.getElementById('legacyChoiceImport').addEventListener('change',async event=>{
+ const f=event.target.files?.[0];if(!f)return;
+ try{const value=JSON.parse(await f.text());
+  if(value.schema==='stage2_draft_v1'&&value.review_id===m.original_review_id){const next={...value,review_id:sid};load(next);render();localStorage.removeItem('gcf-synteny-final-'+sid);notice.textContent='Earlier model draft imported. Original storage is unchanged. Confirm the current model set after inspecting its saved alignment and tree.';return}
+  if(value.schema!=='stage3_final_choices_v1'||value.review_id!==m.original_review_id||value.set_id!==m.original_set_id)throw Error('This file belongs to another original review or sequence set.');
+  const h=read('gcf-synteny-final-'+sid),d=exportState();if(!h||selection(h.decisions)!==selection(d))throw Error('Confirm the current model set in STOP2 before importing final outcomes.');
+  const roles={};for(const s of m.members){const b=m.buckets.find(b=>b.model_ids.includes(s.id)),c=value.choices?.[b.key];if(!c||!b.model_ids.includes(c.primary)&&c.primary!=='')throw Error('Invalid original model choice.');roles[s.id]={role:c.primary===s.id?'primary_target':'special_case',reason:c.primary===s.id?c.reason:value.cases?.[s.id]?.reason||'Additional saved copy; retained as a separate case.'};if(!roles[s.id].reason?.trim())throw Error('A saved choice has no reason.')}
+  const signature=JSON.stringify([h.alignment_result_id,h.tree_result_id,selection(d),ordered(d.pairs)]);localStorage.setItem(key,JSON.stringify({signature,roles,inherited_from_review_id:m.original_review_id}));location.reload();
+ }catch(e){notice.textContent='Import was not applied: '+e.message}
+});
+})();

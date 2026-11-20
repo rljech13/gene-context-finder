@@ -19,4 +19,4 @@ gene-context = "genecontext.cli:main"
 packages = ["genecontext"]
 
 [tool.setuptools.package-data]
-genecontext = ["*.txt", "vendor/*.js", "vendor/*.txt", "vendor/*.json", "vendor/review/*"]
+genecontext = ["*.txt", "vendor/*.js", "vendor/*.txt", "vendor/*.json", "vendor/review/*", "vendor/legacy_review/*"]
