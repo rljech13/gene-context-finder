@@ -63,11 +63,11 @@ jobs:
         with:
           python-version: '3.12'
       - name: Build the native optional launcher
-        run: python scripts/build_review.py --out "$RUNNER_TEMP/gcf-runtime"
+        run: python scripts/build_review.py --platform all --out "$RUNNER_TEMP/gcf-runtime"
       - name: Retain the launcher and its source/binary hashes
         uses: actions/upload-artifact@v4
         with:
-          name: review-linux-amd64
+          name: review-runtime-all-platforms
           path: ${{ runner.temp }}/gcf-runtime
   installed-reports:
     runs-on: ${{ matrix.os }}
@@ -108,3 +108,5 @@ jobs:
           path: |
             ${{ runner.temp }}/gcf-installed-report/proof/*verification.json
             ${{ runner.temp }}/gcf-installed-report/proof/*.png
+            ${{ runner.temp }}/gcf-installed-report/proof/portable/review_app.zip
+            ${{ runner.temp }}/gcf-installed-report/wheels/*.whl

@@ -31,6 +31,12 @@ build with `--platform all` and package with `--platform all` to include the
 six configured OS/CPU launchers. Move the entire extracted folder, not only
 its HTML. On a different OS/CPU, include that destination's launcher.
 
+Successful CI builds also publish `review-runtime-all-platforms`, containing
+the six launchers, their source/binary hashes and license. Download that bundle
+to package a report without installing Go. Each `installed-report-OS` artifact
+contains the wheel, a synthetic demonstration package and the browser checks
+for that OS. CI artifacts are build outputs, not a tagged public release.
+
 The viewer uses a suitable MAFFT on PATH, or downloads the pinned portable
 distribution only when alignment is requested. Other explicitly requested
 calculations similarly require their scientific engines. Architectures without
