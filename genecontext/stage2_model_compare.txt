@@ -84,6 +84,8 @@ function renderModelComparison(){
   const m=variants.find(v=>v.model_id===item.model?.model_id)||variants[0],structure=cdsModelSegments(m),tr=el('article',undefined,'cds-model-card');tr.dataset.modelIds=variants.map(v=>v.model_id).join(' ');if(m.model_id===item.model?.model_id)tr.classList.add('selected-model');
   const label=el('div',undefined,'cds-model-label');label.append(el('strong',[...new Set(variants.map(v=>v.reconstruction?'Annotation + transcript':v.source==='annotation'?'Annotation':'Tiberius'))].join(' + ')),el('div',m.original_model,'model-accession'),el('div',m.protein_length+' aa · '+structure.exonCount+' CDS exons · '+Math.max(0,structure.exonCount-1)+' introns','muted'));
 
+  const codes=variants.map(v=>window.GCFModelLabels?.code(v.model_id)).filter(Boolean);
+  if(codes.length)label.prepend(el('div',codes.join(' / '),'gcf-model-code'));
   label.title=variants.map(v=>v.original_model+' · '+v.contig+':'+v.start+'–'+v.end).join('\n');
   const warn=modelQualityNotice(m)||((m.coding_status!=='complete_predicted'||m.window_edge)?m.coding_status+(m.window_edge?' · edge':''):'');
   if(warn)label.append(el('div',warn,'scope-warning'));
