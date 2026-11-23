@@ -2,9 +2,10 @@
   "name": "gene-context-review-tests",
   "private": true,
   "scripts": {
-    "test": "node tests/review_one_button_dom.cjs && node tests/review_portable_reload_dom.cjs && node tests/review_static_dom.cjs && node tests/stage3_reference_button_dom.cjs && node tests/synteny_reference_dom.cjs && node tests/current_flow_dom.cjs"
+    "test": "node tests/review_one_button_dom.cjs && node tests/review_portable_reload_dom.cjs && node tests/review_static_dom.cjs && node tests/stage3_reference_button_dom.cjs && node tests/synteny_reference_dom.cjs && node tests/current_flow_dom.cjs && node tests/review_exon_track_dom.cjs && node tests/review_result_comments_dom.cjs"
   },
   "devDependencies": {
-    "jsdom": "26.1.0"
+    "jsdom": "26.1.0",
+    "playwright": "1.62.1"
   }
 }

@@ -1,0 +1,17 @@
+// gcf-review-species-order-v1
+(()=>{
+const collator=new Intl.Collator('en',{sensitivity:'base',numeric:true});
+const name=value=>String(value||'').split(/_(?:GCF|GCA)_/i)[0].replaceAll('_',' ').trim();
+const regionName=r=>name(r.species||r.genome_id);
+const sequenceName=s=>name(s.metadata?.species||s.metadata?.genome_id||s.label?.split(' · ')[0]);
+const sort=(rows,key)=>[...rows].sort((a,b)=>collator.compare(key(a),key(b)));
+window.GCFSpeciesOrder={
+ regions:rows=>sort(rows,regionName),
+ sequences:rows=>sort(rows,sequenceName),
+ ids(ids,rows){const byID=new Map(rows.map(s=>[s.id,s]));return sort(ids,id=>sequenceName(byID.get(id)||{}))},
+ afterFocal(rows,focus){
+  const key=regionName(focus),same=r=>collator.compare(regionName(r),key)===0;
+  return [...rows.filter(same),...sort(rows.filter(r=>!same(r)),regionName)];
+ }
+};
+})();

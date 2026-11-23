@@ -69,3 +69,42 @@ jobs:
         with:
           name: review-linux-amd64
           path: ${{ runner.temp }}/gcf-runtime
+  installed-reports:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: portable-review/go.mod
+          cache: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: go test ./...
+        working-directory: portable-review
+      - name: Build this platform's optional launcher
+        run: python scripts/build_review.py --out "${{ runner.temp }}/gcf-runtime"
+      - name: Generate and package reports from a clean wheel installation
+        run: python tests/installed_report_ci.py
+      - name: Install the review test browser
+        run: npx playwright install --with-deps chromium
+      - name: Check the browser and restart the standalone app
+        run: node tests/report_portability_browser.cjs "${{ runner.temp }}/gcf-installed-report/proof"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: installed-report-${{ matrix.os }}
+          path: |
+            ${{ runner.temp }}/gcf-installed-report/proof/*verification.json
+            ${{ runner.temp }}/gcf-installed-report/proof/*.png

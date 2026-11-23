@@ -98,7 +98,8 @@ def attach(html,data):
     html=html.replace('</head>','<script>'+Path(__file__).with_name('review_storage.txt').read_text()+'</script><style>'+STYLE+'</style></head>',1)
     script=Path(__file__).with_name('review_realign.txt').read_text()
     script+='\n'+Path(__file__).with_name('review_undo.txt').read_text()
-    return attach_reference(MARKER+'\n'+html.replace('</body>','<script>'+script+'</script></body>',1))
+    from .review_storage import finalize
+    return finalize(attach_reference(MARKER+'\n'+html.replace('</body>','<script>'+script+'</script></body>',1)))
 
 def write_dataset(root, data):
     path=Path(root)/'review_data.json'

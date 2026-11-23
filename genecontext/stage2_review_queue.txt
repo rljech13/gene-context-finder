@@ -27,7 +27,7 @@ function validateReviewPlan(value){
  }
 }
 function queueItems(r){const p=reviewPlan(r);return [{primary:true,model:models.get(p.primary_model)||null},...p.additional.map(id=>({primary:false,model:models.get(id)}))]}
-function visitReviewLocus(r){$('region').value=r.region_id;render();document.querySelector('.comparison-heading').scrollIntoView({behavior:'smooth',block:'start'})}
+function visitReviewLocus(r){window.GCFSyntenyReview?.focusLocus(r.region_id);$('region').value=r.region_id;render();document.querySelector('.comparison-heading').scrollIntoView({behavior:'smooth',block:'start'})}
 function modelQualityNotice(m){
  const q=modelConstraint(m).quality||{};
  if(q.reconstruction&&q.warnings?.length)return q.warnings[0];
@@ -37,7 +37,7 @@ function modelQualityNotice(m){
  if(q.warnings?.length)return q.warnings[0];
  return '';
 }
-function queueModelLabel(m){return `${m.reconstruction?'Annotation + transcript':m.source==='tiberius'?'Tiberius':'Annotation'} · ${m.original_model} · ${m.protein_length} aa`}
+function queueModelLabel(m){const code=window.GCFModelLabels?.code(m.model_id);return `${code?code+' · ':''}${m.original_model} · ${m.reconstruction?'Annotation + transcript':m.source==='tiberius'?'Tiberius':'Annotation'} · ${m.protein_length} aa`}
 function queueOptions(r,item){
  let candidates=item.primary?mainCandidates(r):rankedModels(own(r).filter(m=>modelConstraint(m).physical_id===modelConstraint(item.model).physical_id));
  if(item.model&&!candidates.some(m=>m.model_id===item.model.model_id))candidates=[item.model,...candidates];
@@ -157,7 +157,7 @@ function renderQueueRow(r,item){
 function renderReviewQueue(){
  const panel=$('modelComparePanel');$('modelComparisonParking').append(panel);
  const t=el('table'),head=el('thead'),hr=el('tr');for(const text of ['Gene / locus','CDS model','Decision',''])hr.append(el('th',text));head.append(hr);t.append(head);
- for(const r of DATA.regions)for(const item of displayQueueItems(r)){
+ for(const r of window.GCFSpeciesOrder?.regions(DATA.regions)||DATA.regions)for(const item of displayQueueItems(r)){
   const body=el('tbody',undefined,'review-gene-card'),physical=item.model?modelConstraint(item.model).physical_id:'';body.dataset.regionId=r.region_id;body.dataset.physicalId=physical;
   const row=renderQueueRow(r,item);body.append(row);t.append(body);
   if(modelComparison?.region_id===r.region_id&&physical===modelComparison.physical){const expansion=el('tr',undefined,'model-comparison-row'),cell=el('td');cell.colSpan=4;cell.append(panel);expansion.append(cell);body.append(expansion)}

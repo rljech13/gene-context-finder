@@ -1,7 +1,7 @@
 // gcf-one-button-alignment-20261119-v1
 // Isolated interactive workspace; saved scientific evidence stays unchanged.
 (()=>{
-const host=document.getElementById('interactiveReview');if(!host||(new URLSearchParams(location.search).get('view')==='synteny'||document.querySelector('meta[name="gcf-review-page"][content="synteny"]')))return;
+const host=document.getElementById('interactiveReview');if(!host||document.querySelector('meta[name="gcf-review-page"][content="synteny"]'))return;
 const seed=JSON.parse(document.getElementById('interactiveReviewData').textContent);
 const sequential=!!document.querySelector('meta[name="gcf-review-flow"][content="sequential-v2"]');
 let canPersist=!window.GCFStorageUnavailable;
@@ -76,33 +76,108 @@ function inputChanged(){
 }
 function renderList(){
  list.replaceChildren();const search=filter.value.toLowerCase();
- for(const s of currentModels()){
+ const candidates=currentModels();
+ for(const s of window.GCFSpeciesOrder?.sequences(candidates)||candidates){
   if(!more.checked&&!defaultIDs.has(s.id)&&!chosen.has(s.id))continue;
-  if(search&&!s.label.toLowerCase().includes(search))continue;
+  if(search&&!(s.label+' '+(window.GCFModelLabels?.code(s.id)||'')).toLowerCase().includes(search))continue;
   const label=node('label');label.className='interactive-model';const check=node('input');check.type='checkbox';check.checked=chosen.has(s.id);check.disabled=running;check.setAttribute('aria-label','Alignment membership '+s.id);
   check.addEventListener('change',()=>{
    if(check.checked)chosen.add(s.id);else chosen.delete(s.id);
    if(seed.stage===2&&!s.reference&&typeof toggleAlignmentCandidate==='function'){const m=models.get(s.id);if(m)toggleAlignmentCandidate(regions.get(m.region_id),m,check.checked)}
    save();renderList();if(result)info.textContent='Membership changed; press Recalculate to rebuild the alignment.';
   });
-  label.append(check,node('span',s.label+(s.reference?' · query':!s.cds?' · no CDS':'')));list.append(label);
+  label.append(check,window.GCFModelLabels?.label(s)||node('span',s.label+(s.reference?' · query':!s.cds?' · no CDS':'')));list.append(label);
  }
 }
 const colours={A:'#c1dada',R:'#f06b69',N:'#e2bbd8',D:'#ea6046',C:'#f5d85f',Q:'#d1b7d8',E:'#e88877',G:'#c6d5c2',H:'#dd9b9b',I:'#9dc5df',L:'#a8c7e0',K:'#eaa4a4',M:'#a3ced0',F:'#b2b4da',P:'#e5c5a9',S:'#d5dfb4',T:'#c0d8b1',W:'#b0a8d4',Y:'#c4b3d1',V:'#a6cbdc'};
 // The publisher substitutes the exact Jalview GeCoS Blossom palette.
 Object.assign(colours,seed.colours||{});
+// gcf-alignment-exon-track-v1
+const exonTrackStyle=node('style',`
+.gcf-exon-legend{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin:8px 0;color:#324b5b;font-size:12px}
+.gcf-exon-legend label{font-weight:600}.gcf-exon-key{border-bottom:3px solid #226b84}.gcf-junction-key{border-bottom:3px solid #9e5513}
+#interactiveAlignment code .gcf-exon-cell{position:relative}
+.gcf-exon-cell::after,.gcf-exon-cell::before{content:'';position:absolute;inset-inline:0;bottom:0;pointer-events:none}
+.gcf-exon-cell::after{height:3px;background:var(--exon-stripe)}
+.gcf-exon-cell::before{height:8px;z-index:1;background:var(--splice-ticks,none)}
+`);
+const exonToggle=node('input');exonToggle.type='checkbox';exonToggle.checked=localStorage.getItem(storage+'-show-exons')!=='false';
+const exonToggleLabel=node('label');exonToggleLabel.append(exonToggle,document.createTextNode(' Show CDS exons and splice junctions'));
+const exonDetails=node('span'),exonLegend=node('div');exonLegend.className='gcf-exon-legend';exonLegend.hidden=true;
+const exonKey=node('span','CDS exon');exonKey.className='gcf-exon-key';
+const junctionKey=node('span','Intron junction');junctionKey.className='gcf-junction-key';
+exonLegend.style.display='none';exonLegend.append(exonToggleLabel,exonKey,junctionKey,exonDetails);
+canvas.before(exonTrackStyle,exonLegend);
+exonToggle.addEventListener('change',()=>{localStorage.setItem(storage+'-show-exons',String(exonToggle.checked));draw()});
+
+function codingExons(source){
+ const m=source?.metadata,native=source?.cds,translated=(source?.protein?.length||0)*3;
+ if(source?.reference||!native||!translated||!Array.isArray(m?.cds_blocks)||!m.cds_blocks.length||!['+','-'].includes(m.strand))return [];
+ if(native.length!==translated&&!(native.length===translated+3&&/^(TAA|TAG|TGA)$/.test(native.slice(-3))))return [];
+ if(m.cds_blocks.some(b=>!Array.isArray(b)||!Number.isSafeInteger(b[0])||!Number.isSafeInteger(b[1])||b[0]<0||b[1]<=b[0]))return [];
+ const ordered=[...m.cds_blocks].sort((a,b)=>a[0]-b[0]);
+ if(m.strand==='-')ordered.reverse();
+ const trim=ordered[0][2]??0;
+ if(![0,1,2].includes(trim)||trim>=ordered[0][1]-ordered[0][0])return [];
+ const exons=[];let total=0;
+ for(const [start,end] of ordered){
+  const previous=exons.at(-1),gap=previous?(m.strand==='-'?previous.start-end:start-previous.end):null;
+  if(gap!==null&&gap<0)return [];
+  const size=end-start-(previous?0:trim);
+  if(gap===0){previous.start=Math.min(previous.start,start);previous.end=Math.max(previous.end,end);previous.to+=size;}
+  else exons.push({start,end,from:total,to:total+size,intron:gap});
+  total+=size;
+ }
+ if(total<translated||total>native.length)return [];
+ return exons.filter(exon=>exon.from<translated).map(exon=>({...exon,to:Math.min(exon.to,translated)}));
+}
+
+function markExonCell(cell,exons,offset,width,cursor){
+ while(exons[cursor].to<=offset)cursor++;
+ const ticks=[],stops=[],details=[];
+ for(let i=cursor;i<exons.length&&exons[i].from<offset+width;i++){
+  const exon=exons[i],start=Math.max(0,exon.from-offset),end=Math.min(width,exon.to-offset);
+  const left=100*start/width,right=100*end/width;
+  stops.push((i%2?'#599b9a':'#226b84')+' '+left+'% '+right+'%');
+  details.push('CDS exon '+(i+1));
+  if(i&&exon.from>=offset){
+   ticks.push(`linear-gradient(90deg,transparent calc(${left}% - 1px),#9e5513 calc(${left}% - 1px),#9e5513 calc(${left}% + 1px),transparent calc(${left}% + 1px))`);
+   details.push(`Intron ${i} · ${exon.intron.toLocaleString('en-US')} bp${width===3&&start?' · after base '+start+' of this codon':''}`);
+  }
+ }
+ cell.classList.add('gcf-exon-cell');cell.style.setProperty('--exon-stripe',stops.length===1?(cursor%2?'#599b9a':'#226b84'):`linear-gradient(90deg,${stops.join(',')})`);
+ if(ticks.length)cell.style.setProperty('--splice-ticks',ticks.join(','));
+ cell.title=details.join(' · ');
+ return cursor;
+}
+
 function draw(){
- canvas.replaceChildren();if(!result)return;
+ canvas.replaceChildren();exonLegend.hidden=true;exonLegend.style.display='none';if(!result)return;
  const shown=sequential&&result.phase==='tree'?(savedAlignment()||result):result;
  const records=shown[kind.value]||{},ids=shown.ids.filter(id=>records[id]),length=records[ids[0]]?.length||0;
  const columns=Array.from({length},(_,i)=>i).filter(i=>ids.some(id=>records[id][i]!=='-'));
  info.textContent=ids.length+' sequences · '+columns.length+' displayed columns · '+shown.mafft_version+' · alignment '+shown.id+'. All-gap columns are hidden. Saved source alignments and final assignments remain separate.';
  if(kind.value==='cds'&&!ids.length)info.textContent='No CDS was supplied for these query references. Their protein alignment is retained.';
  const original=document.getElementById('alignmentPanel');if(original&&seed.stage===3){original.open=false;const summary=original.querySelector('summary');if(summary&&!summary.dataset.originalLabel){summary.dataset.originalLabel='true';summary.textContent='Original saved alignment · '+summary.textContent}}
+ const sourceByID=new Map(dataset.sequences.map(s=>[s.id,s]));
+ const exonRows=new Map(ids.map(id=>[id,codingExons(sourceByID.get(id))]).filter(([,exons])=>exons.length));
+ if(exonRows.size){
+  exonLegend.hidden=false;exonLegend.style.display='';
+  exonDetails.textContent=exonRows.size+' / '+ids.length+' rows mapped · Introns are marked at splice sites; their sequences are omitted.'+(kind.value==='protein'?' A split codon is marked within one amino acid.':'');
+ }
  const fragment=document.createDocumentFragment();
- for(const id of ids){const s=dataset.sequences.find(s=>s.id===id),row=node('div');row.className='interactive-aln-row';
-  const label=node(sequential?'label':'span',s?.label||id);if(sequential){const member=node('input');member.type='checkbox';member.checked=treeIDs().includes(id);member.disabled=running;member.setAttribute('data-tree-member',id);member.setAttribute('aria-label','Include in tree '+id);member.title='Use this row when rebuilding the alignment or tree';member.style='margin-right:6px';member.addEventListener('change',()=>{const ids=treeIDs().filter(s=>s!==id);if(member.checked)ids.push(id);localStorage.setItem(treeKey(),JSON.stringify(ids));row.style.opacity=member.checked?'1':'.45';notify()});label.prepend(member);row.style.opacity=member.checked?'1':'.45'}label.className='interactive-aln-label';label.title=s?.label||id;row.append(label);const code=node('code');if(sequential){code.setAttribute('role','img');code.setAttribute('aria-label',kind.value+' alignment row · '+columns.length+' columns; exact sequences available in ZIP')}
-  for(const i of columns){const c=records[id][i],span=node('span',c);if(sequential)span.setAttribute('aria-hidden','true');span.style.background=c==='-'?'transparent':kind.value==='protein'?colours[c]||'#ececec':({A:'#dcebc8',C:'#c8dcea',G:'#f4e4b0',T:'#edcaca'}[c]||'#eee');code.append(span)}row.append(code);fragment.append(row);
+ const labelWidth=Math.max(280,...ids.map(id=>{const s=dataset.sequences.find(row=>row.id===id);return (window.GCFModelLabels?.name(s)||s?.label||id).length*7.2+32}));
+ canvas.style.setProperty('--gcf-alignment-label-width',Math.ceil(labelWidth)+'px');
+ for(const id of window.GCFSpeciesOrder?.ids(ids,dataset.sequences)||ids){const s=dataset.sequences.find(s=>s.id===id),row=node('div');row.className='interactive-aln-row';
+  const label=node(sequential?'label':'span',s&&window.GCFModelLabels?'':s?.label||id);
+  if(s&&window.GCFModelLabels)label.append(window.GCFModelLabels.alignmentLabel(s));
+  if(sequential){const member=node('input');member.type='checkbox';member.checked=treeIDs().includes(id);member.disabled=running;member.setAttribute('data-tree-member',id);member.setAttribute('aria-label','Include in tree '+id);member.title='Use this row when rebuilding the alignment or tree';member.addEventListener('change',()=>{const ids=treeIDs().filter(s=>s!==id);if(member.checked)ids.push(id);localStorage.setItem(treeKey(),JSON.stringify(ids));row.style.opacity=member.checked?'1':'.65';notify()});label.prepend(member);row.style.opacity=member.checked?'1':'.65'}
+  label.className='interactive-aln-label';label.title=s?.label||id;row.append(label);const code=node('code');if(sequential){code.setAttribute('role','img');code.setAttribute('aria-label',kind.value+' alignment row · '+columns.length+' columns; exact sequences available in ZIP')}
+  const exons=exonToggle.checked?exonRows.get(id):null,width=kind.value==='protein'?3:1;let offset=0,cursor=0;
+  for(const i of columns){const c=records[id][i],span=node('span',c);if(sequential)span.setAttribute('aria-hidden','true');span.style.background=c==='-'?'transparent':kind.value==='protein'?colours[c]||'#ececec':({A:'#dcebc8',C:'#c8dcea',G:'#f4e4b0',T:'#edcaca'}[c]||'#eee');
+   if(exons&&c!=='-'){cursor=markExonCell(span,exons,offset,width,cursor);offset+=width;}
+   code.append(span);
+  }row.append(code);fragment.append(row);
  }canvas.append(fragment);
 }
 function setRunning(value){
@@ -121,14 +196,43 @@ function validateResult(next,expected){
  }
  return next;
 }
-function accept(next,expected){
- validateResult(next,expected);result=next;
- try{localStorage.setItem(resultStorage(),JSON.stringify(result));localStorage.setItem(storage+'-result',JSON.stringify(result))}catch(e){}
- if(sequential&&result.phase==='alignment'){localStorage.setItem(storage+'-saved-alignment-'+group.value,JSON.stringify(result));let pending;try{pending=JSON.parse(localStorage.getItem(storage+'-pending-models-'+group.value)||'null')}catch(e){}if(pending&&JSON.stringify([...pending.ids].sort())===JSON.stringify([...result.ids].sort()))localStorage.setItem(storage+'-input-models-'+result.id,JSON.stringify(pending.model_ids));}
+function removeLegacyResultMirror(){
+ if(!sequential)return;
+ const key=storage+'-result',legacy=localStorage.getItem(key);
+ if(legacy!==null&&(legacy===localStorage.getItem(resultStorage())||legacy===localStorage.getItem(storage+'-saved-alignment-'+group.value)))
+  localStorage.removeItem(key);
+}
+async function accept(next,expected){
+ validateResult(next,expected);
+ removeLegacyResultMirror();
+ const serialized=JSON.stringify(next);
+ if(sequential&&next.phase==='alignment'){
+  const alignmentKey=storage+'-saved-alignment-'+group.value;
+  const oldAlignment=localStorage.getItem(alignmentKey);
+  if(oldAlignment!==null&&oldAlignment===localStorage.getItem(resultStorage()))
+   localStorage.removeItem(resultStorage());
+  let pending;try{pending=JSON.parse(localStorage.getItem(storage+'-pending-models-'+group.value)||'null')}catch(e){}
+  if(pending&&JSON.stringify([...pending.ids].sort())===JSON.stringify([...next.ids].sort()))
+   localStorage.setItem(storage+'-input-models-'+next.id,JSON.stringify(pending.model_ids));
+  localStorage.setItem(alignmentKey,serialized);
+  localStorage.removeItem(resultStorage());
+ }else{
+  try{
+   localStorage.setItem(resultStorage(),serialized);
+   if(!sequential)localStorage.setItem(storage+'-result',serialized);
+  }catch(e){throw e}
+ }
+ await window.GCFStorage?.flush?.();
+ result=next;
  if(!(sequential&&result.phase==='tree'))draw();exportButton.disabled=!connected;status.textContent=(sequential?(result.phase==='tree'?'Tree verified and saved':'Model selection saved; alignment verified'):'New alignment verified and saved')+' · '+result.ids.length+' sequences. Reloading this HTML keeps the result.';notify();
 }
 function restoreResult(){
- try{const previous=JSON.parse(localStorage.getItem(resultStorage())||localStorage.getItem(storage+'-result')||'null');if(previous&&previous.group===group.value){validateResult(previous);result=previous;draw()}}catch(e){status.textContent='An obsolete saved alignment was ignored; native inputs are retained.'}
+ try{
+  const alignment=sequential?savedAlignment():null;
+  const previous=JSON.parse(localStorage.getItem(resultStorage())||(!alignment?localStorage.getItem(storage+'-result'):null)||'null');
+  const shown=alignment&&!(previous?.id===alignment.id||previous?.alignment_id===alignment.id)?alignment:previous;
+  if(shown&&shown.group===group.value){validateResult(shown);result=shown;draw()}
+ }catch(e){status.textContent='An obsolete saved alignment was ignored; native inputs are retained.'}
 }
 function serviceURL(path){
  const params=new URLSearchParams({report:location.pathname,workspace,pool,group:group.value});return '/api/review/'+path+'?'+params;
@@ -141,7 +245,7 @@ async function pollHosted(initial){
  if(polling)return;polling=true;setRunning(true);let job=initial;
  try{
   for(;;){
-   if(job.status==='done'){accept(job.result,job.ids);break}
+   if(job.status==='done'){await accept(job.result,job.ids);break}
    if(job.status==='failed')throw Error(job.step||'Alignment failed');
    status.textContent='Recalculating… '+(sequential&&activePhase==='tree'?(job.step||'Tree is running').replace('Submitting bounded MAFFT job','Submitting bounded tree job'):(job.step||'MAFFT is running'))+'. You may reload the page; the calculation continues.';
    await new Promise(resolve=>setTimeout(resolve,1000));
@@ -151,7 +255,7 @@ async function pollHosted(initial){
  finally{polling=false;setRunning(false)}
 }
 async function connect(){
- if(location.protocol==='file:'){status.textContent=seed.portable_available===false?'Saved comparisons are available offline. Open the hosted review or a portable review app to recalculate alignments.':'For a standalone ZIP, start Start_review once. The same Recalculate button then runs MAFFT and saves the result.';return false}
+ if(location.protocol==='file:'){status.textContent=seed.portable_available===false?'Saved comparisons are available offline. Open a portable review app to recalculate alignments.':'For a standalone ZIP, start Start_review once. The same Recalculate button then runs MAFFT and saves the result.';return false}
  try{
   if(hosted&&!pool){const rows=seed.sequences.map(s=>[s.id,s.protein,s.cds||'',s.group]).sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0);pool=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(rows)))),v=>v.toString(16).padStart(2,'0')).join('')}
   const state=await(await api('status')).json();if(state.review_id!==seed.review_id)throw Error('Different report session');
@@ -159,12 +263,16 @@ async function connect(){
   if(!hosted&&state.scaled_tree_views&&result?.phase==='tree'&&result.phylogeny?.status==='computed'&&!result.phylogeny?.unrooted_phylogram_svg?.includes('tree-distance-scale')){
    const old=result;
    const next=await(await api('checkpoint?id='+encodeURIComponent(old.id))).json();
-   if(result===old)accept(next,old.ids);
+   if(result===old)await accept(next,old.ids);
   }
-  if(state.job){if(state.job.status==='done')accept(state.job.result,state.job.ids);else if(['queued','running'].includes(state.job.status))pollHosted(state.job);else status.textContent='Previous attempt: '+state.job.step+'. Change the selection or inspect the error before retrying.'}
+  if(state.job){if(state.job.status==='done')await accept(state.job.result,state.job.ids);else if(['queued','running'].includes(state.job.status))pollHosted(state.job);else status.textContent='Previous attempt: '+state.job.step+'. Change the selection or inspect the error before retrying.'}
   else status.textContent=result?'Saved alignment restored. Select models and recalculate when needed.':'Ready. Select the models and press Recalculate alignment.';
   return true;
- }catch(e){connected=false;status.textContent=hosted?'Recalculation service is unavailable. Reload to reconnect, or use the standalone app.':'Local runner disconnected. Start Start_review again; saved results remain available.';return false}
+ }catch(e){
+  connected=false;
+  status.textContent=e.name==='QuotaExceededError'?'Browser storage is full. The calculation finished, but the browser could not save its alignment. Open the standalone report or free browser storage and reload.':hosted?'Recalculation service is unavailable. Reload to reconnect, or use the standalone app.':'Local runner disconnected. Start Start_review again; saved results remain available.';
+  return false;
+ }
 }
 async function calculate(phase='alignment',rowIDs=null){
  if(running)return;if(connectPromise)await connectPromise;if(running)return;if(!connected&&!await connect())return;
@@ -172,8 +280,10 @@ async function calculate(phase='alignment',rowIDs=null){
  if(!sequential||(phase==='alignment'&&!rowIDs))inputChanged();const modelIDs=currentModels().filter(s=>chosen.has(s.id)).map(s=>s.id);let ids=sequential&&(phase==='tree'||rowIDs)?(rowIDs||treeIDs()):modelIDs;
  if(ids.length<2){showError('Select at least two sequences.',phase);return}
  if(rowIDs&&ids.some(id=>!modelIDs.includes(id))){showError('The model choice above changed. Save and align those models first.',phase);return}
- const rootRequest=sequential&&phase==='tree'?window.GCFPhylogenyRequest():null;
- if(rootRequest?.outgroup_ids?.length&&!rootRequest.root_basis?.trim()){showError('Explain the selected outgroup in Outgroup basis, or clear the outgroup to build an unrooted tree.',phase);document.querySelector('[aria-label="Outgroup basis"]')?.setAttribute('aria-invalid','true');return}
+ let rootRequest;
+ try{rootRequest=sequential&&phase==='tree'?window.GCFPhylogenyRequest():null}
+ catch(e){showError(e.name==='QuotaExceededError'?'Browser storage is full. The tree settings could not be saved.':e.message,phase);return}
+ if(rootRequest?.outgroup_ids?.length&&!rootRequest.root_basis?.trim()){showError('Enter the outgroup basis or clear the outgroup to build an unrooted tree.',phase);document.querySelector('[aria-label="Outgroup basis"]')?.setAttribute('aria-invalid','true');return}
  if(rootRequest)ids=[...new Set([...ids,...rootRequest.outgroup_ids])];
  lastError=null;
  setRunning(true);status.textContent=sequential&&phase==='tree'?(rootRequest?.trim_mode==='trimal_automated1'?'Running trimAl, then IQ-TREE…':'Building tree from the saved alignment…'):'Starting MAFFT for '+ids.length+' sequences…';
@@ -182,7 +292,7 @@ async function calculate(phase='alignment',rowIDs=null){
   if(sequential){request.phase=phase;if(phase==='alignment'){request.notes=document.querySelector('[aria-label="Alignment model review comments"]')?.value||'';localStorage.setItem(storage+'-pending-models-'+group.value,JSON.stringify({ids,model_ids:modelIDs}));}else{const saved=JSON.parse(localStorage.getItem(storage+'-saved-alignment-'+group.value)||'null');if(!saved||!alignmentMatchesModels(modelIDs))throw Error('Save the current models and build their alignment first');request.alignment_result_id=saved.id;Object.assign(request,rootRequest)}}
   else if(seed.workflow==='gcf_alignment_first_v1'&&typeof window.GCFPhylogenyRequest==='function')Object.assign(request,window.GCFPhylogenyRequest());
   const next=await(await api('align',request)).json();
-  if(hosted){setRunning(false);await pollHosted(next)}else accept(next,ids);
+  if(hosted){setRunning(false);await pollHosted(next)}else await accept(next,ids);
  }catch(e){showError(e.message+' The previous result and decisions were retained.',phase)}
  finally{if(!polling)setRunning(false)}
 }
@@ -202,7 +312,15 @@ async function restoreUndoState(previous){
   const next=await(await api('checkpoint?id='+encodeURIComponent(result.id))).json();
   validateResult(next,result.ids);result=next;
  }
- for(const key of [resultStorage(),storage+'-result']){if(result)localStorage.setItem(key,JSON.stringify(result));else localStorage.removeItem(key)}
+ removeLegacyResultMirror();
+ if(result&&!(sequential&&result.phase==='alignment'&&previous.alignment?.id===result.id)){
+  const serialized=JSON.stringify(result);
+  localStorage.setItem(resultStorage(),serialized);
+  if(!sequential)localStorage.setItem(storage+'-result',serialized);
+ }else{
+  localStorage.removeItem(resultStorage());
+  localStorage.removeItem(storage+'-result');
+ }
  const alignmentKey=storage+'-saved-alignment-'+group.value;if(previous.alignment){localStorage.setItem(alignmentKey,JSON.stringify(previous.alignment));localStorage.setItem(treeKey(),JSON.stringify(previous.tree_ids));const key=storage+'-input-models-'+previous.alignment.id;if(previous.input_models!==null)localStorage.setItem(key,previous.input_models);else localStorage.removeItem(key)}else localStorage.removeItem(alignmentKey);
  localStorage.removeItem(storage+'-pending-models-'+group.value);
  draw();window.GCFUndoUI?.restore(previous.ui);notify();status.textContent='Previous alignment/tree state restored. Model decisions and comments are unchanged.';

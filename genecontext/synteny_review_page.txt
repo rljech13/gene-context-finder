@@ -1,15 +1,110 @@
 // gcf-separate-synteny-stop-v2
 (()=>{
-if(new URLSearchParams(location.search).get('view')!=='synteny')return;
-const seed=JSON.parse(document.getElementById('interactiveReviewData').textContent),main=document.querySelector('main'),panels=document.getElementById('comparisonPanels'),add=document.getElementById('addComparison')?.closest('.comparison-actions');
+const main=document.querySelector('main'),panels=document.getElementById('comparisonPanels');
 if(!main||!panels)return;
+const node=(tag,text)=>{const el=document.createElement(tag);if(text)el.textContent=text;return el};
+const review=node('details'),summary=node('summary','STOP 3 · Synteny and genomic context');
+review.id='syntenyReview';review.className='inline-synteny-review';
+const links=node('nav');links.setAttribute('aria-label','Return to review steps');
+for(const [id,text] of [['initialModelChoices','Model selection'],['interactiveReview','Alignment'],['treeBuildStep','Tree']]){
+ if(!document.getElementById(id))continue;
+ const link=node('a',text);link.href='#'+id;links.append(link);
+}
+const scopeNote=node('p');scopeNote.id='syntenySelectionStatus';scopeNote.setAttribute('role','status');
+const scopeControl=node('label'),showAll=node('input');showAll.type='checkbox';showAll.id='showPreparedSyntenyModels';
+scopeControl.append(showAll,document.createTextNode(' Show all prepared targets and loci'));
+const scopeTools=node('div');scopeTools.append(scopeControl,scopeNote);
+const decisions=node('div');decisions.id='syntenyFinalDecisions';
+const reference=node('details');reference.hidden=true;
+reference.append(node('summary','Earlier reference approvals'));
+const style=node('style');style.textContent='.inline-synteny-review{margin:24px 0;padding:16px;border:1px solid #cbd9e3;border-radius:8px}.inline-synteny-review>summary{font-size:1.2rem;font-weight:600;cursor:pointer}.inline-synteny-review>nav{display:flex;flex-wrap:wrap;gap:16px;margin:12px 0}.inline-synteny-review [data-action="send-alphafold"]{display:none}';
+const add=document.getElementById('addComparison')?.closest('.comparison-actions');
+review.append(summary,links,scopeTools,panels);
+if(add)review.append(add);
+review.append(decisions,reference);
+const handoff=document.getElementById('finalContextHandoff');
+if(handoff)handoff.after(review);else main.append(review);
+main.append(style);
+document.getElementById('contextSeparatePage')?.remove();
 document.documentElement.classList.add('gcf-synteny-stop');
-document.title = document.title.replace(/\s*[—·].*stage 2 neighborhood review/i, '') + ' — STOP 3 synteny';
-for(const e of main.children)if(e!==panels&&e!==add)e.hidden=true;
-panels.hidden=false;if(add)add.hidden=false;
-const header=document.createElement('section'),h=document.createElement('h1');h.textContent='STOP 3 · genomic context and synteny';
-const back=document.createElement('a');const previous=new URL(location.href);previous.searchParams.delete('view');back.href=previous.href;back.textContent='← Back to STOP 2 · models, alignment and tree';
-const note=document.createElement('p');let final;try{final=JSON.parse(localStorage.getItem('gcf-synteny-final-'+seed.source_review_id)||'null')}catch(e){}
-note.textContent=final?.review_id===seed.source_review_id?'The STOP 2 set is saved. Review genomic context, then record the final model decisions below.':'Draft context preview. Confirm the model set after reviewing its alignment and tree in STOP 2.';
-header.append(h,back,note);main.prepend(header);window.dispatchEvent(new Event('resize'));
+function resize(){window.dispatchEvent(new Event('resize'))}
+function open(scroll=true){
+ review.open=true;
+ refreshScope();
+ if(scroll)review.scrollIntoView({block:'start'});
+}
+const seed=JSON.parse(document.getElementById('interactiveReviewData').textContent);
+const selectionKey='gcf-realign-selection-'+seed.review_id+'-confirmed-';
+const groups=new Set(seed.sequences.map(s=>s.group));
+let scope=null,scopeSignature;
+const modelRegion=m=>m.region_id;
+const modelGroup=m=>modelRegion(m)+'|'+m.gene_group;
+const physicalGroup=m=>modelRegion(m)+'|'+(DATA.model_constraints?.[m.model_id]?.physical_id||m.gene_group);
+function selection(){
+ const api=window.GCFAlignmentWorkflow,saved=api?.savedAlignment(),current=api?.current();
+ const kept=new Set(),considered=new Set();let available=false;
+ if(saved&&api.alignmentMatchesModels(current.ids)){
+  available=true;
+  api.treeIDs().filter(id=>models.has(id)).forEach(id=>kept.add(id));
+  [...saved.ids,...current.ids].filter(id=>models.has(id)).forEach(id=>considered.add(id));
+ }
+ for(const group of groups){
+  if(group===saved?.group)continue;
+  let check;try{check=JSON.parse(localStorage.getItem(selectionKey+group)||'null')}catch(e){}
+  if(!check||!window.GCFIsSyntenyCheckpointCurrent?.(check,group))continue;
+  available=true;
+  window.GCFSyntenySelectedRows(check,group).filter(id=>models.has(id)).forEach(id=>kept.add(id));
+  for(const s of seed.sequences)if(s.group===group&&check.decisions?.models?.[s.id]?.decision==='inspect'&&!s.reference)considered.add(s.id);
+ }
+ if(!available)return null;
+ const byRegion=new Map(),focusGroups=new Set(),focusPhysical=new Set();
+ for(const id of kept){
+  const m=models.get(id),key=modelRegion(m);
+  if(!byRegion.has(key))byRegion.set(key,[]);
+  byRegion.get(key).push(m);
+ }
+ for(const r of DATA.regions){const m=models.get(reviewPlan(r).primary_model);if(m)considered.add(m.model_id)}
+ for(const id of considered){
+  const m=models.get(id);
+  if(m){focusGroups.add(modelGroup(m));focusPhysical.add(physicalGroup(m))}
+ }
+ return {kept,byRegion,focusGroups,focusPhysical};
+}
+function refreshScope(){
+ if(!review.open)return;
+ const next=selection(),signature=JSON.stringify([showAll.checked,next&&[...next.kept].sort(),next&&[...next.focusPhysical].sort()]);
+ if(signature===scopeSignature)return;
+ scopeSignature=signature;
+ scope=showAll.checked?null:next;
+ showAll.disabled=!next;
+ scopeNote.textContent=!next?'Preview of prepared loci. Save an alignment to filter to its checked models.':showAll.checked?
+  'Showing all prepared targets for comparison.':scope.kept.size?
+  scope.kept.size+' checked models · '+scope.byRegion.size+' loci. Neighboring genes remain visible.':
+  'No genomic models are checked in the alignment.';
+ const empty=!!scope&&!scope.byRegion.size;
+ panels.hidden=empty;if(add)add.hidden=empty;
+ if(!empty)for(const pane of comparisons)pane.refreshReviewScope?.();
+}
+window.GCFSyntenyReview={
+ open,decisions,
+ restrictRegions(rows){return scope?rows.filter(r=>scope.byRegion.has(r.region_id)):rows},
+ targetModels(r){return scope?.byRegion.get(r.region_id)||[]},
+ modelVisible(m){
+  return !scope||scope.kept.has(m.model_id)||!(scope.focusGroups.has(modelGroup(m))||scope.focusPhysical.has(physicalGroup(m))||(m.overlaps_anchor&&m.target_support?.length));
+ },
+ focusLocus(id){
+  open(false);
+  if(scope&&!scope.byRegion.has(id)){showAll.checked=true;refreshScope()}
+ },
+ mountReference(section){reference.append(section);reference.hidden=false}
+};
+showAll.addEventListener('change',refreshScope);
+document.getElementById('interactiveReview')?.addEventListener('gcf-review-state',refreshScope);
+for(const event of ['gcf-review-checkpoint-change','gcf-synteny-confirmed','gcf-native-review-change'])document.addEventListener(event,refreshScope);
+review.addEventListener('toggle',()=>{if(review.open){refreshScope();resize()}});
+const requested=new URLSearchParams(location.search).get('view')==='synteny'||location.hash==='#syntenyReview';
+if(requested){
+ open(false);
+ setTimeout(()=>{resize();review.scrollIntoView({block:'start'})},0);
+}
 })();

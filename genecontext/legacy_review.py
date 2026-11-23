@@ -112,7 +112,8 @@ def render(payload, pool, migration, title):
     page = page.replace('</body>', ''.join('<script>'+s+'</script>' for s in scripts)+'</body>', 1)
     css = ASSETS.joinpath('link_contrast.css').read_text()
     page = page.replace('</head>', '<style id="gcf-synteny-link-contrast">'+css+'</style></head>', 1)
-    return page
+    from .review_storage import finalize
+    return finalize(page)
 
 
 def build(source, out, title=None, confirmed_decisions=None):

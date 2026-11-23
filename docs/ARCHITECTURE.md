@@ -9,6 +9,7 @@ no special dispatch rules for a particular gene family or species list.
 | Study | `project.py`, `project_run.py`, `project_review.py`, `project_report.py` | Input paths, exact decision objects, review workspaces, execution, history and stale-result checks. |
 | Scientific checkpoints | `stage1*`, `stage2*`, `stage4_handoff.py` | Discovery, preparation and final export. Existing scientific engines retain their checkpoint schemas. |
 | Current review | `alignment_review.py`, current `*_review*.txt`, `stop4_handoff.txt` | One current model/alignment/tree → synteny → final-outcome flow. |
+| Review persistence | `review_storage.py`, `review_storage.txt`, `portable-review/state_bootstrap.js` | Hydrate large checkpoints before report execution; save and restore the combined portable state from the package folder. |
 | Optional local runtime | `portable-review/` | Authenticated localhost app, explicit MAFFT/IQ-TREE/trimAl work, cached results and persistent choices. Built separately. |
 | Compatibility | `legacy_review.py`, `vendor/legacy_review/` | Frozen inputs/templates needed to reproduce completed-study migration. They do not define the current normal workflow. |
 | Structures | `alphafold_db.py`, `af3_*`, `synteny_reference.py`, `stage4_structure.py` | Exact-sequence retrieval/import and approval-gated preparation; no automatic Server submission. |

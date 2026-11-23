@@ -1,0 +1,73 @@
+// gcf-readable-model-labels-v1
+(()=>{
+const modelCode=id=>/^M[0-9a-f]{24}$/i.test(id||'')?'M'+id.slice(1,9).toUpperCase():'';
+const shortSpecies=species=>species.replace(/^(\S+) (?=\S)/,(_,genus)=>genus[0]+'. ');
+function parts(s){
+ const [species,accession,source,length]=s.label.split(' · ');
+ return {species,accession:(accession||s.id).replace(/^rna-/,''),source:s.reference?'Reference':source==='tiberius'?'Tiberius':source==='annotation'?'Annotation':source||'',length};
+}
+function modelName(s){
+ const {species,accession,source}=parts(s);
+ return [modelCode(s.id),accession,shortSpecies(species),source].filter(Boolean).join(' · ');
+}
+function label(s){
+ const span=document.createElement('span');span.className='gcf-model-label';
+ const {species,accession,source,length}=parts(s);
+ const first=document.createElement('span');first.className='gcf-model-line';
+ const id=document.createElement('strong');id.className='gcf-model-code';id.textContent=modelCode(s.id)||(s.reference?'REF':'');
+ const taxon=document.createElement('span');taxon.textContent=shortSpecies(species);taxon.title=species;
+ first.append(id,taxon);
+ const second=document.createElement('span');second.className='gcf-model-accession';second.textContent=accession;
+ const badge=document.createElement('small');badge.className='gcf-model-source';badge.textContent=source==='Reference'?'REF':source==='Tiberius'?'TIB':source==='Annotation'?'ANN':source;
+ badge.title=[source,length].filter(Boolean).join(' · ');
+ if(badge.textContent)second.append(badge);
+ span.title=s.label;
+ span.setAttribute('aria-label',s.label);
+ span.append(first,second);return span;
+}
+function alignmentLabel(s){
+ const {species,accession}=parts(s);
+ const span=document.createElement('span');span.className='gcf-alignment-label';span.title=s.label;
+ const id=document.createElement('strong');id.className='gcf-model-code';id.textContent=modelCode(s.id)||(s.reference?'REF':'');
+ const full=document.createElement('span');full.className='gcf-model-accession';full.textContent=accession;
+ const taxon=document.createElement('span');taxon.className='gcf-alignment-species';taxon.textContent=shortSpecies(species);
+ if(id.textContent)span.append(id);
+ span.append(full,taxon);
+ return span;
+}
+function treeLabel(svg,leaves,sequences){
+ if(!svg||!leaves?.length)return svg;
+ const byID=new Map(sequences.map(s=>[s.id,s]));
+ const byLeaf=new Map(leaves.map(leaf=>[leaf.tree_id,leaf]));
+ const byTitle=new Map(leaves.map(leaf=>[leaf.labels.join('; '),leaf]));
+ const xml=new DOMParser().parseFromString(svg,'image/svg+xml');
+ if(xml.documentElement.localName!=='svg')return svg;
+ for(const text of xml.querySelectorAll('text')){
+  const title=text.querySelector('title');
+  const leaf=byLeaf.get(text.getAttribute('data-tree-label'))||byTitle.get(title?.textContent);
+  const rows=leaf?.sequence_ids.map(id=>byID.get(id)).filter(Boolean);
+  if(!rows?.length)continue;
+  const first=rows[0],data=parts(first);
+  const line=[modelCode(first.id)||(first.reference?'REF':''),shortSpecies(data.species),data.accession].filter(Boolean).join(' · ');
+  if(title)title.textContent=rows.map(s=>[modelCode(s.id),s.label].filter(Boolean).join(' · ')).join('\n');
+  const display=xml.createTextNode(line+(rows.length>1?' (+'+(rows.length-1)+')':''));
+  text.replaceChildren(...(title?[title]:[]),display);
+ }
+ return new XMLSerializer().serializeToString(xml);
+}
+window.GCFModelLabels={code:modelCode,name:modelName,label,alignmentLabel,treeLabel};
+const style=document.createElement('style');
+style.textContent=`
+#interactiveAlignment .interactive-aln-label:has(.gcf-alignment-label){display:flex;align-items:center;gap:5px;flex:0 0 var(--gcf-alignment-label-width,280px);min-width:var(--gcf-alignment-label-width,280px);max-width:var(--gcf-alignment-label-width,280px);box-sizing:border-box;border-right:1px solid #d6e2e9;padding:0 6px;white-space:nowrap}
+#interactiveAlignment .interactive-aln-label>input{margin:0;flex:none}
+#interactiveAlignment .gcf-alignment-label{min-width:0;display:flex;align-items:baseline;gap:6px;white-space:nowrap}
+#interactiveAlignment .gcf-alignment-label>.gcf-model-code,#interactiveAlignment .gcf-alignment-label>.gcf-model-accession{flex:none}
+#interactiveAlignment .gcf-alignment-species{min-width:0;overflow:hidden;text-overflow:ellipsis;font:11px/1.25 system-ui;color:#546978}
+.gcf-model-label{min-width:0;display:grid;gap:2px;font:12px/1.28 system-ui;color:#20394d}
+.gcf-model-line{display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 6px}
+.gcf-model-code{font:600 11px/1.25 ui-monospace,monospace;color:#234d69}
+.gcf-model-accession{font:600 12px/1.25 ui-monospace,monospace;overflow-wrap:anywhere}
+.gcf-model-source{margin-left:5px;font:500 10px/1.25 system-ui;color:#546978}
+`;
+document.head.append(style);
+})();

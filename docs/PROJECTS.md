@@ -46,7 +46,7 @@ Every command above except `init` requires `--project PATH`. Plan/run also accep
 projects: STOP3 is the synteny page, not the legacy alignment computation.
 Preparation's `stage2` CLI name is retained as a stable engine/checkpoint API.
 
-The model/alignment/tree page and separate synteny view preserve source comments
+The model/alignment/tree page and subsequent synteny section preserve source comments
 and warnings. Final outcomes and post-synteny reference approval are distinct.
 A candidate checkbox never authorizes folding. Export preparation never submits
 a Server job. Cached alignments/trees are reused only for the bound exact input.

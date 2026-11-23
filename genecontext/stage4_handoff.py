@@ -106,6 +106,10 @@ def read_handoff(path):
     rows_used = set()
     for group, part in analyses.items():
         alignment, tree = part['alignment'], part['tree']
+        comments = part.get('comments', {})
+        if (not isinstance(comments, dict) or not comments.keys() <= {'alignment', 'tree'}
+                or any(not isinstance(value, str) for value in comments.values())):
+            raise ValueError('Invalid alignment or tree review comment: ' + group)
         if tree['alignment_id'] != alignment['id'] or not set(tree['ids']) <= set(alignment['ids']):
             raise ValueError('Tree provenance differs from its saved source alignment')
         for phase, checkpoint in [('alignment', alignment), ('tree', tree)]:
@@ -203,6 +207,8 @@ def run(args):
         phy = {k:v for k,v in saved['phylogeny'].items() if not k.endswith('_svg')}
         tree = dict(phy, group=group, gene=group, folder=str(folder.relative_to(root)),
                     alignment_result_id=alignment['id'], tree_result_id=saved['id'])
+        if part.get('comments'):
+            tree['review_comments'] = part['comments']
         if tree.get('tree_input_fasta'):
             (folder/'tree.aligned.faa').write_text(tree.pop('tree_input_fasta'))
             tree['used_alignment'] = 'tree.aligned.faa'

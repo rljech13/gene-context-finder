@@ -1,5 +1,76 @@
-// gcf-safe-review-storage-v1
+// gcf-review-storage-v2
+// Small choices retain their keys; large MSA/tree/undo records use IndexedDB.
 const localStorage=(()=>{
- try{const store=window.localStorage,key='gcf-storage-check-'+Math.random();store.setItem(key,'1');store.removeItem(key);window.GCFStorage=store;return store}
- catch(error){const values=new Map(),store={getItem:key=>values.get(String(key))??null,setItem:(key,value)=>values.set(String(key),String(value)),removeItem:key=>values.delete(String(key))};window.GCFStorage=store;window.GCFStorageUnavailable=true;return store}
+ let legacy;
+ try{legacy=window.localStorage;const k='gcf-storage-check-'+Math.random();legacy.setItem(k,'1');legacy.removeItem(k)}
+ catch(error){window.GCFStorageUnavailable=true;const values=new Map();legacy={get length(){return values.size},key:i=>[...values.keys()][i]??null,getItem:k=>values.get(k)??null,setItem:(k,v)=>values.set(k,String(v)),removeItem:k=>values.delete(k)}}
+ const cached=new Map(),pending=new Set(),failed=new Set(),listeners=new Set();
+ const checkpoint=k=>/^gcf-realign-selection-.+-(?:saved-alignment-.+|result(?:-.+)?)$/.test(k)||k.startsWith('gcf-one-step-undo-');
+ const name='gcf-review-checkpoints-v1';let db,channel;
+ const keys=()=>[...new Set([...Array.from({length:legacy.length},(_,i)=>legacy.key(i)),...cached.keys()])].filter(k=>k!==null);
+ function warn(){
+  let el=document.getElementById('gcfCheckpointStorageWarning');
+  if(!failed.size){el?.remove();return}
+  if(el)return;el=document.createElement('p');el.id='gcfCheckpointStorageWarning';el.setAttribute('role','alert');
+  el.textContent='Browser storage could not save the latest changes. Keep this tab open and export your review before closing it.';
+  document.querySelector('main')?.prepend(el);
+ }
+ function transact(mode,work){return new Promise((resolve,reject)=>{
+  const tx=db.transaction('entries',mode);tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error||Error('Checkpoint transaction aborted'));
+  try{work(tx.objectStore('entries'))}catch(error){tx.abort();reject(error)}
+ })}
+ function write(key,value){
+  if(value===null)cached.delete(key);else cached.set(key,value);
+  const operation={key};
+  operation.done=transact('readwrite',store=>value===null?store.delete(key):store.put(value,key))
+   .then(()=>{failed.delete(key);channel?.postMessage({key,value})},()=>failed.add(key))
+   .finally(()=>{pending.delete(operation);warn()});pending.add(operation);
+ }
+ const notify=key=>{for(const listener of listeners)listener(key)};
+ const store={
+  get length(){return keys().length},key:i=>keys()[i]??null,keys,
+  getItem:key=>cached.has(String(key))?cached.get(String(key)):legacy.getItem(String(key)),
+  setItem(key,value){key=String(key);value=String(value);
+   if(db&&checkpoint(key)){if(cached.get(key)!==value||failed.has(key))write(key,value)}
+   else{try{legacy.setItem(key,value);if(db&&cached.has(key))write(key,null)}
+    catch(error){if(!db||error.name!=='QuotaExceededError')throw error;write(key,value)}}
+   notify(key);
+  },
+  removeItem(key){key=String(key);legacy.removeItem(key);if(db&&(cached.has(key)||pending.size&&checkpoint(key)))write(key,null);notify(key)},
+  subscribe(listener){listeners.add(listener);return()=>listeners.delete(listener)},
+  async flush(){while(pending.size)await Promise.all([...pending].map(p=>p.done));if(failed.size)throw Error('Browser storage could not save the latest changes.')},
+ };
+ window.GCFStorage=window.GCFReviewStorage=store;
+ window.GCFStorageReady=(async()=>{
+  if(window.GCFStorageUnavailable)return;
+  try{
+   db=await new Promise((resolve,reject)=>{
+    const request=indexedDB.open(name,1);
+    request.onupgradeneeded=()=>request.result.createObjectStore('entries');
+    request.onerror=request.onblocked=()=>reject(request.error||Error('Checkpoint database unavailable'));
+    request.onsuccess=()=>resolve(request.result);
+   });
+   const migrated=new Map();
+   await transact('readwrite',object=>{
+    const request=object.openCursor();request.onsuccess=()=>{
+     const row=request.result;if(row){cached.set(row.key,row.value);row.continue();return}
+     for(let i=0;i<legacy.length;i++){
+      const key=legacy.key(i);if(!checkpoint(key))continue;const value=legacy.getItem(key);if(value===null)continue;
+      if(!cached.has(key)){object.put(value,key);cached.set(key,value)}
+      if(cached.get(key)===value)migrated.set(key,value);
+     }
+    };
+   });
+   for(const[key,value]of migrated)if(legacy.getItem(key)===value)legacy.removeItem(key);
+   if(typeof BroadcastChannel==='function'){
+    channel=new BroadcastChannel(name);channel.onmessage=({data:{key,value}})=>{
+     if([...pending].some(p=>p.key===key))return;
+     if(value===null)cached.delete(key);else cached.set(key,value);
+     window.dispatchEvent(new StorageEvent('storage',{key,newValue:value}));
+    };
+   }
+  }catch(error){db?.close();db=undefined;cached.clear()}
+  document.documentElement.setAttribute('data-gcf-checkpoint-storage',db?'indexeddb':'localstorage');
+ })();
+ return store;
 })();

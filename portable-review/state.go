@@ -26,14 +26,14 @@ type browserState struct {
 }
 
 func (a *App) stateKeyAllowed(k string) bool {
-	for _, prefix := range []string{"gcf-realign-selection-" + a.data.ReviewID, "gcf-review-workspace-2-" + a.data.ReviewID, "gcf-one-step-undo-" + a.data.ReviewID, "gcf-outgroup-" + a.data.ReviewID, "gcf-alignment-first-notes-" + a.data.ReviewID} {
-		if strings.HasPrefix(k, prefix) {
+	for _, prefix := range []string{"gcf-realign-selection-" + a.data.ReviewID, "gcf-review-workspace-2-" + a.data.ReviewID, "gcf-review-workspace-3-" + a.data.ReviewID, "gcf-one-step-undo-" + a.data.ReviewID, "gcf-outgroup-" + a.data.ReviewID, "gcf-alignment-first-notes-" + a.data.ReviewID} {
+		if k == prefix || strings.HasPrefix(k, prefix+"-") {
 			return true
 		}
 	}
 	if a.data.SourceReviewID != "" {
 		for _, prefix := range []string{"gcf-stage2-" + a.data.SourceReviewID, "gcf-stage2-views-" + a.data.SourceReviewID, "gcf-synteny-final-" + a.data.SourceReviewID, "gcf-synteny-reference-v1-" + a.data.SourceReviewID, "gcf-stop4-final-" + a.data.SourceReviewID} {
-			if strings.HasPrefix(k, prefix) {
+			if k == prefix || strings.HasPrefix(k, prefix+"-") {
 				return true
 			}
 		}
@@ -68,9 +68,9 @@ func (a *App) handleState(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "POST required", 405)
 		return
 	}
-	raw, e := io.ReadAll(io.LimitReader(r.Body, 16<<20+1))
-	if e != nil || len(raw) > 16<<20 {
-		fail(w, errors.New("Review state exceeds 16 MiB"))
+	raw, e := io.ReadAll(io.LimitReader(r.Body, 128<<20+1))
+	if e != nil || len(raw) > 128<<20 {
+		fail(w, errors.New("Review state exceeds 128 MiB"))
 		return
 	}
 	var state browserState

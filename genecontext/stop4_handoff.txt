@@ -15,7 +15,8 @@ const section=node('section'), table=node('div'), status=node('p'), button=node(
 section.id='stop4Handoff';button.type='button';status.setAttribute('role','status');
 section.append(node('h2','Final models for STOP 4'),node('p','Choose a final outcome for each model after reviewing synteny. Comments are optional. Choose one main model per genome and comparison group.'),table,button,status);
 const previous=document.getElementById('syntenyReferenceApproval');
-if(previous){previous.before(section);const legacy=node('details');legacy.append(node('summary','Earlier reference approvals'),previous);section.after(legacy);for(const el of previous.querySelectorAll('[data-action="send-alphafold"]'))el.hidden=true;
+if(window.GCFSyntenyReview){window.GCFSyntenyReview.decisions.append(section);if(previous)window.GCFSyntenyReview.mountReference(previous)}
+else if(previous){previous.before(section);const legacy=node('details');legacy.append(node('summary','Earlier reference approvals'),previous);section.after(legacy);for(const el of previous.querySelectorAll('[data-action="send-alphafold"]'))el.hidden=true;
  new MutationObserver(()=>{for(const el of previous.querySelectorAll('[data-action="send-alphafold"]'))el.hidden=true}).observe(previous,{childList:true,subtree:true});}
 else document.querySelector('main').append(section);
 function context(){
@@ -23,17 +24,50 @@ function context(){
  if(h?.alignment_review_id!==seed.review_id||selection(h.decisions)!==selection(d)||!h.alignment_result_id||!h.tree_result_id)
   throw Error('Confirm the current set in STOP 2 after reviewing its alignment and tree.');
  if(!candidates.length||ids.length!==candidates.length)throw Error('The confirmed models do not match the prepared model catalogue.');
- return {h,d,candidates,signature:JSON.stringify([h.alignment_result_id,h.tree_result_id,selection(d),ordered(d.pairs)])};
+ let checked = new Set(ids);
+ if(window.GCFIsSyntenyCheckpointCurrent){
+  const groups=[...new Set(candidates.map(s=>s.group))],stored=read('gcf-stage2-'+source);
+  if(stored&&(selection(stored)!==selection(d)||JSON.stringify(ordered(stored.pairs))!==JSON.stringify(ordered(d.pairs))))
+   throw Error('Review decisions changed in another tab. Reload before exporting.');
+  checked=new Set();
+  for(const group of groups){
+   const confirmed=group===(h.group||(groups.length===1?groups[0]:null))?h:read(storage+'-confirmed-'+group);
+   if(!confirmed||selection(confirmed.decisions)!==selection(d)||!window.GCFIsSyntenyCheckpointCurrent(confirmed,group))
+    throw Error('Confirm the current alignment and tree for '+group+' before recording final decisions here.');
+   for(const id of window.GCFSyntenySelectedRows(confirmed,group))checked.add(id);
+  }
+ }
+ const visible=candidates.filter(s=>checked.has(s.id));
+ const signature=JSON.stringify([h.alignment_result_id,h.tree_result_id,selection(d),ordered(d.pairs)]);
+ return {h,d,candidates,checked,visible,signature,revision:JSON.stringify([signature,visible.map(s=>s.id)])};
 }
 let visibleSignature;
+function reviewHistory(s, decisions){
+ const history=[];
+ const locus=DATA.regions.find(r=>r.region_id===s.metadata.region_id);
+ if(locus?.locus_id){
+  const start=(Number(locus.anchor_start)+1).toLocaleString('en-US');
+  const end=Number(locus.anchor_end).toLocaleString('en-US');
+  history.push('STOP 1 locus: '+locus.contig+':'+start+'–'+end);
+ }
+ const main=decisions.models[s.id].role==='target';
+ history.push('STOP 2: '+(main?'target model':'additional CDS candidate'),'Kept in the alignment selection');
+ const note=node('small',history.join(' · '));
+ note.className='final-model-history';note.style='display:block;color:#476475;margin-top:3px';
+ return note;
+}
 function render(){
  table.replaceChildren();
  try{
   const c=context(), prior=read(key), roles=prior?.signature===c.signature?prior.roles:{};
-  visibleSignature=c.signature;
-  button.disabled=false;status.textContent='';
-  for(const s of c.candidates){
-   const row=node('div'), name=node('strong',s.label), role=node('select'), reason=node('input');
+  visibleSignature=c.revision;
+  button.disabled=false;
+  const omitted=c.candidates.length-c.visible.length;
+  status.textContent=omitted?omitted+' unchecked '+(omitted===1?'model is':'models are')+' recorded as excluded.':'';
+  for(const s of window.GCFSpeciesOrder?.sequences(c.visible)||c.visible){
+   const row=node('div'), name=node('div'), role=node('select'), reason=node('input');
+   const modelLabel=window.GCFModelLabels?.label(s)||node('strong',s.label);
+   name.append(modelLabel,reviewHistory(s,c.h.decisions));
    row.style='display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;padding:6px 0;border-bottom:1px solid #dbe4e7';
    role.setAttribute('aria-label','Final role: '+s.label);reason.setAttribute('aria-label','Reason: '+s.label);reason.placeholder='Optional comment';
    for(const [value,label] of [['','Choose…'],['primary_target','Main model'],['special_case','Separate case'],['unresolved','Unresolved'],['excluded','Exclude']]){
@@ -51,6 +85,9 @@ async function checkpoint(id,group,phase){
   const response=await fetch(url,{headers:{'X-Review-Token':token}});
   if(!response.ok)throw Error(await response.text());return response.json();
  }
+ const workflow=window.GCFAlignmentWorkflow;
+ const active=phase==='tree'?workflow?.current().result:workflow?.savedAlignment();
+ if(active?.id===id&&active.group===group)return active;
  const saved=read(storage+(phase==='tree'?'-result-':'-saved-alignment-')+group);
  if(saved?.id!==id)throw Error('The confirmed '+phase+' is no longer available. Return to STOP 2.');
  return saved;
@@ -59,7 +96,7 @@ button.addEventListener('click',async()=>{
  button.disabled=true;
  try{
   const c=context(), saved=read(key);
-  if(saved?.signature!==c.signature)throw Error('Record the final decisions for this synteny review.');
+  if(c.visible.length&&saved?.signature!==c.signature)throw Error('Record the final decisions for this synteny review.');
   const analyses={}, roles={}, seen=new Set(), physical=new Set();
   const groups=[...new Set(c.candidates.map(s=>s.group))];
   const confirmedGroup=c.h.group||(groups.length===1?groups[0]:null);
@@ -69,9 +106,12 @@ button.addEventListener('click',async()=>{
    if(!aID||!tID||selection(confirmed.decisions)!==selection(c.d))throw Error('Confirm alignment and tree for '+group+' in STOP 2.');
    const alignment=await checkpoint(aID,group,'alignment'),tree=await checkpoint(tID,group,'tree');
    if(alignment.id!==aID||tree.id!==tID||alignment.group!==group||tree.group!==group||tree.alignment_id!==aID)throw Error('Alignment and tree do not belong to the same review.');
-   analyses[group]={alignment,tree};
+   const comments={alignment:localStorage.getItem(storage+'-alignment-comment-'+aID)||'',
+    tree:localStorage.getItem(storage+'-tree-comment-'+tID)||''};
+   analyses[group]={alignment,tree,...(comments.alignment||comments.tree?{comments}:{})};
   }
   for(const s of c.candidates){
+   if(!c.checked.has(s.id)){roles[s.id]={role:'excluded',reason:'Not checked in the confirmed alignment review.'};continue}
    const v=saved.roles[s.id], a=analyses[s.group];
    if(!v?.role)throw Error('Choose an outcome for '+s.label);
    if(v.role==='primary_target'||v.role==='special_case'){
@@ -105,18 +145,22 @@ button.addEventListener('click',async()=>{
   const payload=JSON.stringify({schema:'gcf_stop4_input_v1',source_review_id:source,alignment_review_id:seed.review_id,
    stage2:c.h.decisions,notes:c.h.notes||'',stage3:{reviewed:true,decisions:roles,synteny:contexts},members,analyses});
   const checksum=await digest(payload);
-  if(context().signature!==c.signature||JSON.stringify(read(key))!==JSON.stringify(saved))throw Error('Decisions changed during export. Try again.');
+  if(context().revision!==c.revision||JSON.stringify(read(key))!==JSON.stringify(saved))throw Error('Decisions changed during export. Try again.');
   await window.GCFPortableSession?.flush();
+  if(context().revision!==c.revision||JSON.stringify(read(key))!==JSON.stringify(saved))throw Error('Decisions changed during export. Try again.');
   const url=URL.createObjectURL(new Blob([JSON.stringify({sha256:checksum,payload})+'\n'],{type:'application/json'}));
   const link=node('a');link.href=url;link.download='STOP4-input-'+checksum.slice(0,12)+'.json';link.click();
   setTimeout(()=>URL.revokeObjectURL(url),1000);status.textContent='STOP 4 input downloaded.';
- }catch(e){status.textContent=e.message}finally{button.disabled=false}
+ }catch(e){status.textContent=e.message}finally{try{context();button.disabled=false}catch(e){button.disabled=true}}
 });
-document.querySelector('#comparisonPanels').addEventListener('change',()=>{
+function refreshFinalDecisions(){
  queueMicrotask(()=>{
-  let signature;try{signature=context().signature}catch(e){signature=null}
+  let signature;try{signature=context().revision}catch(e){signature=null}
   if(signature!==visibleSignature)render();
  });
-});
+}
+document.querySelector('#comparisonPanels').addEventListener('change',refreshFinalDecisions);
+for(const event of ['gcf-native-review-change','gcf-review-checkpoint-change','gcf-synteny-confirmed'])document.addEventListener(event,refreshFinalDecisions);
+window.addEventListener('storage',refreshFinalDecisions);
 render();
 })();

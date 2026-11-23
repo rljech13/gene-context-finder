@@ -39,6 +39,20 @@ def save_export(path,data):
 
 
 class SequentialStudy(unittest.TestCase):
+    def test_result_comments_are_preserved_and_malformed_comments_are_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);p,_,choices,review=workspace(root);path=root/'export.json'
+            data=exported(p,review,choices,path)
+            group=next(iter(data['analyses']))
+            data['analyses'][group]['comments']={'alignment':'Inspect <gap> & CDS','tree':'Tree note'}
+            save_export(path,data);record_handoff(p,'custom',path)
+            result=run_stage(p,'custom','stage4')
+            final=json.loads((Path(result['output'])/'evidence.json').read_text())
+            self.assertEqual(final['trees'][0]['review_comments'],data['analyses'][group]['comments'])
+            data['analyses'][group]['comments']={'tree':42}
+            save_export(path,data)
+            with self.assertRaisesRegex(ValueError,'review comment'):record_handoff(p,'custom',path)
+
     def test_prepared_models_to_final_dossier_without_recomputation_or_source_writes(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);p,source,choices,review=workspace(root);before=hashes(source)

@@ -101,6 +101,15 @@ Tools are obtained only on an explicit calculation when missing. Saved results
 and choices stay in the extracted folder. `--platform all` is an explicit build
 option; six platform executables are not shipped in the Python wheel or source tree.
 
+Installed and portable reports use the same review presentation: readable model
+labels, CDS exon/splice marks, per-result comments, alignment/tree controls and
+the STOP3 synteny step below them. Large checkpoints use IndexedDB. In the
+portable app, decisions and checkpoints are also saved in `.review/session-state.json`
+inside the extracted folder and restored when the app restarts on another port.
+Keep that folder to continue a review or move it to another compatible computer.
+Full analysis and the lightweight report viewer have different requirements;
+see [report portability](docs/REPORT_PORTABILITY.md).
+
 ## Examples, compatibility and development
 
 [Minimal synthetic study](examples/minimal/README.md): two unrelated artificial

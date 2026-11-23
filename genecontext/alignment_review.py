@@ -103,13 +103,16 @@ def prepared_page(source, pool, title):
         payload['annotation_features'] = json.loads(supplement.read_text())['features']
         payload['annotation_context_external'] = False
     html = attach(render_document(payload), pool)
-    html = html.replace('</head>', '<meta name="gcf-review-flow" content="sequential-v2"></head>', 1)
+    presentation = ''.join(Path(__file__).with_name(name).read_text()
+                           for name in ('review_species_order.txt', 'review_model_labels.txt'))
+    html = html.replace('</head>', '<meta name="gcf-review-flow" content="sequential-v2"><script>'+presentation+'</script></head>', 1)
     scripts = []
     for name in ('alignment_review_steps.txt','synteny_review_page.txt','stop4_handoff.txt'):
         script = Path(__file__).with_name(name).read_text()
         scripts.append('<script>'+script+'</script>')
     from .synteny_reference import attach as attach_reference
-    return attach_reference(html.replace('</body>', ''.join(scripts)+'</body>', 1))
+    from .review_storage import finalize
+    return finalize(attach_reference(html.replace('</body>', ''.join(scripts)+'</body>', 1)))
 
 
 def build(source, out, *, legacy=False, args=None, title='Candidate models'):
@@ -131,7 +134,8 @@ def build(source, out, *, legacy=False, args=None, title='Candidate models'):
     html = html.replace('</body>', '<script>'+Path(__file__).with_name('alignment_review.txt').read_text()+'</script></body>')
     if legacy and provenance.get('checkpoint'):
         html = prepared_page(Path(provenance['checkpoint']), pool, title)
-    (root/'report.html').write_text(html)
+    from .review_storage import finalize
+    (root/'report.html').write_text(finalize(html))
     dump(root/'manifest.json', dict(schema=SCHEMA, status='awaiting_model_review', created=now(),
         review_id=pool['review_id'], source=provenance, models=len([s for s in pool['sequences'] if not s['reference']]),
         references=len([s for s in pool['sequences'] if s['reference']]),
