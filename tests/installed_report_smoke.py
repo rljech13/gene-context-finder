@@ -27,6 +27,12 @@ def main():
     root = args.out.resolve()
     root.mkdir(parents=True, exist_ok=False)
     project, source, choices, review = workspace(root)
+    with project.locked():
+        try:
+            with project.locked():
+                raise AssertionError('A second writer acquired the project lock')
+        except ValueError as error:
+            assert 'Another project operation' in str(error)
     before = hashes(source)
     review_root = project.root/review['directory']
     page = (review_root/'report.html').read_text()

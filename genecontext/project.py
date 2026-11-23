@@ -146,19 +146,33 @@ class Project:
 
     @contextmanager
     def locked(self):
-        # OS-released lock; no stale sentinel after a killed process. Compute
-        # execution is supported on Linux/macOS; the portable viewer also has Windows builds.
-        import fcntl
+        # OS-released lock; no stale sentinel after a killed process. Native
+        # Windows can manage/pack reports; scientific engines have their own OS requirements.
         self.store.mkdir(parents=True, exist_ok=True)
-        with (self.store/'project.lock').open('a') as handle:
+        with (self.store/'project.lock').open('a+b') as handle:
+            if os.name == 'nt':
+                import msvcrt
+                handle.seek(0, os.SEEK_END)
+                if not handle.tell():
+                    handle.write(b'\0'); handle.flush()
+                handle.seek(0)
+                acquire = lambda: msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                release = lambda: (handle.seek(0), msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1))
+            else:
+                import fcntl
+                acquire = lambda: fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                release = lambda: fcntl.flock(handle, fcntl.LOCK_UN)
             try:
-                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
+                acquire()
+            except OSError as error:
+                import errno
+                if error.errno not in (errno.EACCES, errno.EAGAIN, errno.EDEADLK):
+                    raise
                 raise ValueError('Another project operation is running; status remains readable') from None
             try:
                 yield self.load()
             finally:
-                fcntl.flock(handle, fcntl.LOCK_UN)
+                release()
 
     def current(self, state, tid, stage):
         rid = state['current'].get(tid, {}).get(stage)

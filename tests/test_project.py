@@ -50,6 +50,19 @@ def stage2(root):
 
 
 class ProjectSafety(unittest.TestCase):
+    def test_project_lock_refuses_a_second_writer_and_is_released_after_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project=study(Path(tmp))
+            with self.assertRaisesRegex(RuntimeError, 'control failure'):
+                with project.locked():
+                    self.assertEqual(project.load()['schema'],'gene_context_project_state_v1')
+                    with self.assertRaisesRegex(ValueError,'Another project operation'):
+                        with project.locked():
+                            self.fail('A second writer acquired the lock')
+                    raise RuntimeError('control failure')
+            with project.locked() as state:
+                self.assertEqual(state['runs'],[])
+
     def test_config_is_generic_relative_and_status_plan_are_read_only(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);p=study(root,'UNFAMILIAR_FAMILY');before=hashes(root)
