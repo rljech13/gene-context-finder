@@ -97,8 +97,12 @@ jobs:
         run: python scripts/build_review.py --out "${{ runner.temp }}/gcf-runtime"
       - name: Generate and package reports from a clean wheel installation
         run: python tests/installed_report_ci.py
-      - name: Install the review test browser
+      - name: Install Linux browser dependencies and Chromium
+        if: runner.os == 'Linux'
         run: npx playwright install --with-deps chromium
+      - name: Install Chromium
+        if: runner.os != 'Linux'
+        run: npx playwright install chromium
       - name: Check the browser and restart the standalone app
         run: node tests/report_portability_browser.cjs "${{ runner.temp }}/gcf-installed-report/proof"
       - uses: actions/upload-artifact@v4
