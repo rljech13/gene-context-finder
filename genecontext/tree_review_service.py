@@ -499,9 +499,6 @@ def create_server(root, port=0):
                 if path in {'/api/assess', '/api/preview'}:
                     return self.send_json(200, validate_panel(state.manifest, data))
                 if path in {'/api/save', '/api/export'}: return self.send_json(200, state.save(data))
-                if path == '/api/rebuild':
-                    with state.lock: result = rebuild(state.root, state.manifest, data)
-                    return self.send_json(200, result)
                 self.send_json(404, {'error': 'Unknown operation'})
             except (ValueError, TypeError, KeyError, OSError, subprocess.SubprocessError) as e:
                 self.send_json(400, {'error': str(e)})

@@ -49,7 +49,7 @@ produce discordance. Quartets share sequences and are not independent tests.
 ## Review gate
 
 A calculated proposal is visible before approval but is excluded from the total.
-The Stage4 reviewer checks the exact tree, sequence set and outgroup (or knowingly
+The Stage4 reviewer checks the saved tree, sequence set and outgroup (or knowingly
 accepts an unrooted interpretation), then confirms the tree. The confirmation
 admits the automatically calculated components for that tree; there is no manual
 selection of a convenient split. A reviewed model can still have T=NA.
@@ -84,3 +84,8 @@ Method background: [IQ-TREE branch support](https://www.iqtree.org/doc/Frequentl
 [concordance factors](https://www.iqtree.org/doc/Concordance-Factor), and
 [NCBI taxonomy as classification](https://www.ncbi.nlm.nih.gov/datasets/taxonomy/).
 The proposed formula above is this tool's own documented rule.
+
+Stage4 contains only tree/outgroup inspection, an optional outgroup change and
+confirmation. Sequence/mask editing and tree rebuilding stay in the regular
+stages 2–3. Return there when corrections are needed, then create a new Stage4
+result. The review server does not expose a tree-rebuild endpoint.

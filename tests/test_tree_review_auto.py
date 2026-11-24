@@ -251,7 +251,10 @@ class PortableBundle(unittest.TestCase):
         js = (self.root / 'tree_review_view.js').read_text(); html = (self.root / 'TREE_REVIEW.html').read_text()
         self.assertIn('/api/assess', js); self.assertIn('confirmed_signature', js)
         self.assertNotIn('Candidate-side', html); self.assertNotIn('modelSplits', js)
-        self.assertIn('explicitly unrooted', html); self.assertIn('Rebuild tree', html)
+        self.assertIn('explicitly unrooted', html); self.assertNotIn('id="rebuild"', html)
+        self.assertNotIn('/api/rebuild', js)
+        self.assertNotIn('id="members"', html)
+        self.assertIn('return to the regular stages 2–3', html)
 
 
 class LocalHTTP(unittest.TestCase):
@@ -342,19 +345,12 @@ const {chromium} = require('playwright');
   await page.locator('#save').click(); await page.waitForFunction(()=>document.getElementById('activity').textContent==='Saved');
   await page.reload(); await ready(); assert.equal(await page.locator('#approved').isChecked(),true);
   assert.deepEqual(await page.locator('#reviewOutgroup').evaluate(e=>Array.from(e.selectedOptions,o=>o.value)),['a']);
-  await page.locator('#stage3 summary').click();
-  await page.locator('#members input[value="b"]').uncheck();
-  await page.waitForFunction(()=>document.getElementById('gate').textContent.includes('rebuild first'));
-  assert.equal(await page.locator('#approved').isDisabled(),true); assert.equal(await included().textContent(),'NA');
-  await page.locator('#source').selectOption('other'); await ready();
-  assert.equal(await page.locator('#models tr').first().locator('td').nth(1).textContent(),'0.000');
-  assert.equal(await included().textContent(),'NA');
-  await page.locator('#approved').check(); await page.waitForFunction(()=>document.querySelector('#models tr td:nth-child(3)').textContent==='0.000');
+  assert.equal(await page.locator('#stage3,#members,#rebuild').count(),0);
   await page.locator('#import').setInputFiles({name:'legacy.json',mimeType:'application/json',buffer:Buffer.from('{"schema":"gcf_tree_review_v1"}')});
   await page.waitForFunction(()=>document.getElementById('notice').textContent.includes('legacy manual T'));
   await page.goto(new URL('report.html',process.argv[1]).href); await page.waitForFunction(()=>window.reportReady===true);
   await page.frameLocator('iframe').locator('h1').waitFor();
-  assert.equal(await page.frameLocator('iframe').locator('h1').textContent(),'Tree review');
+  assert.equal(await page.frameLocator('iframe').locator('h1').textContent(),'Stage 4 · Tree review');
   assert.deepEqual(errors,[]);
  } finally {await browser.close();}
 })().catch(e=>{console.error(e);process.exit(1)});

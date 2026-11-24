@@ -3,13 +3,12 @@
   'use strict';
   const $ = id => document.getElementById(id);
   let manifest, token, reviews, panelId, groupId, previewResult, epoch = 0, dirty = false;
-  let pending = false, exactMask = null;
+  let pending = false;
   const ns = 'http://www.w3.org/2000/svg';
   const clone = x => JSON.parse(JSON.stringify(x));
   const panel = () => manifest.panels[panelId];
   const group = () => panel().groups[groupId];
   const request = () => reviews.panels[panelId].groups[groupId];
-  const defaultMethod = () => ({model: 'MFP', bootstrap: 1000, seed: 42, threads: 2});
   const values = select => Array.from(select.selectedOptions, option => option.value);
   const number = value => value == null ? 'NA' : Number(value).toFixed(3);
 
@@ -37,7 +36,7 @@
   function outgroupChoices() {
     let ids;
     try { ids = tips(parseNewick(treeText(request().source))); } catch (_) { ids = []; }
-    for (const name of ['buildOutgroup', 'reviewOutgroup']) {
+    for (const name of ['reviewOutgroup']) {
       const select = $(name); select.replaceChildren();
       for (const id of ids) {
         option(select, id, label(id));
@@ -50,26 +49,7 @@
   function loadGroup() {
     epoch++; previewResult = null;
     const g = group(), r = request();
-    $('members').replaceChildren();
-    for (const id of Object.keys(g.rows).sort()) {
-      const line = document.createElement('label'), input = document.createElement('input');
-      input.type = 'checkbox'; input.value = id; input.checked = (r.selected_ids || []).includes(id);
-      input.addEventListener('change', () => {
-        request().selected_ids = Array.from($('members').querySelectorAll('input:checked'), n => n.value);
-        invalidate('Sequence membership changed. Rebuild the tree before confirming it.');
-      });
-      line.append(input, document.createTextNode(' ' + label(id))); $('members').appendChild(line);
-    }
-    $('source').replaceChildren();
-    for (const id of Object.keys(g.trees)) option($('source'), id, id);
-    if (!(r.source.id in g.trees)) option($('source'), r.source.id, 'Rebuilt tree · ' + r.source.id.slice(-10));
-    $('source').value = r.source.id;
-    exactMask = Array.isArray(r.mask) ? clone(r.mask) : null;
-    $('mask').value = exactMask ? 'exact' : (r.mask || {}).mode || 'all';
-    $('mask').querySelector('option[value="exact"]').disabled = !exactMask;
-    const m = r.tree_method || (r.source.provenance || {}).tree_method || g.tree_method || defaultMethod();
-    for (const key of ['model', 'bootstrap', 'seed', 'threads']) $(key).value = m[key];
-    $('buildBasis').value = $('reviewBasis').value = r.root_basis || '';
+    $('reviewBasis').value = r.root_basis || '';
     $('comment').value = r.comment || '';
     outgroupChoices(); assess();
   }
@@ -106,11 +86,12 @@
       $('signature').textContent = previewResult.signature;
       $('provenance').textContent = JSON.stringify(previewResult.provenance, null, 2);
       $('limitation').textContent = previewResult.placement.limitation;
-      $('gate').textContent = previewResult.requires_rebuild ? 'T not included: membership, mask, or tree method changed; rebuild first.' :
+      $('gate').textContent = previewResult.requires_rebuild ? 'T not included: inputs changed. Return to stages 2–3 and rebuild there.' :
         previewResult.approved ? 'Exact tree/outgroup reviewed. Assessed T may enter the score; unavailable model placements remain NA.' :
           'Proposed T only. No tree points enter the score until this exact tree/outgroup is reviewed.';
       renderModels(result.models); drawTree(previewResult.display_newick);
-      notice(previewResult.requires_rebuild ? 'The displayed tree does not match the current construction inputs.' :
+      if(window.parent!==window) window.parent.postMessage({type:'gcf-tree-review-preview',panel:panelId,review:result},location.origin);
+      notice(previewResult.requires_rebuild ? 'Return to stages 2–3 to correct inputs and rebuild the tree.' :
         previewResult.approved ? 'Tree and outgroup confirmed' + (dirty ? ' · save changes to persist.' : '.') :
           'Automatic placement ready · awaiting exact tree/outgroup review.', previewResult.requires_rebuild ? 'warning' : '');
     } catch (error) {
@@ -208,6 +189,7 @@
     try {
       const data = await api('/api/save', clone(reviews.panels[panelId])); reviews = data.reviews;
       dirty = false; $('saved').textContent = 'Saved in package .review folder';
+      if(window.parent!==window) window.parent.postMessage({type:'gcf-tree-review-saved',panel:panelId},location.origin);
       $('activity').textContent = 'Saved'; loadGroup();
       if (exportFile) {
         const url = URL.createObjectURL(new Blob([JSON.stringify(reviews, null, 2)], {type: 'application/json'}));
@@ -219,45 +201,20 @@
   function wire() {
     $('panel').addEventListener('change', () => loadPanel());
     $('group').addEventListener('change', () => { groupId = $('group').value; loadGroup(); });
-    for (const name of ['buildOutgroup', 'reviewOutgroup']) $(name).addEventListener('change', () => {
+    for (const name of ['reviewOutgroup']) $(name).addEventListener('change', () => {
       request().outgroup_ids = values($(name)); outgroupChoices(); invalidate('Outgroup changed; inspect and confirm the exact new orientation.');
     });
-    for (const name of ['buildBasis', 'reviewBasis']) $(name).addEventListener('input', () => {
-      request().root_basis = $(name).value; $(name === 'buildBasis' ? 'reviewBasis' : 'buildBasis').value = $(name).value;
+    for (const name of ['reviewBasis']) $(name).addEventListener('input', () => {
+      request().root_basis = $(name).value;
       invalidate('Outgroup basis changed; previous confirmation cleared.');
     });
     $('unrooted').addEventListener('click', () => {
-      request().outgroup_ids = []; request().root_basis = ''; $('buildBasis').value = $('reviewBasis').value = ''; outgroupChoices(); invalidate('Explicitly unrooted review selected.');
+      request().outgroup_ids = []; request().root_basis = ''; $('reviewBasis').value = ''; outgroupChoices(); invalidate('Explicitly unrooted review selected.');
     });
     $('comment').addEventListener('input', () => { request().comment = $('comment').value; changed(); });
-    $('mask').addEventListener('change', () => { request().mask = $('mask').value === 'exact' ? clone(exactMask) : {mode: $('mask').value}; invalidate('Mask changed; rebuild to obtain a matching tree.'); });
-    $('source').addEventListener('change', () => {
-      const id = $('source').value;
-      if (id in group().trees) {
-        const value = group().trees[id], newick = typeof value === 'string' ? value : value.newick;
-        request().source = {id}; request().selected_ids = tips(parseNewick(newick)).sort(); request().mask = group().mask || {mode: 'all'};
-        request().tree_method = group().tree_method || defaultMethod(); request().outgroup_ids = []; request().root_basis = '';
-      }
-      request().approved = false; request().confirmed_signature = null; changed(); loadGroup();
-    });
-    for (const name of ['model', 'bootstrap', 'seed', 'threads']) $(name).addEventListener('change', () => {
-      request().tree_method = {model: $('model').value, bootstrap: Number($('bootstrap').value), seed: Number($('seed').value), threads: Number($('threads').value)};
-      invalidate('Tree-construction method changed; rebuild first.');
-    });
     $('approved').addEventListener('change', () => {
       request().approved = $('approved').checked; request().confirmed_signature = request().approved && previewResult ? previewResult.signature : null;
       changed(); assess();
-    });
-    $('rebuild').addEventListener('click', async () => {
-      if (pending) return; pending = true; $('rebuild').disabled = true;
-      request().approved = false; request().confirmed_signature = null; $('approved').checked = false; $('approved').disabled = true; epoch++; changed();
-      notice('Building an IQ-TREE result for the selected alignment…');
-      try {
-        const r = request(), data = await api('/api/rebuild', {panel: panelId, seal: panel().seal, group: groupId,
-          inputSha256: r.inputSha256, selected_ids: r.selected_ids, mask: r.mask, tree_method: r.tree_method || defaultMethod(), allow_download: $('download').checked});
-        Object.assign(r, data); loadGroup();
-      } catch (e) { notice(e.message, 'error'); }
-      finally { pending = false; $('rebuild').disabled = false; }
     });
     $('save').addEventListener('click', () => save()); $('export').addEventListener('click', () => save(true));
     $('import').addEventListener('change', async () => {
@@ -279,7 +236,7 @@
       const init = await api('/api/manifest'); manifest = init.manifest; token = init.token;
       const state = await api('/api/state'); reviews = state.reviews;
       for (const [id, p] of Object.entries(manifest.panels)) option($('panel'), id, p.label || id);
-      const params = new URLSearchParams(location.search); if (params.get('panel') in manifest.panels) $('panel').value = params.get('panel');
+      const params = new URLSearchParams(location.search); if(params.get('embed')==='1') document.body.classList.add('embedded'); if (params.get('panel') in manifest.panels) $('panel').value = params.get('panel');
       wire(); loadPanel(params.get('group'));
       if (state.warnings.length) notice('Saved review needs revision: ' + state.warnings.join('; '), 'warning');
     } catch (e) { notice(e.message + ' · Run python START_REVIEW.py in the extracted package.', 'error'); }
