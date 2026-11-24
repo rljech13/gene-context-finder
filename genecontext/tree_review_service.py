@@ -509,7 +509,8 @@ def create_server(root, port=0):
 
 def serve(root, port=0, no_browser=False):
     server = create_server(root, port)
-    url = 'http://127.0.0.1:' + str(server.server_port) + '/TREE_REVIEW.html'
+    entry = 'report.html' if (Path(root)/'report.html').is_file() else 'START_HERE.html' if (Path(root)/'START_HERE.html').is_file() else 'TREE_REVIEW.html'
+    url = 'http://127.0.0.1:' + str(server.server_port) + '/' + entry
     print('Tree review: ' + url, flush=True)
     if not no_browser: webbrowser.open(url)
     try: server.serve_forever()
