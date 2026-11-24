@@ -1,4 +1,4 @@
-"""Portable default selections with literal STOP-1/2 comments and provenance."""
+"""Portable default selections with literal Stage 1/2 comments and provenance."""
 import csv
 import hashlib
 from html import escape
@@ -34,7 +34,7 @@ def collect_history(root, payload):
     if saved.exists():
         history=json.loads(saved.read_text())
         if history['source_evidence_sha256']!=digest or history['review_id']!=payload['review_id']:
-            raise ValueError('Comment history belongs to another STOP-2 checkpoint')
+            raise ValueError('Comment history belongs to another Stage 2 checkpoint')
         return history
     data=json.loads(evidence.read_text());state=json.loads((root/'decisions.snapshot.json').read_text())
     regions={r['region_id']:r for r in data['regions']};source_models={m['model_id']:m for m in data['models']}
@@ -64,15 +64,15 @@ def collect_history(root, payload):
     status='inherited_region_comments_only'
     if source and (source/'evidence.json').is_file():
         if sha256(source/'evidence.json')!=digest:
-            raise ValueError('STOP-2 source differs from the report evidence')
+            raise ValueError('Stage 2 source differs from the report evidence')
         seal=json.loads((source/'seal.json').read_text()) if (source/'seal.json').exists() else {}
         for name in ['selection.input.json','selection.input.tsv','selection.snapshot.tsv']:
             path=source/name
             if not path.exists():continue
             if name not in seal or sha256(path)!=seal[name]:
-                raise ValueError('STOP-1 saved selection is not sealed or changed: '+name)
+                raise ValueError('Stage 1 saved selection is not sealed or changed: '+name)
             if name.startswith('selection.input.') and data.get('selection',{}).get('decision_source_sha256') not in (None,sha256(path)):
-                raise ValueError('STOP-1 saved selection fingerprint differs')
+                raise ValueError('Stage 1 saved selection fingerprint differs')
             target='comments/stop1.'+name
             files[target]=path.read_bytes().decode('utf-8');provenance.append(dict(stage='STOP1',file=target,sha256=sha256(path)))
             status='saved_input_and_inherited_region_comments'
@@ -131,14 +131,14 @@ def write_default_export(root,payload,finalization,queries=None):
     rows=finalization['rows'];all_rows=rows['primary']+rows['cases'];state=finalization['state']
     ids=[r['model_id'] for r in all_rows]
     if len(set(ids))!=len(ids) or set(ids)!={m['model_id'] for m in payload['models']}:
-        raise ValueError('Default export must include every selected STOP-2 model exactly once')
+        raise ValueError('Default export must include every selected Stage 2 model exactly once')
     queries=queries if queries is not None else query_export(root,payload)
     files=dict(history['files'],**queries['files'])
     files.update({'stage3.final.decisions.json':json_text(state),
         'models_with_comments.tsv':tsv(model_rows(all_rows,history)),
         'comments/history.json':json_text({k:v for k,v in history.items() if k!='files'}),
         'comments/comments.tsv':tsv(history['comments'],['stage','model_id','genome_id','region_id','field','text','origin']),
-        'README.md':'# Default STOP 3 selection\n\nEvery STOP-2 selected model is retained. primary_targets and special_cases partition that set. models_with_comments.tsv joins the exact model identity and assignment with saved STOP-1/2 comments. comments/ preserves complete available prior decisions, including comments on unchosen alternatives. Quoted TSV cells can contain tabs and newlines; JSON and source snapshots preserve literal text.\n\nThe saved report defaults are exported without per-model clicking. Suggestions remain reviewed=false; downloading does not approve them. Current browser edits belong to the separate Download split package action. No new alignment or model selection is run. Protein/CDS are complete native sequences; terminal CDS stops are retained. stage3.final.decisions.json binds choices to the exact review and sequence-set IDs.\n'})
+        'README.md':'# Default Stage 3 selection\n\nEvery Stage 2 selected model is retained. primary_targets and special_cases partition that set. models_with_comments.tsv joins the exact model identity and assignment with saved Stage 1/2 comments. comments/ preserves complete available prior decisions, including comments on unchosen alternatives. Quoted TSV cells can contain tabs and newlines; JSON and source snapshots preserve literal text.\n\nThe saved report defaults are exported without per-model clicking. Suggestions remain reviewed=false; downloading does not approve them. Current browser edits belong to the separate Download split package action. No new alignment or model selection is run. Protein/CDS are complete native sequences; terminal CDS stops are retained. stage3.final.decisions.json binds choices to the exact review and sequence-set IDs.\n'})
     for name,part in [('primary_targets',rows['primary']),('special_cases',rows['cases']),('all_selected',all_rows)]:
         files[name+'.tsv']=tsv(part,list(all_rows[0]) if all_rows else None)
         for kind,suffix in [('protein','proteins.faa'),('cds','cds.fna')]:
@@ -149,7 +149,7 @@ def write_default_export(root,payload,finalization,queries=None):
         files[name+'_with_queries.proteins.faa']=fasta(part,finalization['raw_sequences']['protein'])+queries['files']['query_references.faa']
     for name in [*queries['files'],'primary_targets_with_queries.proteins.faa','all_selected_with_queries.proteins.faa']:
         (root/name).write_text(files[name],encoding='utf-8')
-    files['README.md']+='\nQuery references are included in query_references.faa, with accession, species, aliases and exact saved-input SHA256 in query_references.tsv/json. primary_targets_with_queries.proteins.faa combines the primary representatives with every supplied query; all_selected_with_queries.proteins.faa also retains separate cases. Model-only FASTAs remain available. Query CDS was not supplied to STOP3 and is not inferred.\n'
+    files['README.md']+='\nQuery references are included in query_references.faa, with accession, species, aliases and exact saved-input SHA256 in query_references.tsv/json. primary_targets_with_queries.proteins.faa combines the primary representatives with every supplied query; all_selected_with_queries.proteins.faa also retains separate cases. Model-only FASTAs remain available. Query CDS was not supplied to Stage 3 and is not inferred.\n'
     content=dict(schema='stage3_default_export_v1',review_id=state['review_id'],set_id=state['set_id'],
         selected_models=len(ids),primary_models=len(rows['primary']),special_case_models=len(rows['cases']),
         query_proteins=queries['protein_sequences'],queries_included=True,
@@ -162,7 +162,7 @@ def write_default_export(root,payload,finalization,queries=None):
     record=dict(content,package=package.name,package_sha256=sha256(package))
     (root/'default_export.json').write_text(json_text(record))
     # Only prior comments are added to the browser's current-choice package;
-    # its STOP-3 decisions remain the live browser state, never stale defaults.
+    # its Stage 3 decisions remain the live browser state, never stale defaults.
     return dict(history=history,files=history['files'],record=record)
 
 
@@ -196,11 +196,11 @@ def write_collection(root,reports):
     bundle=dict(schema='stage3_default_bundle_v1',defaults_only=True,manual_approval_asserted=False,
         reports=entries,selected_models=len(combined))
     files['stage3.defaults.bundle.json']=json_text(bundle).encode()
-    files['README.md']=b'# All ready STOP 3 default selections\n\nOne directory per gene/report. Complete native proteins/CDS, primary and separate-case tables, exact decisions, and all available prior comment snapshots are included. all_models_with_comments.tsv is the combined catalogue. Suggestions are not marked manually reviewed. This package exports the saved defaults; browser edits are exported from each report separately.\n'
+    files['README.md']=b'# All ready Stage 3 default selections\n\nOne directory per gene/report. Complete native proteins/CDS, primary and separate-case tables, exact decisions, and all available prior comment snapshots are included. all_models_with_comments.tsv is the combined catalogue. Suggestions are not marked manually reviewed. This package exports the saved defaults; browser edits are exported from each report separately.\n'
     package=root/'all_default_models_with_comments.zip'
     with zipfile.ZipFile(package,'w',compression=zipfile.ZIP_DEFLATED) as archive:
         for name,value in files.items():archive.writestr(name,value)
     (root/'collection.json').write_text(json_text(dict(bundle,package=package.name,package_sha256=sha256(package))))
     rows=''.join('<tr><td><a href="'+escape(e['report_url'],quote=True)+'">'+escape(e['key'])+'</a></td><td>'+str(e['selected_models'])+'</td><td>'+str(e['primary_models'])+'</td><td>'+str(e['special_case_models'])+'</td></tr>' for e in entries)
-    (root/'index.html').write_text('<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>STOP 3 — export all defaults</title><style>body{font:16px/1.5 system-ui;max-width:1000px;margin:40px auto;padding:24px;color:#213a3d;background:#f3f6f5}a{color:#1d686b}.button{display:inline-block;padding:14px 20px;border-radius:7px;background:#1d686b;color:white;text-decoration:none}td,th{text-align:left;padding:10px;border-bottom:1px solid #dce6e5}table{width:100%;background:white;border-collapse:collapse}</style><h1>STOP 3: all ready genes</h1><p>'+str(len(entries))+' reports · '+str(len(combined))+' selected models</p><p><a class="button" href="'+package.name+'" download>Export all default models + comments · ZIP</a></p><p>One download for all ready genes. Includes primary targets, separate cases, complete native proteins/CDS and saved STOP-1/2/3 comments. No per-gene or per-model saving is needed. Suggestions retain their review status.</p><p>This exports the report defaults. Export browser edits with Download split package inside the relevant report.</p><table><tr><th>Report</th><th>All models</th><th>Primary targets</th><th>Separate cases</th></tr>'+rows+'</table></html>')
+    (root/'index.html').write_text('<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Stage 3 — export all defaults</title><style>body{font:16px/1.5 system-ui;max-width:1000px;margin:40px auto;padding:24px;color:#213a3d;background:#f3f6f5}a{color:#1d686b}.button{display:inline-block;padding:14px 20px;border-radius:7px;background:#1d686b;color:white;text-decoration:none}td,th{text-align:left;padding:10px;border-bottom:1px solid #dce6e5}table{width:100%;background:white;border-collapse:collapse}</style><h1>Stage 3: all ready genes</h1><p>'+str(len(entries))+' reports · '+str(len(combined))+' selected models</p><p><a class="button" href="'+package.name+'" download>Export all default models + comments · ZIP</a></p><p>One download for all ready genes. Includes primary targets, separate cases, complete native proteins/CDS and saved Stage 1/2/3 comments. No per-gene or per-model saving is needed. Suggestions retain their review status.</p><p>This exports the report defaults. Export browser edits with Download split package inside the relevant report.</p><table><tr><th>Report</th><th>All models</th><th>Primary targets</th><th>Separate cases</th></tr>'+rows+'</table></html>')
     return dict(reports=len(entries),models=len(combined),package_sha256=sha256(package))

@@ -107,5 +107,5 @@ def restrict_checkpoint(args):
         context['source_review_id']=old_review
         dump(root/'raw/early_synteny/evidence.json',context)
     write_outputs(root,data)
-    print('STOP — open '+str(root/'report.html'))
+    print('Stage 1 — open '+str(root/'report.html'))
     return 0

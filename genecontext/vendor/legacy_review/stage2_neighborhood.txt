@@ -423,7 +423,7 @@ function diagramFilterNotice(rows){
  const neighborCount=layout.left.length+layout.right.length,neighborMatches=rows.slice(1).flatMap(other=>correspondenceEdges(r,other)).filter(e=>e.kind==='retained').length;
  if(!neighborCount||!neighborMatches){
   box.append(el('div',!neighborCount?'No neighboring genes in the displayed window: local synteny cannot be assessed here. Target-protein links are not synteny anchors.':'No retained neighboring-protein matches in this comparison: target-protein links alone do not establish synteny.'));box.hidden=false;
-  if(prior?.neighbors?.length){const wider=el('button','Show broader STOP-1 context');wider.type='button';wider.addEventListener('click',()=>{$('priorContext').open=true;$('priorContext').scrollIntoView({block:'center',behavior:'smooth'})});box.append(wider)}
+  if(prior?.neighbors?.length){const wider=el('button','Show broader Stage 1 context');wider.type='button';wider.addEventListener('click',()=>{$('priorContext').open=true;$('priorContext').scrollIntoView({block:'center',behavior:'smooth'})});box.append(wider)}
  }
  if(source==='all')return;
  const hidden=rows.filter(r=>{const all=[...own(r),...contextFeatureModels(r)],shown=diagramModels(r);return all.length&&!shown.length||all.some(m=>m.overlaps_anchor)&&!shown.some(m=>m.overlaps_anchor)});
@@ -435,7 +435,7 @@ function diagramFilterNotice(rows){
 function renderPriorContext(r){
  const panel=$('priorContext'),body=$('priorContextBody'),context=DATA.prior_synteny_context,prior=context?.regions?.[r.region_id];
  panel.hidden=!prior?.neighbors?.length;body.replaceChildren();if(panel.hidden)return;
- body.append(el('p','Saved annotation/protein evidence from STOP 1. Its wider context is separate from the DNA window reannotated by Tiberius. These matches have not been re-predicted or approved in STOP 2.','muted'));
+ body.append(el('p','Saved annotation/protein evidence from Stage 1. Its wider context is separate from the DNA window reannotated by Tiberius. These matches have not been re-predicted or approved in Stage 2.','muted'));
  const references=new Map((context.references||[]).map(ref=>[ref.reference_id,ref]));
  body.append(table(['Neighbor','Distance from selected gene','In reannotation window?','Saved protein matches'],prior.neighbors.map(n=>{
   const found=(prior.comparisons||[]).flatMap(c=>(c.matches||[]).filter(m=>m.target_gene===n.gene_id).map(m=>{

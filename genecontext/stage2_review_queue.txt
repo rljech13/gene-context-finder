@@ -129,7 +129,7 @@ function renderQueueRow(r,item){
  const label=el('input');label.type='text';label.value=draft?.comparison_group??choice.comparison_group??(item.primary?r.gene||'target':m?.identification.proposed_name||m?.annotation_name||m?.gene_group||'neighbor');label.setAttribute('aria-label','Review comparison group '+(item.primary?r.region_id:m.model_id));
  const override=el('input');override.type='checkbox';override.checked=draft?.target_override??choice.target_override===true;override.setAttribute('aria-label','Review expert override '+(item.primary?r.region_id:m.model_id));
  const copy=el('input');copy.type='text';copy.value=draft?.copy_label??choice.copy_label??'';copy.placeholder=m?copyLabel(m):'';copy.setAttribute('aria-label','Copy label '+(item.primary?r.region_id:m.model_id));
- const details=el('details',undefined,'queue-options'),reviewComment=el('label','STOP 2 comment');reviewComment.append(notes);details.append(el('summary','Evidence / options'),reviewComment);
+ const details=el('details',undefined,'queue-options'),reviewComment=el('label','Stage 2 comment');reviewComment.append(notes);details.append(el('summary','Evidence / options'),reviewComment);
  if(item.primary)for(const text of DATA.automatic_comments?.[r.region_id]||[])details.append(el('p','Automatic comment: '+text,'muted automatic-comment'));
  if(m&&modelQualityNotice(m))details.append(el('p',modelQualityNotice(m),'muted'));
  if(m&&modelConstraint(m).protein_name_reconciliation)details.append(el('p',modelConstraint(m).protein_name_reconciliation.note,'muted'));

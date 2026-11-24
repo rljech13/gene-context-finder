@@ -19,15 +19,15 @@ function context(){
  const draft=typeof exportState==='function'?exportState():read('gcf-stage2-'+source),saved=read('gcf-stage2-'+source),handoff=read(handoffKey);
  const chosen=Array.from(pool.values()).filter(s=>draft?.models?.[s.id]?.decision==='inspect'&&['target','alignment_candidate'].includes(draft.models[s.id].role));
  let reason='';
- if(!handoff||handoff.review_id!==source||handoff.alignment_review_id!==seed.review_id||handoff.decisions?.review_id!==source)reason='Confirm the selected set in STOP2, then review its synteny.';
- else if(canonical(selection(handoff.decisions))!==canonical(selection(draft))||(saved&&canonical(selection(saved))!==canonical(selection(draft))))reason='The model selection changed. Confirm the current set in STOP2 and review its synteny again.';
- else if(saved&&canonical(saved.pairs||{})!==canonical(draft?.pairs||{}))reason='The context changed in another tab. Reload STOP3 before approving a reference.';
+ if(!handoff||handoff.review_id!==source||handoff.alignment_review_id!==seed.review_id||handoff.decisions?.review_id!==source)reason='Confirm the selected set in Stage 2, then review its synteny.';
+ else if(canonical(selection(handoff.decisions))!==canonical(selection(draft))||(saved&&canonical(selection(saved))!==canonical(selection(draft))))reason='The model selection changed. Confirm the current set in Stage 2 and review its synteny again.';
+ else if(saved&&canonical(saved.pairs||{})!==canonical(draft?.pairs||{}))reason='The context changed in another tab. Reload Stage 3 before approving a reference.';
  else if(!chosen.length)reason='The confirmed set contains no target gene models.';
  return {draft,handoff,chosen,reason,signature:handoff?canonical({handoff:snapshot(handoff),synteny_pairs:draft?.pairs||{}}):''};
 }
 const section=node('section');section.id='syntenyReferenceApproval';section.setAttribute('aria-labelledby','syntenyReferenceTitle');
 const title=node('h2','After synteny · approve reference models');title.id='syntenyReferenceTitle';
-section.append(title,node('p','After reviewing genomic context and synteny, approve the exact model for each locus. Confirming the set in STOP2 does not approve a reference.'));
+section.append(title,node('p','After reviewing genomic context and synteny, approve the exact model for each locus. Confirming the set in Stage 2 does not approve a reference.'));
 const notice=node('p'),list=node('div'),status=node('p');status.setAttribute('role','status');status.id='syntenyReferenceStatus';
 const save=node('button','Download reference approvals · JSON');save.type='button';save.dataset.action='export-reference-approvals';section.append(notice,list,save,status);main.append(section);
 const style=node('style');style.textContent='#syntenyReferenceApproval{margin-top:24px}#syntenyReferenceApproval .reference-row{border-top:1px solid #dce3eb;padding:14px 0}#syntenyReferenceApproval button{margin:8px 8px 0 0}#syntenyReferenceApproval button:disabled{opacity:.45;cursor:not-allowed}#syntenyReferenceApproval small{display:block;overflow-wrap:anywhere}';section.append(style);
@@ -35,7 +35,7 @@ function sameApproval(a,c,s,fingerprint){return !!(a&&a.schema==='synteny_refere
 function approvals(){const a=read(key);return a?.schema==='gcf_synteny_reference_draft_v1'&&a.source_review_id===source?a:{schema:'gcf_synteny_reference_draft_v1',source_review_id:source,references:{}}}
 function physical(s){const m=s.metadata;return m.genome_id+'|'+(m.model_constraints?.physical_id||m.gene_group||m.region_id)}
 function validRecords(c){const a=approvals();if(a.context_canonical!==c.signature)return {};return Object.fromEntries(c.chosen.filter(s=>!c.reason&&sameApproval(a.references?.[s.id],c,s,a.context_sha256)).map(s=>[s.id,a.references[s.id]]))}
-function render(){try{const c=context(),valid=validRecords(c);notice.textContent=c.reason||'The confirmed STOP2 set is saved. Approve references separately here, after reviewing synteny.';list.replaceChildren();save.disabled=!Object.keys(valid).length;
+function render(){try{const c=context(),valid=validRecords(c);notice.textContent=c.reason||'The confirmed Stage 2 set is saved. Approve references separately here, after reviewing synteny.';list.replaceChildren();save.disabled=!Object.keys(valid).length;
  for(const s of c.chosen){const row=node('div');row.className='reference-row';row.dataset.modelId=s.id;const m=s.metadata;
   row.append(node('strong',s.label),node('small',m.contig+':'+(Number(m.start)+1)+'–'+m.end+' ('+m.strand+')'));
   const approve=node('button',valid[s.id]?'Reference approved':'Approve model as reference');approve.type='button';approve.dataset.action='approve-synteny-reference';approve.disabled=!!c.reason||!!valid[s.id];approve.title=c.reason||'Approve this exact model after reviewing synteny';approve.addEventListener('click',()=>act(()=>approveModel(s.id)));

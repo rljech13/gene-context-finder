@@ -26,15 +26,15 @@ decisions. Checkpoint/model validation remains a separate required handoff.
 
 The canonical tracker is the control directory's `tools/collect_tracker.py` on
 host2. It applies `registry/deferred_cases.json`; MYCa, MYCb, MYCh and MYCL are
-deferred by the user for a separate investigation, not waiting for STOP2.
+deferred by the user for a separate investigation, not waiting for Stage 2.
 The companion sheet planner preserves custom final decisions, reviewer notes,
-stable record IDs, formulas and current public STOP2 viewer links.
+stable record IDs, formulas and current public Stage 2 viewer links.
 
 Report renderer/presentation updates are independent of scientific checkpoints.
-STOP3 exports the current chosen models and comments inside each individual
+Stage 3 exports the current chosen models and comments inside each individual
 gene report; the old global default export remains historical.
 
-STOP2 uses the registered `presentation_methods/stop2_ui_20261118` renderer.
+Stage 2 uses the registered `presentation_methods/stop2_ui_20261118` renderer.
 The canonical project helper `tools/stop2_presentation.py` builds a separate
 presentation and portable ZIP from the currently served payload. Its publish
 phase requires `presentations/stop2_ui_20261118/ui-validation.json` to match the

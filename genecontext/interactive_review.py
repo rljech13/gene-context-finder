@@ -187,7 +187,7 @@ def package_review(args):
     elif data.get('stage')==3:
         from .stage4 import checked_source
         _,manifest=checked_source(source);review_id=manifest['source_review_id']
-    else:raise ValueError('Portable review requires STOP2 or STOP3')
+    else:raise ValueError('Portable review requires Stage 2 or Stage 3')
     if data['review_id']!=review_id:raise ValueError('Review dataset belongs to another checkpoint')
     chosen=args.platform
     if chosen=='current':

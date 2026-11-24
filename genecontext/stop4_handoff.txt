@@ -11,9 +11,9 @@ const selected=d=>Object.entries(d?.models||{}).filter(([,m])=>m.decision==='ins
 const ordered=o=>Object.fromEntries(Object.entries(o||{}).sort(([a],[b])=>a.localeCompare(b)));
 const selection=d=>JSON.stringify([d?.review_id,ordered(d?.regions),ordered(d?.models)]);
 const digest=async text=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))),b=>b.toString(16).padStart(2,'0')).join('');
-const section=node('section'), table=node('div'), status=node('p'), button=node('button','Download STOP 4 input');
+const section=node('section'), table=node('div'), status=node('p'), button=node('button','Download Stage 4 input');
 section.id='stop4Handoff';button.type='button';status.setAttribute('role','status');
-section.append(node('h2','Final models for STOP 4'),node('p','Choose a final outcome for each model after reviewing synteny. Comments are optional. Choose one main model per genome and comparison group.'),table,button,status);
+section.append(node('h2','Final models for Stage 4'),node('p','Choose a final outcome for each model after reviewing synteny. Comments are optional. Choose one main model per genome and comparison group.'),table,button,status);
 const previous=document.getElementById('syntenyReferenceApproval');
 if(window.GCFSyntenyReview){window.GCFSyntenyReview.decisions.append(section);if(previous)window.GCFSyntenyReview.mountReference(previous)}
 else if(previous){previous.before(section);const legacy=node('details');legacy.append(node('summary','Earlier reference approvals'),previous);section.after(legacy);for(const el of previous.querySelectorAll('[data-action="send-alphafold"]'))el.hidden=true;
@@ -22,7 +22,7 @@ else document.querySelector('main').append(section);
 function context(){
  const h=read(handoffKey),d=exportState(), ids=selected(d), candidates=seed.sequences.filter(s=>!s.reference&&ids.includes(s.id));
  if(h?.alignment_review_id!==seed.review_id||selection(h.decisions)!==selection(d)||!h.alignment_result_id||!h.tree_result_id)
-  throw Error('Confirm the current set in STOP 2 after reviewing its alignment and tree.');
+  throw Error('Confirm the current set in Stage 2 after reviewing its alignment and tree.');
  if(!candidates.length||ids.length!==candidates.length)throw Error('The confirmed models do not match the prepared model catalogue.');
  let checked = new Set(ids);
  if(window.GCFIsSyntenyCheckpointCurrent){
@@ -48,10 +48,10 @@ function reviewHistory(s, decisions){
  if(locus?.locus_id){
   const start=(Number(locus.anchor_start)+1).toLocaleString('en-US');
   const end=Number(locus.anchor_end).toLocaleString('en-US');
-  history.push('STOP 1 locus: '+locus.contig+':'+start+'–'+end);
+  history.push('Stage 1 locus: '+locus.contig+':'+start+'–'+end);
  }
  const main=decisions.models[s.id].role==='target';
- history.push('STOP 2: '+(main?'target model':'additional CDS candidate'),'Kept in the alignment selection');
+ history.push('Stage 2: '+(main?'target model':'additional CDS candidate'),'Kept in the alignment selection');
  const note=node('small',history.join(' · '));
  note.className='final-model-history';note.style='display:block;color:#476475;margin-top:3px';
  return note;
@@ -89,7 +89,7 @@ async function checkpoint(id,group,phase){
  const active=phase==='tree'?workflow?.current().result:workflow?.savedAlignment();
  if(active?.id===id&&active.group===group)return active;
  const saved=read(storage+(phase==='tree'?'-result-':'-saved-alignment-')+group);
- if(saved?.id!==id)throw Error('The confirmed '+phase+' is no longer available. Return to STOP 2.');
+ if(saved?.id!==id)throw Error('The confirmed '+phase+' is no longer available. Return to Stage 2.');
  return saved;
 }
 button.addEventListener('click',async()=>{
@@ -103,7 +103,7 @@ button.addEventListener('click',async()=>{
   for(const group of groups){
    const confirmed=group===confirmedGroup?c.h:read(storage+'-confirmed-'+group);
    const aID=confirmed?.alignment_result_id,tID=confirmed?.tree_result_id;
-   if(!aID||!tID||selection(confirmed.decisions)!==selection(c.d))throw Error('Confirm alignment and tree for '+group+' in STOP 2.');
+   if(!aID||!tID||selection(confirmed.decisions)!==selection(c.d))throw Error('Confirm alignment and tree for '+group+' in Stage 2.');
    const alignment=await checkpoint(aID,group,'alignment'),tree=await checkpoint(tID,group,'tree');
    if(alignment.id!==aID||tree.id!==tID||alignment.group!==group||tree.group!==group||tree.alignment_id!==aID)throw Error('Alignment and tree do not belong to the same review.');
    const comments={alignment:localStorage.getItem(storage+'-alignment-comment-'+aID)||'',
@@ -119,7 +119,7 @@ button.addEventListener('click',async()=>{
     if(v.role==='primary_target'&&!a.tree.ids.includes(s.id))throw Error('Include the main model '+s.label+' in the tree selection.');
     const gate=c.d.models[s.id];
     if(v.role==='primary_target'&&s.metadata.model_constraints?.target_warnings?.length&&!(gate.target_override===true&&gate.notes?.trim()))
-     throw Error('Resolve the target warning for '+s.label+' in STOP 2, or keep it as a separate case.');
+     throw Error('Resolve the target warning for '+s.label+' in Stage 2, or keep it as a separate case.');
     const m=s.metadata, where=m.model_constraints?.physical_id||m.gene_group||m.region_id, locus=m.genome_id+'|'+where;
     if(physical.has(locus))throw Error('Keep one final model per physical gene: '+s.label);
     physical.add(locus);
@@ -149,8 +149,8 @@ button.addEventListener('click',async()=>{
   await window.GCFPortableSession?.flush();
   if(context().revision!==c.revision||JSON.stringify(read(key))!==JSON.stringify(saved))throw Error('Decisions changed during export. Try again.');
   const url=URL.createObjectURL(new Blob([JSON.stringify({sha256:checksum,payload})+'\n'],{type:'application/json'}));
-  const link=node('a');link.href=url;link.download='STOP4-input-'+checksum.slice(0,12)+'.json';link.click();
-  setTimeout(()=>URL.revokeObjectURL(url),1000);status.textContent='STOP 4 input downloaded.';
+  const link=node('a');link.href=url;link.download='Stage4-input-'+checksum.slice(0,12)+'.json';link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);status.textContent='Stage 4 input downloaded.';
  }catch(e){status.textContent=e.message}finally{try{context();button.disabled=false}catch(e){button.disabled=true}}
 });
 function refreshFinalDecisions(){

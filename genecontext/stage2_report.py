@@ -1,4 +1,4 @@
-"""Small offline STOP-2 workbench: models and proposed neighbor correspondences."""
+"""Small offline Stage 2 workbench: models and proposed neighbor correspondences."""
 import json
 from pathlib import Path
 
@@ -127,5 +127,5 @@ def refresh(args):
     from . import __version__
     dump(root/'presentation.json',dict(version=__version__,source=str(source),source_evidence_sha256=sha256(source/'evidence.json'),retained_review_id=data['review_id'],renderer_sha256={name:sha256(Path(__file__).with_name(name)) for name in ['stage2_report.py','stage2_quality.py','stage2_display.py','stage2_reconstruct.py','stage2_prior_context.py','stage2_choices.py','stage2_review.txt','stage2_neighborhood.txt','stage2_cluster.txt','stage2_review_queue.txt','stage2_model_compare.txt','interactive_review.py','review_realign.txt','gene_identity.py']},note='Presentation refresh only. Specific copy labels retain annotation and curated locus provenance separately from protein-database similarity. Scientific evidence, source identifiers, all-source review proposals and decisions are unchanged.'))
     dump(root/'seal.json',{str(p.relative_to(root)):sha256(p) for p in root.rglob('*') if p.is_file() and p.name not in {'seal.json','models.decisions.tsv','regions.decisions.tsv','neighbors.decisions.tsv'}})
-    print('Updated STOP 2 report: '+str(root/'report.html'))
+    print('Updated Stage 2 report: '+str(root/'report.html'))
     return 0

@@ -76,7 +76,7 @@ def import_analysis(group, alignment, members, review_id, manifest):
     leaves = [dict(tree_id='protein_'+digest[:16], protein_sha256=digest,
                    sequence_ids=ids, included=True) for digest, ids in aliases.items()]
     # This is an unavailable-result record, never an invented topology. Original
-    # STOP4 trees, where present, remain linked as historical evidence.
+    # Stage 4 trees, where present, remain linked as historical evidence.
     tree = dict(common, id=sha((identity+'unavailable-original-tree').encode())[:20],
         phase='tree', alignment_id=msa['id'],
         phylogeny=dict(status='not_computed',
@@ -186,7 +186,7 @@ def build(source, out, title=None, confirmed_decisions=None):
     out.mkdir(parents=True)
     (out/'report.html').write_text(page)
     (out/'review_data.json').write_text(json.dumps(pool,ensure_ascii=True,separators=(',',':'))+'\n')
-    (out/'context.html').write_text('<!doctype html><meta charset="utf-8"><title>STOP 3 · synteny</title><p><a href="report.html?view=synteny">Open STOP 3 · synteny and final models</a></p><script>const u=new URL("report.html",location.href);u.searchParams.set("view","synteny");for(const[k,v]of new URLSearchParams(location.search))u.searchParams.set(k==="model"?"legacy_model":k,v);location.replace(u.href);</script>')
+    (out/'context.html').write_text('<!doctype html><meta charset="utf-8"><title>Stage 3 · synteny</title><p><a href="report.html?view=synteny">Open Stage 3 · synteny and final models</a></p><script>const u=new URL("report.html",location.href);u.searchParams.set("view","synteny");for(const[k,v]of new URLSearchParams(location.search))u.searchParams.set(k==="model"?"legacy_model":k,v);location.replace(u.href);</script>')
     for part in analyses.values():
         for result in part.values():
             folder=out/'review_results'/result['id'];folder.mkdir(parents=True)
@@ -240,8 +240,10 @@ exec ".review/bin/review-$os-$arch" --root "$PWD"
         if not dest.exists():dest.symlink_to(p.resolve())
     wheel=next(runtime.glob('*.whl'))
     if not (out/wheel.name).exists():(out/wheel.name).symlink_to(wheel.resolve())
-    write('Build_STOP4.py',(runtime/'Build_STOP4.py').read_bytes())
-    write('START_HERE.html',b'<!doctype html><html lang="en"><meta charset="utf-8"><title>Saved study in the current review form</title><h1>Gene context review</h1><p><a href="report.html">Open the complete report</a> &middot; <a href="report.html?view=synteny">STOP 3: synteny and final models</a></p><p>For editing and recalculation, extract the archive and run Start_review for your operating system. Existing decisions and cached results are retained. Use Build_STOP4.py only after reviewing and exporting the STOP 4 input.</p></html>')
+    builder=runtime/'Build_Stage4.py'
+    if not builder.exists():builder=runtime/'Build_STOP4.py'
+    write('Build_Stage4.py',builder.read_bytes())
+    write('START_HERE.html',b'<!doctype html><html lang="en"><meta charset="utf-8"><title>Saved study in the current review form</title><h1>Gene context review</h1><p><a href="report.html">Open the complete report</a> &middot; <a href="report.html?view=synteny">Stage 3: synteny and final models</a></p><p>For editing and recalculation, extract the archive and run Start_review for your operating system. Existing decisions and cached results are retained. Use Build_Stage4.py only after reviewing and exporting the Stage 4 input.</p></html>')
     if historical and Path(historical).is_dir():
         directory=out/'historical_trees';directory.mkdir(exist_ok=True)
         links=[]
@@ -250,7 +252,7 @@ exec ".review/bin/review-$os-$arch" --root "$PWD"
                 rel=p.relative_to(historical);dest=directory/rel;dest.parent.mkdir(parents=True,exist_ok=True);
                 if not dest.exists():dest.symlink_to(p.resolve())
                 if p.name=='tree.svg':links.append('<p><a href="'+html_module.escape(str(rel))+'">'+html_module.escape(str(rel.parent))+'</a></p><object type="image/svg+xml" data="'+html_module.escape(str(rel))+'" style="width:100%;height:850px"></object>')
-        write('historical_trees/index.html',('<!doctype html><html lang="en"><meta charset="utf-8"><h1>Previously computed STOP 4 trees</h1><p>Preserved original results. Their original inputs and evidence are included here. These trees were not recalculated or reassigned to the imported STOP 2 alignment.</p>'+''.join(links)+'</html>').encode())
+        write('historical_trees/index.html',('<!doctype html><html lang="en"><meta charset="utf-8"><h1>Previously computed Stage 4 trees</h1><p>Preserved original results. Their original inputs and evidence are included here. These trees were not recalculated or reassigned to the imported Stage 2 alignment.</p>'+''.join(links)+'</html>').encode())
         page=(out/'report.html').read_text().replace('<p id="legacyImportNotice">','<p><a href="historical_trees/index.html">View preserved trees from the completed study</a></p><p id="legacyImportNotice">')
         if 'View preserved trees from the completed study' not in (out/'report.html').read_text():write('report.html',page.encode())
     write('presentation.json',(json.dumps({'schema':'gcf_completed_review_presentation_v1','form':'sequential-v2','legacy_import':True,'scientific_recomputation':False,'manual_choices_changed':False,'provenance':'presentation_rebuild.json'},indent=2)+'\n').encode())

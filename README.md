@@ -13,13 +13,13 @@ from a name, tree or predicted structure alone.
 
 | Step | What happens |
 | --- | --- |
-| STOP 1 | Search candidate loci and inspect preliminary context; explicitly select regions. |
+| Stage 1 | Search candidate loci and inspect preliminary context; explicitly select regions. |
 | Preparation | Retain supplied annotation and run independent Tiberius prediction in selected windows. |
-| STOP 2 | Choose exact models, inspect MAFFT protein/codon alignment, build and inspect the gene tree. |
-| STOP 3 | Review genomic context and synteny, record final model outcomes, and export a verified handoff. |
-| STOP 4 | Build the final sequence/context/tree dossier from that handoff, with optional exact structures. |
+| Stage 2 | Choose exact models, inspect MAFFT protein/codon alignment, build and inspect the gene tree. |
+| Stage 3 | Review genomic context and synteny, record final model outcomes, and export a verified handoff. |
+| Stage 4 | Build the final sequence/context/tree dossier from that handoff, with optional exact structures. |
 
-Reference-model approval is a separate action at the end of STOP3. Only that
+Reference-model approval is a separate action at the end of Stage 3. Only that
 explicit approval enables preparation of an AlphaFold Server upload for the
 exact protein. Nothing is submitted to a folding service automatically.
 
@@ -56,10 +56,10 @@ gene-context project plan --project work/my-study --target all --stage stage1
 gene-context project run --project work/my-study --target all --stage stage1
 ```
 
-Review STOP1, import its explicit exported choices with `project decisions`,
+Review Stage 1, import its explicit exported choices with `project decisions`,
 then plan/run preparation. New projects default to planning preparation; choose
 local execution on your analysis machine or configure an existing managed queue.
-Opening a report never starts prediction or crosses a manual STOP.
+Opening a report never starts prediction or crosses a manual stage.
 
 After preparation, or to reuse an existing sealed model checkpoint:
 
@@ -69,12 +69,12 @@ gene-context project attach --project work/my-study --target family_a \
 gene-context project review --project work/my-study --target family_a
 ```
 
-The resulting page contains STOP2 and a separate STOP3 synteny view. Once you
-have reviewed and exported `STOP4-input-*.json`:
+The resulting page contains Stage 2 and a separate Stage 3 synteny view. Once you
+have reviewed and exported `Stage4-input-*.json`:
 
 ```sh
 gene-context project handoff --project work/my-study --target family_a \
-  --file /path/to/STOP4-input.json
+  --file /path/to/Stage4-input.json
 gene-context project run --project work/my-study --target family_a --stage stage4
 gene-context project report --project work/my-study
 ```
@@ -103,7 +103,7 @@ option; six platform executables are not shipped in the Python wheel or source t
 
 Installed and portable reports use the same review presentation: readable model
 labels, CDS exon/splice marks, per-result comments, alignment/tree controls and
-the STOP3 synteny step below them. Large checkpoints use IndexedDB. In the
+the Stage 3 synteny step below them. Large checkpoints use IndexedDB. In the
 portable app, decisions and checkpoints are also saved in `.review/session-state.json`
 inside the extracted folder and restored when the app restarts on another port.
 Keep that folder to continue a review or move it to another compatible computer.

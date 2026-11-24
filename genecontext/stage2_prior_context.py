@@ -1,4 +1,4 @@
-"""Retain sealed STOP-1 context independently of the chosen window policy."""
+"""Retain sealed Stage 1 context independently of the chosen window policy."""
 import json
 from pathlib import Path
 from .sequence import sha256
@@ -6,7 +6,7 @@ from .sequence import sha256
 
 def collect(data, prior, prior_sha256):
     if prior.get('review_id') != data['source_review_id']:
-        raise ValueError('Prior synteny belongs to another STOP-1 review')
+        raise ValueError('Prior synteny belongs to another Stage 1 review')
     if prior_sha256 != data['source_evidence_sha256']:
         raise ValueError('Prior synteny source fingerprint differs')
     loci = {(l['genome_id'], l['locus_id']): l for l in prior['loci']}

@@ -1,4 +1,4 @@
-# Structure-service access for a small STOP4 trial
+# Structure-service access for a small Stage 4 trial
 
 Checked 2026-11-19. Prices and access rules are provider-controlled; the prototype
 does not create accounts, buy credits, deploy endpoints or submit predictions.
@@ -20,7 +20,7 @@ one seed each, five returned samples per job. These are new Server AF3 predictio
 separate from earlier ready-made AFDB controls. These experimental jobs do not
 approve either gene model as a final reference. After the user's clarification,
 further exports require the separate **«Approve model as reference»** action in
-the end of the new STOP3 synteny/context page; a reviewed choice alone does not grant approval;
+the end of the new Stage 3 synteny/context page; a reviewed choice alone does not grant approval;
 candidate selections and alignments cannot authorize submission. See `docs/STAGE4.md` for the
 request/result boundary and later provider adapters.
 

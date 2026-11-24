@@ -492,7 +492,7 @@ def search(args):
     from .stage1_context import attach
     context_error=attach(args,root,data,runner)
     write_outputs(root,data)
-    print('STOP — open '+str(root/'report.html'),file=sys.stderr)
+    print('Stage 1 — open '+str(root/'report.html'),file=sys.stderr)
     return 1 if context_error or any(g['status']=='error' or g.get('refinement_errors') for g in data['genomes']) else 0
 
 

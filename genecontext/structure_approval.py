@@ -1,4 +1,4 @@
-"""Only explicitly reviewed final STOP3 representatives may leave for folding."""
+"""Only explicitly reviewed final Stage 3 representatives may leave for folding."""
 import hashlib
 import json
 from pathlib import Path
@@ -26,13 +26,13 @@ def verify(approval,sequences):
         from .synteny_reference import verify as verify_synteny
         return verify_synteny(approval,sequences)
     if not isinstance(approval,dict) or approval.get('schema')!=SCHEMA or approval.get('stage')!=3:
-        raise ValueError('Folding export requires explicit final reference-model approval after STOP3; saved candidate selections and alignments are insufficient')
+        raise ValueError('Folding export requires explicit final reference-model approval after Stage 3; saved candidate selections and alignments are insufficient')
     state=validate_choices(approval['decisions'],approval['spec'])
     allowed={state['choices'][b['key']]['primary'] for b in approval['spec']['buckets']
         if reference_approved(state['choices'][b['key']],b,approval['spec'],
             approval.get('proteins',{}).get(state['choices'][b['key']]['primary']))}
     if not sequences or set(sequences)-allowed:
-        raise ValueError('Only explicitly reviewed final STOP3 primary references may be sent for folding')
+        raise ValueError('Only explicitly reviewed final Stage 3 primary references may be sent for folding')
     if not approval.get('source_seal_sha256') or any(hashlib.sha256(seq.encode()).hexdigest()!=approval.get('proteins',{}).get(sid) for sid,seq in sequences.items()):
         raise ValueError('Final reference approval does not match these exact protein sequences')
     return approval
@@ -46,7 +46,7 @@ def issue(source,out,decisions=None):
     comparison=json.loads((source/'comparison.json').read_text())
     _,proteins,_=load_models(source,comparison,evidence)
     approval=from_validated(source,evidence,state,proteins)
-    if not approval['proteins']:raise ValueError('No explicitly approved final STOP3 reference models; no folding export is permitted')
+    if not approval['proteins']:raise ValueError('No explicitly approved final Stage 3 reference models; no folding export is permitted')
     target=Path(out)
     if target.exists():raise ValueError('Use a new final approval file; previous decisions are preserved')
     target.parent.mkdir(parents=True,exist_ok=True)

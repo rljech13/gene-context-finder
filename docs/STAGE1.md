@@ -153,7 +153,7 @@ A shared cache can register its source inventory at `NEIGHBOR_CACHE/source_datas
 
 The default is ten independent coding neighbors per side (`--synteny-neighbors 10 --synteny-max-neighbors 10 --synteny-max-distance 0`). Distance does not silently reduce the set to zero or one gene. Complete native gene spans are retained; same-source copies and overlaps remain display-only and do not fill the independent-neighbor quota. Sparse/short contigs and unavailable annotations keep explicit limits and missingness. This rule does not infer orthology and does not silently enlarge or clip the next prediction run beyond its own window budget. Context recomputation creates a new review ID and retains the old checkpoint by a verified parent locator, without copying its evidence tree.
 
-## Separate family/copy groups after STOP 1
+## Separate family/copy groups after Stage 1
 
 Select target loci with the main candidate checkboxes and save each relevant pair decision. Open **Groups for stage 2 — families or copies**, create named groups, then assign the selected loci. A group spans assemblies; different loci from the same assembly can belong to different groups. Each locus belongs to at most one group. Neighbor checkboxes still record a separate follow-up shortlist and do not assign a family.
 

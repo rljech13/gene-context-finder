@@ -67,9 +67,9 @@ def attach(args):
     seal=json.loads((source/'seal.json').read_text())
     for name,digest in seal.items():
         path=(source/name).resolve()
-        if source not in path.parents or not path.is_file() or sha256(path)!=digest:raise ValueError('STOP 4 seal mismatch: '+name)
+        if source not in path.parents or not path.is_file() or sha256(path)!=digest:raise ValueError('Stage 4 seal mismatch: '+name)
     old_manifest=json.loads((source/'manifest.json').read_text())
-    if old_manifest.get('stage') not in ['stage4_prototype','stage4_viewer_presentation'] or old_manifest['status']!='completed':raise ValueError('Completed STOP 4 required')
+    if old_manifest.get('stage') not in ['stage4_prototype','stage4_viewer_presentation'] or old_manifest['status']!='completed':raise ValueError('Completed Stage 4 required')
     data=json.loads((source/'evidence.json').read_text())
     catalogue=json.loads(Path(args.structures).read_text()) if args.structures else None
     if catalogue and catalogue.get('schema')!='stage4_structures_v1':raise ValueError('Expected stage4_structures_v1')

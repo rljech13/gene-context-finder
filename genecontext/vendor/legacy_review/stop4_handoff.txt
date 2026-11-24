@@ -11,9 +11,9 @@ const selected=d=>Object.entries(d?.models||{}).filter(([,m])=>m.decision==='ins
 const ordered=o=>Object.fromEntries(Object.entries(o||{}).sort(([a],[b])=>a.localeCompare(b)));
 const selection=d=>JSON.stringify([d?.review_id,ordered(d?.regions),ordered(d?.models)]);
 const digest=async text=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))),b=>b.toString(16).padStart(2,'0')).join('');
-const section=node('section'), table=node('div'), status=node('p'), button=node('button','Download STOP 4 input');
+const section=node('section'), table=node('div'), status=node('p'), button=node('button','Download Stage 4 input');
 section.id='stop4Handoff';button.type='button';status.setAttribute('role','status');
-section.append(node('h2','Final models for STOP 4'),node('p','Record a decision for each model after reviewing synteny. Choose one main model per genome and comparison group. Keep additional copies as separate cases.'),table,button,status);
+section.append(node('h2','Final models for Stage 4'),node('p','Record a decision for each model after reviewing synteny. Choose one main model per genome and comparison group. Keep additional copies as separate cases.'),table,button,status);
 const previous=document.getElementById('syntenyReferenceApproval');
 if(previous){previous.before(section);const legacy=node('details');legacy.append(node('summary','Earlier reference approvals'),previous);section.after(legacy);for(const el of previous.querySelectorAll('[data-action="send-alphafold"]'))el.hidden=true;
  new MutationObserver(()=>{for(const el of previous.querySelectorAll('[data-action="send-alphafold"]'))el.hidden=true}).observe(previous,{childList:true,subtree:true});}
@@ -21,7 +21,7 @@ else document.querySelector('main').append(section);
 function context(){
  const h=read(handoffKey),d=exportState(), ids=selected(d), candidates=seed.sequences.filter(s=>!s.reference&&ids.includes(s.id));
  if(h?.alignment_review_id!==seed.review_id||selection(h.decisions)!==selection(d)||!h.alignment_result_id||!h.tree_result_id)
-  throw Error('Confirm the current set in STOP 2 after reviewing its alignment and tree.');
+  throw Error('Confirm the current set in Stage 2 after reviewing its alignment and tree.');
  if(!candidates.length||ids.length!==candidates.length)throw Error('The confirmed models do not match the prepared model catalogue.');
  return {h,d,candidates,signature:JSON.stringify([h.alignment_result_id,h.tree_result_id,selection(d),ordered(d.pairs)])};
 }
@@ -52,7 +52,7 @@ async function checkpoint(id,group,phase){
   if(!response.ok)throw Error(await response.text());return response.json();
  }
  const saved=read(storage+(phase==='tree'?'-result-':'-saved-alignment-')+group);
- if(saved?.id!==id)throw Error('The confirmed '+phase+' is no longer available. Return to STOP 2.');
+ if(saved?.id!==id)throw Error('The confirmed '+phase+' is no longer available. Return to Stage 2.');
  return saved;
 }
 button.addEventListener('click',async()=>{
@@ -65,7 +65,7 @@ button.addEventListener('click',async()=>{
    const other=group===c.h.group?null:read(storage+'-confirmed-'+group);
    const aID=other?.alignment_result_id||(group===c.h.group?c.h.alignment_result_id:null);
    const tID=other?.tree_result_id||(group===c.h.group?c.h.tree_result_id:null);
-   if(!aID||!tID||other&&selection(other.decisions)!==selection(c.d))throw Error('Confirm alignment and tree for '+group+' in STOP 2.');
+   if(!aID||!tID||other&&selection(other.decisions)!==selection(c.d))throw Error('Confirm alignment and tree for '+group+' in Stage 2.');
    const alignment=await checkpoint(aID,group,'alignment'),tree=await checkpoint(tID,group,'tree');
    if(alignment.id!==aID||tree.id!==tID||alignment.group!==group||tree.group!==group||tree.alignment_id!==aID)throw Error('Alignment and tree do not belong to the same review.');
    analyses[group]={alignment,tree};
@@ -78,7 +78,7 @@ button.addEventListener('click',async()=>{
     if(v.role==='primary_target'&&!a.tree.ids.includes(s.id))throw Error('Include the main model '+s.label+' in the tree selection.');
     const gate=c.d.models[s.id];
     if(v.role==='primary_target'&&s.metadata.model_constraints?.target_warnings?.length&&!(gate.target_override===true&&gate.notes?.trim()))
-     throw Error('Resolve the target warning for '+s.label+' in STOP 2, or keep it as a separate case.');
+     throw Error('Resolve the target warning for '+s.label+' in Stage 2, or keep it as a separate case.');
     const m=s.metadata, where=m.model_constraints?.physical_id||m.gene_group||m.region_id, locus=m.genome_id+'|'+where;
     if(physical.has(locus))throw Error('Keep one final model per physical gene: '+s.label);
     physical.add(locus);
@@ -107,8 +107,8 @@ button.addEventListener('click',async()=>{
   if(context().signature!==c.signature||JSON.stringify(read(key))!==JSON.stringify(saved))throw Error('Decisions changed during export. Try again.');
   await window.GCFPortableSession?.flush();
   const url=URL.createObjectURL(new Blob([JSON.stringify({sha256:checksum,payload})+'\n'],{type:'application/json'}));
-  const link=node('a');link.href=url;link.download='STOP4-input-'+checksum.slice(0,12)+'.json';link.click();
-  setTimeout(()=>URL.revokeObjectURL(url),1000);status.textContent='STOP 4 input downloaded.';
+  const link=node('a');link.href=url;link.download='Stage4-input-'+checksum.slice(0,12)+'.json';link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);status.textContent='Stage 4 input downloaded.';
  }catch(e){status.textContent=e.message}finally{button.disabled=false}
 });
 document.querySelector('#comparisonPanels').addEventListener('change',()=>{

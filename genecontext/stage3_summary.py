@@ -66,7 +66,7 @@ def write_summary(root, payload):
         reference_species = {ref['species'] for ref in refs}
         cds_refs = [dict(id=m['model_id'], kind='cds', species=m['species'], symbol=m['gene_label'],
                         accession=m['original_model'], length=len(aligned['cds'][m['model_id']].replace('-', '')),
-                        copy_number=m['copy_number'], origin='Selected STOP-2 model')
+                        copy_number=m['copy_number'], origin='Selected Stage 2 model')
                     for m in chosen if m['species'] in reference_species and m['model_id'] in aligned.get('cds', {})]
         references[gid] = dict(protein=refs, cds=cds_refs)
         for m in chosen:

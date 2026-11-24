@@ -2,7 +2,7 @@
 
 `check-targets` compares saved candidate proteins against a supplied local protein panel with BLASTP. It needs BLAST+ (`blastp` and `makeblastdb`), the candidate FASTA and the reference FASTA. Only the small protein panel is indexed, so BLASTP can use `--threads`; its direct `-subject` mode would ignore this setting. No genome indexing, gene prediction, model downloads, network access or GPU is involved.
 
-Use this to support either review stop. At STOP 1, use an exported `evidence/<query_id>/protein.faa`. At STOP 2, check all coding options together:
+Use this to support either review stop. At Stage 1, use an exported `evidence/<query_id>/protein.faa`. At Stage 2, check all coding options together:
 
 ```bash
 gene-context check-targets \

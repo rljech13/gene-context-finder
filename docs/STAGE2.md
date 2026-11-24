@@ -1,4 +1,4 @@
-# Stage 2: selected windows → gene models → STOP 2
+# Stage 2: selected windows → gene models → Stage 2
 
 This release handles **protein-coding gene models**. Noncoding-RNA prediction is not implemented. This command accepts the locus-first `stage1` checkpoint. It does **not** use the older model-first `contexts` input format. It stops before alignments; [stage 3](STAGE3.md) consumes its reviewed choices for conservation comparisons and selected-sequence exports.
 
@@ -109,7 +109,7 @@ To repeat broad-database naming after updating the catalogue or identifier rules
 
 **Compare models**, next to a locus's model selector, opens one compact comparison above the decision table. It shows source, protein length and CDS blocks for the selector's candidates on one shared linear genomic ruler. Introns retain their native lengths. Exact CDS alternatives collapse only when their physical gene, native coordinates, strand, CDS/stop blocks and CDS sequence fingerprint agree; all IDs remain in the tooltip and original selector. **Select** changes the proposed model and preserves pending review text; the gene decision still needs **Save**. **Close** hides the comparison. The panel adds no predictions, alignments or automatic approvals.
 
-The read-only **STOP 1 comment** block preserves the original selection note and reason. It appears below the selected-locus controls in each comparison viewer and beside each main locus in **Genes for the next stage**. A shared genome-selection note applies to every locus selected by that STOP-1 decision; it is not an independent gene-specific comment. The editable STOP-2 review comment remains separate and starts from the STOP-2 draft only. Viewing an inherited comment does not save or approve a new decision.
+The read-only **Stage 1 comment** block preserves the original selection note and reason. It appears below the selected-locus controls in each comparison viewer and beside each main locus in **Genes for the next stage**. A shared genome-selection note applies to every locus selected by that Stage 1 decision; it is not an independent gene-specific comment. The editable Stage 2 review comment remains separate and starts from the Stage 2 draft only. Viewing an inherited comment does not save or approve a new decision.
 
 Use **+ Add comparison** to stack additional independent viewers below the first. Each viewer has its own selected locus, compared loci, source filter, view, zoom and scroll position. **Compare with → Choose loci…** opens checkboxes for a custom subset, so different copies can be compared in separate viewers. **Remove comparison** removes only that extra viewer. Viewer settings are saved in this browser separately from review decisions. All viewers share the same evidence and the single **Genes for the next stage** decision table; clicking a gene opens its shared review cards. Adding, changing or removing a viewer does not select models for the next stage.
 
@@ -117,7 +117,7 @@ Locus selectors, custom-subset checkboxes, comparison headings and diagram rows 
 
 The main diagram follows target orientation and defaults to annotation + Tiberius. Gene clusters focuses on the shown neighborhood with its own exact kb ruler per row; source filters retain this same focused range. Coding blocks show source-wise CDS coverage and thin lines show genomic spans. Overlapping genes occupy separate lanes. CDS model details keeps a shared bp scale; gene-order view remains schematic. Choose five or ten neighbors per side, all loci, one comparison locus, or a custom subset. Source-specific links use saved local BLASTP hits for the displayed source; this does not rerun BLAST or infer orthology. Noncoding GFF context is hollow and read-only. Curves between rows mean saved protein correspondence to the focal locus, not a new direct pairwise alignment. The full DNA-window coordinates, orientation and gene counts remain available. Hidden groups and partial models do not establish gene absence. All alternatives remain in their physical-gene card and the advanced library; display controls do not approve models or change matching thresholds.
 
-The upper panel is for visual inspection; it keeps its own scroll area so the decision table stays close below. **Genes for the next stage** lists every STOP-1 locus at once. Each starts with one proposed main CDS, not all genes in its window. STOP 1 selected genomic intervals, not final CDS isoforms. The proposal is an overlapping, same-strand model ranked by target warnings, coding completeness, window-edge status and saved query bit score, with annotation as a tie breaker. An existing explicit model choice takes priority. A proposal does not approve or export itself.
+The upper panel is for visual inspection; it keeps its own scroll area so the decision table stays close below. **Genes for the next stage** lists every Stage 1 locus at once. Each starts with one proposed main CDS, not all genes in its window. Stage 1 selected genomic intervals, not final CDS isoforms. The proposal is an overlapping, same-strand model ranked by target warnings, coding completeness, window-edge status and saved query bit score, with annotation as a tie breaker. An existing explicit model choice takes priority. A proposal does not approve or export itself.
 
 For each row choose **Use for next stage**, **Unresolved** or **Exclude**, then **Save**. Use **View** to inspect that locus above; changing the viewed locus does not change decisions in other rows. Complete unflagged models need no typed explanation: Save records the visual-review outcome. Partial, edge or unsupported target models still require an actual comment and, where indicated, an explicit expert exception. The model selector offers the exact source/CDS alternatives; evidence and comparison-group options stay collapsed. Editing a saved row makes it unsaved and blocks export until it is saved again. Pending comments and form selections survive navigation and draft reload.
 
@@ -131,12 +131,12 @@ The primary validated export is one `stage2.decisions.json`; optional TSVs are a
 
 Tiberius uses one canonical prediction interval per worker, batch size one by default, and `--threads` controls CPU use. A thread count is **not** a hard memory bound. On host2 launch **all** experiments, database preparation and predictions through `gene_context_experiments/submit.py`, under the existing aggregate 250 GiB cgroup and zero swap. Keep source snapshots, databases, temporary files and results on `/mnt`. Do not change the `current` symlink merely to run a pilot: use the requested source snapshot as the command's working directory and PYTHONPATH.
 
-This initial implementation does not auto-expand edge windows or add a miniprot rescue. Edge models, missing predictions and disagreements remain visible for manual review. It does not claim to recover every gene or every splice isoform ab initio. After STOP 2, `stage3` performs protein/codon and genomic comparisons and draws the explicitly chosen neighbor context. RNA evidence and biological orthology decisions remain separate from these software measurements.
+This initial implementation does not auto-expand edge windows or add a miniprot rescue. Edge models, missing predictions and disagreements remain visible for manual review. It does not claim to recover every gene or every splice isoform ab initio. After Stage 2, `stage3` performs protein/codon and genomic comparisons and draws the explicitly chosen neighbor context. RNA evidence and biological orthology decisions remain separate from these software measurements.
 
-The [first real STOP-2 pilot](STAGE2_PILOT.md) documents measured runtime, database scope and annotation/prediction disagreements on three saved NANOG regions.
+The [first real Stage 2 pilot](STAGE2_PILOT.md) documents measured runtime, database scope and annotation/prediction disagreements on three saved NANOG regions.
 
 
-## Genomic ruler in STOP 2
+## Genomic ruler in Stage 2
 
 CDS model details uses one shared ruler based on the saved review windows and the viewer width. Switching locus, comparison, annotation/Tiberius source or neighbor count does not change the bp scale at a given zoom. The selected windows keep their exact native endpoints; longer windows occupy proportionally more space. Long names are shortened inside the overview window when necessary, with full names retained on hover and in the model cards. Label packing never stretches genomic distances. Zoom preserves the genomic viewing position; species captions remain visible during horizontal scrolling.
 
@@ -157,7 +157,7 @@ Reports keep a specific locus label separate from protein-database similarity an
 
 `ORF intact` means that the extracted DNA has an intact coding frame with start
 and stop codons. It does not establish that a full gene was recovered.
-STOP 2 separately checks target-query coverage, retained annotation CDS bases,
+Stage 2 separately checks target-query coverage, retained annotation CDS bases,
 possible splitting into separate predicted ORFs, and source GFF exceptions.
 These warnings are also enforced by the stage 3 decision validator. A target
 with warnings requires an explicit expert override and a written reason;
@@ -191,7 +191,7 @@ annotation alternative. Do not concatenate predicted proteins to repair a split.
 
 New runs default to `--window-policy annotation-neighbors`. For each reviewed
 locus, stage 2 reopens the exact matching full GFF3 and selects ten distinct
-coding genes on each side, without a distance cutoff. Sparse older STOP-1
+coding genes on each side, without a distance cutoff. Sparse older Stage 1
 contexts do not limit the new search. Multiple transcripts of one gene count
 once; overlapping genes and query-source copies remain display-only. The full
 spans of the refreshed neighbors, the target anchor and already displayed
@@ -212,7 +212,7 @@ extraction, Tiberius or BLAST starts during planning. A window above
 `--max-window-bases` is retained for review, never clipped to look acceptable.
 
 Use explicit `--window-policy pre-synteny` to reproduce the historical POU
-policy: reuse the full saved STOP-1 envelope. This legacy mode does not refresh
+policy: reuse the full saved Stage 1 envelope. This legacy mode does not refresh
 missing neighbor genes. `--window-policy fixed` retains configured flanks.
 Historical preliminary searches started with five coding neighbors per side;
 current count-first searches request ten. Fewer may be available. Isoforms do not
@@ -242,9 +242,9 @@ The plan performs no DNA extraction or prediction. The same planner runs inside
 `stage2`; its resolved bounds drive DNA extraction, annotation collection and
 Tiberius. The original review decisions remain unchanged.
 
-Changing these bounds requires a fresh stage 2 output and a new STOP-2 review ID;
+Changing these bounds requires a fresh stage 2 output and a new Stage 2 review ID;
 expanding an old report does not reannotate the extra DNA. Stage 1 discovery does
-not need to be repeated. Old STOP-2 decisions are not automatically transferred.
+not need to be repeated. Old Stage 2 decisions are not automatically transferred.
 The new interval can include additional genes between the preliminary anchors;
 Tiberius is not required to reproduce every supplied annotation model.
 
@@ -255,9 +255,9 @@ of kilobases. The overview now uses pale genomic spans with filled CDS blocks fo
 spliced models, and reports span/CDS lengths for strongly intron-rich targets.
 Zoom 0.25×/0.5× reduces the shared scale for all rows equally.
 
-In those historical/fixed checkpoints, STOP-1 context can extend beyond this window. It is carried
+In those historical/fixed checkpoints, Stage 1 context can extend beyond this window. It is carried
 forward with the source review ID and evidence fingerprint, and shown separately
-under “Broader annotation context from STOP 1”. Its matches remain prior evidence;
+under “Broader annotation context from Stage 1”. Its matches remain prior evidence;
 they are not Tiberius predictions in the current window or new review decisions.
 If the local window contains no neighboring genes, local synteny is explicitly
 unassessable. Target-protein similarity ribbons alone do not establish synteny.
@@ -310,7 +310,7 @@ requires a separate reviewed revision.
 
 ### Compact display and automatic size comments
 
-Show the supplied annotation and Tiberius predictions. When pre-filter GFF output is available, removed predictions overlapping target CDS are also drawn as read-only dashed fragments. They are not selectable models and do not enter CDS/protein exports. Miniprot query projections are not drawn in the STOP-2 overview.
+Show the supplied annotation and Tiberius predictions. When pre-filter GFF output is available, removed predictions overlapping target CDS are also drawn as read-only dashed fragments. They are not selectable models and do not enter CDS/protein exports. Miniprot query projections are not drawn in the Stage 2 overview.
 
 Large differences are recorded in automatic comments, separate from the reviewer's notes and decisions. Default: at least 2× between the per-source maxima, with an absolute difference of at least 10 kb for genomic CDS-model span or 50 aa for protein length. Span includes introns; it is never substituted for CDS/protein length. These thresholds flag a difference, not a failed gene or an automatic rejection. Automatic comments are available under Evidence / options, exported in the decisions JSON, and carried into the next-stage decision audit. No extra warning badges or rows are added to the diagram.
 
@@ -332,9 +332,9 @@ The cluster overview keeps short names and source counts, replaces opaque intron
 
 Gene clusters maps the selected neighborhood linearly to the available row width, using bounds calculated from both sources and their display limits. Source filters do not change that row's scale. Fit uses the actual panel width; zoom and pan remain local to each comparison pane. Long introns cannot mask nested genes because filled glyphs cover CDS only and overlapping groups occupy different lanes. The full DNA-window coordinates remain available in the row tooltip and window details. The CDS model details view retains its shared bp scale. No genomic bounds, models, evidence, review IDs or decisions change.
 
-### Run STOP-1 groups separately
+### Run Stage 1 groups separately
 
-A **Download group JSON** file from STOP 1 can be passed directly as `--draft`. It selects its saved `active_analysis_group`; the normal database, predictor and dataset options still apply. Give each group a separate output directory. The resulting STOP-2 report shows the group name alongside the source gene.
+A **Download group JSON** file from Stage 1 can be passed directly as `--draft`. It selects its saved `active_analysis_group`; the normal database, predictor and dataset options still apply. Give each group a separate output directory. The resulting Stage 2 report shows the group name alongside the source gene.
 
 For a full grouped draft, choose a group by stable ID or exact name:
 
@@ -345,7 +345,7 @@ gene-context stage2-plan --results saved_stage1 --draft all_groups.stage1.draft.
 
 `stage2` accepts the same `--analysis-group` option, including with a grouped `--decisions` TSV. Omitting it on a full grouped input is an error, preventing accidental joint processing. A scoped group JSON cannot be switched to another group by a conflicting flag; use the full draft to switch. Pending decisions in other groups are outside the run. Unsaved member pairs remain errors unless the existing explicit `--committed-only` option is used. Membership never approves a locus. Rows outside the chosen group are recorded as outside the analysis scope, with their original source decisions retained; they are not biological exclusions.
 
-Discovery and review IDs are reused from the unchanged stage-1 checkpoint. The default full-annotation planner refreshes neighbor coverage; it retains complete earlier context rather than trusting a sparse old shortlist. Prediction windows are planned only for the chosen group, so even overlapping loci from different groups cannot merge into one run. Each resulting STOP-2 report groups and compares that group's loci independently.
+Discovery and review IDs are reused from the unchanged stage-1 checkpoint. The default full-annotation planner refreshes neighbor coverage; it retains complete earlier context rather than trusting a sparse old shortlist. Prediction windows are planned only for the chosen group, so even overlapping loci from different groups cannot merge into one run. Each resulting Stage 2 report groups and compares that group's loci independently.
 
 ### Alternative CDS candidates and interactive alignment
 
@@ -357,7 +357,7 @@ that CDS as the target and does not replace an approved main model. Several
 alternative CDS models of the same gene may be retained. Save the region and
 export the matching decisions JSON; the native protein/CDS QC still applies.
 
-Every new STOP2/STOP3 report includes a portable local alignment app. Extract its
+Every new Stage 2/Stage 3 report includes a portable local alignment app. Extract its
 ZIP and run `Start_review.command`, `Start_review.sh` or `Start_review.cmd`.
 No Python, Conda or Docker is needed. A suitable installed MAFFT (7.487+) is used
 first. Otherwise the pinned official MAFFT package is fetched only after the

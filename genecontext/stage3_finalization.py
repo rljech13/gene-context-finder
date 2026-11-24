@@ -135,7 +135,7 @@ def prepare(root,payload,models,references):
             else:facts.append('No comparable target-reference protein measurement.')
             agreement=m['quality']['source_agreement']
             facts.append({'exact_CDS_match':'Annotation and Tiberius have an identical CDS.',
-                          'different_CDS_models':'Annotation and Tiberius propose different CDS models; the STOP-2 selection is retained.',
+                          'different_CDS_models':'Annotation and Tiberius propose different CDS models; the Stage 2 selection is retained.',
                           'other_source_unavailable':'Only one source is available for this model.'}.get(agreement,agreement))
             if identity['status'] in {'homology_only','unresolved'}:facts.append('Specific copy identity is not established by the source label.')
             if payload.get('reviewed_pair_count',0)<2:facts.append('Confirmed synteny was not used to establish this copy identity.')
@@ -152,7 +152,7 @@ def prepare(root,payload,models,references):
         if best:
             ref=best['assignment']['best_target']
             reason='Suggested representative: '+ref['accession']+' gives '+format(ref['identity'],'.1%')+' protein identity with model/reference coverage '+format(ref['coverage_model'],'.1%')+' / '+format(ref['coverage_reference'],'.1%')+'. '
-            reason+=('Ranked first by coding completeness, then target-query identity × minimum coverage among the selected copies in this organism.' if len(candidates)>1 else 'Only STOP-2 selected copy in this organism.')
+            reason+=('Ranked first by coding completeness, then target-query identity × minimum coverage among the selected copies in this organism.' if len(candidates)>1 else 'Only Stage 2 selected copy in this organism.')
         else:reason='No primary target proposed: available copies have a different specific source label or lack target-reference comparison.'
         buckets.append(dict(key=key,group=group,gene=group_names[group],genome_id=genome,species=candidates[0]['species'],model_ids=[m['model_id'] for m in candidates]))
         choices[key]=dict(primary=best['model_id'] if best else '',reason=reason,reviewed=False)

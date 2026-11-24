@@ -11,4 +11,4 @@ class PriorContext(unittest.TestCase):
         self.assertEqual(data['regions'][0]['window_start'],100)
         with self.assertRaisesRegex(ValueError,'fingerprint'):collect(data,prior,'other')
         prior['review_id']='other'
-        with self.assertRaisesRegex(ValueError,'another STOP-1'):collect(data,prior,'hash')
+        with self.assertRaisesRegex(ValueError,'another Stage 1'):collect(data,prior,'hash')

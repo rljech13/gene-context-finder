@@ -1,4 +1,4 @@
-"""Pairwise MSA projections and a faithful, read-only STOP-2 choice ledger."""
+"""Pairwise MSA projections and a faithful, read-only Stage 2 choice ledger."""
 from collections import defaultdict
 import json
 from pathlib import Path
@@ -73,7 +73,7 @@ def model_decisions(root, payload):
         group=group_by_name.get(group_name, '')
         note=choice.get('notes','').strip(); region_note=rc.get('notes','').strip()
         if mid in chosen:
-            status='Retained'; reason=note or region_note or 'Selected as target in the saved STOP-2 review.'
+            status='Retained'; reason=note or region_note or 'Selected as target in the saved Stage 2 review.'
         elif choice.get('decision')=='inspect' and choice.get('role')=='neighbor':
             status='Context only'; reason=note or 'Selected as a neighboring gene, not as a target sequence.'
         elif physical not in seeds:
@@ -83,11 +83,11 @@ def model_decisions(root, payload):
             identical=[c for c in targets if c['cds_sha256']==m['cds_sha256']]
             reason=note or (('Identical CDS retained as ' if identical else 'Alternative model; selected model: ')+', '.join(c['original_model'] for c in (identical or targets))+'.')
         elif rc.get('decision')=='unresolved' or choice.get('decision')=='unresolved':
-            status='Unresolved'; reason=note or region_note or 'No target model was resolved at STOP 2.'
+            status='Unresolved'; reason=note or region_note or 'No target model was resolved at Stage 2.'
         elif rc.get('decision')=='exclude':
-            status='Not retained'; reason='Locus excluded at STOP 2.'+(' '+(note or region_note) if note or region_note else '')
+            status='Not retained'; reason='Locus excluded at Stage 2.'+(' '+(note or region_note) if note or region_note else '')
         else:
-            status='Not retained'; reason=note or 'Not selected as a target in the saved STOP-2 decisions.'
+            status='Not retained'; reason=note or 'Not selected as a target in the saved Stage 2 decisions.'
         species=m['genome_id'].split('_GC')[0].replace('_',' ')
         observations.append(dict(group=group, gene=group_name, species=species, genome_id=m['genome_id'],
             physical_id=physical, region_id=rid, model_id=mid, original_model=m['original_model'],

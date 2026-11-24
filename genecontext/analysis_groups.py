@@ -1,4 +1,4 @@
-"""Explicit STOP-1 analysis groups; membership never approves a locus."""
+"""Explicit Stage 1 analysis groups; membership never approves a locus."""
 import hashlib
 import re
 

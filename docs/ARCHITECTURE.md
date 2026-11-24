@@ -20,7 +20,7 @@ Model preparation remains the native `stage2` engine; numeric legacy command
 names and current UI stop labels are deliberately documented separately.
 
 The current generic route is covered by a source-preserving integration test:
-attach prepared models → create review → validate exact handoff → run STOP4 →
+attach prepared models → create review → validate exact handoff → run Stage 4 →
 reuse the same result. A new review or handoff preserves history and invalidates
 the previous final result. Native sequence/context validation is repeated when
 accepting a handoff and before final execution.

@@ -130,10 +130,10 @@ def review_search(args):
                     pairs=[dict(group=o['group'], genome_id=o['genome_id']) for o in observations],
                     query_groups_sha256=sha256(args.query_groups) if args.query_groups else None)
     (root/'manifest.json').write_text(json.dumps(manifest, indent=2)+'\n')
-    text = '<aside><strong>STOP 1: no locus is approved.</strong> Rankings are suggestions, not gene-family or copy assignments.</aside><p>Edit <a href="loci.decisions.tsv">loci.decisions.tsv</a>: <code>inspect</code> with one or more exact model IDs separated by semicolons; <code>exclude</code> or <code>unresolved</code> with notes. Every gene/genome pair needs an explicit decision, including pairs without candidates. Several loci can proceed to context inspection. Blank rows block the next stage.</p><p><a href="candidates.tsv">All candidates and isoforms</a> · <a href="manifest.json">Source fingerprints and groups</a>. FASTA evidence is in evidence/&lt;query_id&gt;/.</p>'
+    text = '<aside><strong>Stage 1: no locus is approved.</strong> Rankings are suggestions, not gene-family or copy assignments.</aside><p>Edit <a href="loci.decisions.tsv">loci.decisions.tsv</a>: <code>inspect</code> with one or more exact model IDs separated by semicolons; <code>exclude</code> or <code>unresolved</code> with notes. Every gene/genome pair needs an explicit decision, including pairs without candidates. Several loci can proceed to context inspection. Blank rows block the next stage.</p><p><a href="candidates.tsv">All candidates and isoforms</a> · <a href="manifest.json">Source fingerprints and groups</a>. FASTA evidence is in evidence/&lt;query_id&gt;/.</p>'
     if original.get('errors'):text+='<h2>Search errors</h2><pre>'+escape(json.dumps(original['errors'],indent=2))+'</pre>'
     page(root/'report.html', 'Stage 1 — review candidate loci', text, candidates, columns)
-    seal(root);print('STOP 1 — review '+str(root/'report.html'), file=sys.stderr)
+    seal(root);print('Stage 1 — review '+str(root/'report.html'), file=sys.stderr)
     return 0
 
 
@@ -149,7 +149,7 @@ def search(args):
     code = run(searching)
     reviewing = argparse.Namespace(results=searching.out, out=str(output/'review'), query_groups=args.query_groups)
     review_search(reviewing)
-    (output/'report.html').write_text('<!doctype html><meta charset="utf-8"><h1>Search completed — manual review required</h1><p><a href="review/report.html">STOP 1: candidate review and decisions</a> · <a href="search/report.html">Search evidence</a></p>')
+    (output/'report.html').write_text('<!doctype html><meta charset="utf-8"><h1>Search completed — manual review required</h1><p><a href="review/report.html">Stage 1: candidate review and decisions</a> · <a href="search/report.html">Search evidence</a></p>')
     return code
 
 
@@ -176,13 +176,13 @@ def contexts(args):
                 reg=next(r for r in table(source/'dna_regions.tsv') if r['region_id']==mid)
                 row=dict(reg, model_id=mid, source_model=mid, source_gene='', status='dna_region', cds_exons='[]', protein_aa=0, source=reg.get('source') or 'blastn')
             if any(r['group']==key[0] and r['genome_id']==key[1] and same_locus(row,r) for r in selected):
-                raise ValueError('Inspect one seed per locus; isoforms are available at STOP 2: '+mid)
+                raise ValueError('Inspect one seed per locus; isoforms are available at Stage 2: '+mid)
             selected.append(dict(row, group=key[0], locus_id=f'L{len(selected)+1:06d}', selection_status='manual_inspection', candidate_loci=o['candidate_loci']))
         o.update(status='manual_inspection', model_id=';'.join(ids))
     if not selected:return terminal_review(args.out,root,'locus_review',choices,args.decisions)
     selected_ids={r['model_id'] for r in selected}
     for c in candidates:c['selected']=c['model_id'] in selected_ids
-    if args.query_groups or args.select_loci:raise ValueError('Grouping and locus selection are fixed by STOP 1 decisions')
+    if args.query_groups or args.select_loci:raise ValueError('Grouping and locus selection are fixed by Stage 1 decisions')
     # Preserve the exact reviewed grouping without a temporary mutable mapping file.
     args.results=str(source);args._review_groups=groups
     args._locus_review=dict(review_id=checkpoint['review_id'],path=str(root), decisions=str(Path(args.decisions).resolve()), decisions_sha256=sha256(args.decisions), choices=list(choices.values()))
@@ -323,13 +323,13 @@ def save_context_review(args, source, root, original, groups, selected, candidat
                     source_checksums=source_checksums(source),locus_review=getattr(args,'_locus_review',None))
     (root/'manifest.json').write_text(json.dumps(manifest,indent=2,default=str)+'\n')
     links=' · '.join('<a href="figures/'+escape(g['id'])+'.svg">'+escape(g['name'])+' contexts</a>' for g in groups)
-    text='<aside><strong>STOP 2: targets and neighbours are unapproved.</strong> No target protein/CDS or genomic DNA alignments have been run by this stage.</aside><p>Edit <a href="models.decisions.tsv">models.decisions.tsv</a>: <code>keep</code> with exactly one option ID per gene/genome pair; or <code>exclude</code>/<code>unresolved</code> with notes. A partial CDS requires <code>allow_partial=yes</code> and notes. Short flanks require <code>allow_short_flanks=yes</code> and notes. A <code>dna_only</code> option permits DNA/context comparison without a fabricated protein.</p><p>Edit <a href="neighbors.decisions.tsv">neighbors.decisions.tsv</a>: <code>keep</code>, <code>unnamed</code>, or <code>exclude</code>. Only neighbours of retained targets require decisions; models overlapping the chosen target CDS are automatically treated as target models. Renaming or exclusion requires notes.</p><p><a href="model_options.tsv">Target model options</a> · <a href="model_options.cds.fna">CDS</a> · <a href="model_options.proteins.faa">Proteins</a> · <a href="neighbor_options.tsv">Neighbour evidence</a> · '+links+'</p><p>Per-locus exon tracks: '+ ' · '.join('<a href="figures/'+r['locus_id']+'.svg">'+r['locus_id']+'</a>' for r in selected if not r.get('comparison_error'))+'</p><p>Choosing a new model preserves the prepared DNA window. Actual flank sizes and any shortage are recorded in the final report. Predictions are hypotheses; selecting a row records a human decision, not automatic proof of orthology.</p>'
-    if getattr(args,'_imported_contexts',False):text+='<aside>Imported automatic selections remain unapproved. To inspect alternative loci absent from these saved windows, complete STOP 1 and run contexts for those choices.</aside>'
+    text='<aside><strong>Stage 2: targets and neighbours are unapproved.</strong> No target protein/CDS or genomic DNA alignments have been run by this stage.</aside><p>Edit <a href="models.decisions.tsv">models.decisions.tsv</a>: <code>keep</code> with exactly one option ID per gene/genome pair; or <code>exclude</code>/<code>unresolved</code> with notes. A partial CDS requires <code>allow_partial=yes</code> and notes. Short flanks require <code>allow_short_flanks=yes</code> and notes. A <code>dna_only</code> option permits DNA/context comparison without a fabricated protein.</p><p>Edit <a href="neighbors.decisions.tsv">neighbors.decisions.tsv</a>: <code>keep</code>, <code>unnamed</code>, or <code>exclude</code>. Only neighbours of retained targets require decisions; models overlapping the chosen target CDS are automatically treated as target models. Renaming or exclusion requires notes.</p><p><a href="model_options.tsv">Target model options</a> · <a href="model_options.cds.fna">CDS</a> · <a href="model_options.proteins.faa">Proteins</a> · <a href="neighbor_options.tsv">Neighbour evidence</a> · '+links+'</p><p>Per-locus exon tracks: '+ ' · '.join('<a href="figures/'+r['locus_id']+'.svg">'+r['locus_id']+'</a>' for r in selected if not r.get('comparison_error'))+'</p><p>Choosing a new model preserves the prepared DNA window. Actual flank sizes and any shortage are recorded in the final report. Predictions are hypotheses; selecting a row records a human decision, not automatic proof of orthology.</p>'
+    if getattr(args,'_imported_contexts',False):text+='<aside>Imported automatic selections remain unapproved. To inspect alternative loci absent from these saved windows, complete Stage 1 and run contexts for those choices.</aside>'
     if (root/'prior_target_identity_review.tsv').exists():text+='<p><a href="prior_target_identity_review.tsv">Previous reference-identity flags for the original automatic targets</a>. These flags do not classify newly chosen models.</p>'
     if (root/'prior_protein_identity_audit.tsv').exists():text+='<p><a href="prior_protein_identity_audit.tsv">Previous independent BLASTP evidence for source and predicted proteins</a>. Reference-name/coverage columns are supporting evidence, not orthology assignments.</p>'
     if errors:text+='<h2>Processing errors</h2><pre>'+escape(json.dumps(errors,indent=2))+'</pre>'
     page(root/'report.html','Stage 2 — review target CDS and neighbours',text,options,columns)
-    seal(root);print('STOP 2 — review '+str(root/'report.html'),file=sys.stderr)
+    seal(root);print('Stage 2 — review '+str(root/'report.html'),file=sys.stderr)
     return 1 if errors or original.get('errors') else 0
 
 
@@ -489,7 +489,7 @@ def compare_reviewed(args):
 
 
 def review_contexts(args):
-    """Turn an existing comparative run into STOP 2 without searching/predicting."""
+    """Turn an existing comparative run into Stage 2 without searching/predicting."""
     from .cli import parser
     previous=Path(args.results).resolve();old=json.loads((previous/'manifest.json').read_text())
     source=Path(args.search_results).resolve() if args.search_results else Path(old['source_results'])
@@ -521,7 +521,7 @@ def review_contexts(args):
     config=parser().parse_args(['compare','--results',str(source),'--out',str(root)])
     for key,value in old['parameters'].items():setattr(config,key,value)
     config.results=str(source);config.out=str(root);config._imported_contexts=True
-    config._locus_review=dict(status='imported_unreviewed_selection',previous_comparison=str(previous),note='Original automatic loci are not approved. STOP 2 still requires an explicit keep/exclude/unresolved choice for every pair. Alternative loci not present here require STOP 1 and new context extraction.')
+    config._locus_review=dict(status='imported_unreviewed_selection',previous_comparison=str(previous),note='Original automatic loci are not approved. Stage 2 still requires an explicit keep/exclude/unresolved choice for every pair. Alternative loci not present here require Stage 1 and new context extraction.')
     errors=[r for r in old.get('errors',[]) if r.get('stage') in {'window','context','context_inference','context_prediction','context_identification'}]
     manifest={**old,'source_results':str(source),'imported_from':str(previous),'imported_manifest_sha256':sha256(previous/'manifest.json'),'imported_original_errors':old.get('errors',[]),'prediction_run_version':old['version'],'parameters':vars(config)}
     return save_context_review(config,source,root,original,old['groups'],selected,table(previous/'candidates.tsv'),table(previous/'summary.tsv'),context,proteins,metadata,windows,Runner(root),errors,manifest)

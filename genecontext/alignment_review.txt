@@ -4,8 +4,8 @@ const seed=JSON.parse(document.getElementById('interactiveReviewData').textConte
 if(seed.workflow!=='gcf_alignment_first_v1'||document.querySelector('meta[name="gcf-review-flow"][content="sequential-v2"]'))return;
 const host=document.getElementById('interactiveReview'),title=host.querySelector('h2');
 title.textContent='Choose models → align → inspect the tree';
-const oldHelp=document.getElementById('workflowHelp');if(oldHelp)oldHelp.textContent='Choose annotation/Tiberius models first, inspect their alignment and gene tree, then open the STOP 3 synteny view below.';
-const pageTitle=document.getElementById('pageTitle');if(pageTitle)pageTitle.textContent=pageTitle.textContent.replace('stage 2 neighborhood review','STOP 2 model choice and gene tree').replace('Stage 2 — neighborhood review','STOP 2 — model choice and gene tree');
+const oldHelp=document.getElementById('workflowHelp');if(oldHelp)oldHelp.textContent='Choose annotation/Tiberius models first, inspect their alignment and gene tree, then open the Stage 3 synteny view below.';
+const pageTitle=document.getElementById('pageTitle');if(pageTitle)pageTitle.textContent=pageTitle.textContent.replace('stage 2 neighborhood review','Stage 2 model choice and gene tree').replace('Stage 2 — neighborhood review','Stage 2 — model choice and gene tree');
 const groups=host.querySelector('[aria-label="Interactive gene group"]');
 const tools=host.querySelector('.interactive-tools'),rootTools=document.createElement('details');rootTools.open=true;
 const summary=document.createElement('summary');summary.textContent='Outgroup and tree view';rootTools.append(summary);
@@ -39,11 +39,11 @@ host.append(notes,exportChoice);
 const queue=document.getElementById('reviewQueue'),comparisons=document.getElementById('comparisonPanels');
 if(queue&&comparisons){
  const main=document.querySelector('main'),genes=queue.closest('section'),context=document.createElement('details');context.id='contextStage3';
- const s=document.createElement('summary');s.textContent='STOP 3 · inspect synteny after the alignment and tree';context.append(s);
+ const s=document.createElement('summary');s.textContent='Stage 3 · inspect synteny after the alignment and tree';context.append(s);
  context.append(comparisons);const add=document.getElementById('addComparison')?.closest('.comparison-actions');if(add)context.append(add);
  host.before(genes);host.after(context);
- const heading=genes.querySelector('h2');if(heading)heading.textContent='STOP 2 · choose annotation / Tiberius models';
- const p=document.createElement('p');p.textContent='STOP 1: select loci and annotation region → prepare annotation/Tiberius models if needed → STOP 2: choose models, align and inspect the tree → STOP 3: synteny confirmation → STOP 4: final dossier.';
+ const heading=genes.querySelector('h2');if(heading)heading.textContent='Stage 2 · choose annotation / Tiberius models';
+ const p=document.createElement('p');p.textContent='Stage 1: select loci and annotation region → prepare annotation/Tiberius models if needed → Stage 2: choose models, align and inspect the tree → Stage 3: synteny confirmation → Stage 4: final dossier.';
  main.insertBefore(p,genes);context.addEventListener('toggle',()=>{if(context.open)window.dispatchEvent(new Event('resize'))});
 }
 exportChoice.addEventListener('click',()=>{

@@ -112,7 +112,7 @@ function renderModelComparison(){
  }panel.append(stack);
  const card=[...document.querySelectorAll('.review-gene-card')].find(n=>n.dataset.regionId===r.region_id&&n.dataset.physicalId===physical),row=card?.querySelector('tr[data-region-id]'),form=row?._reviewForm;
  if(form){
-  const footer=el('div',undefined,'cds-gene-decision'),choice=el('label','Decision for this gene'),comment=el('label','STOP 2 comment / reason');choice.append(form.decision);comment.append(form.notes);footer.append(choice,comment);
+  const footer=el('div',undefined,'cds-gene-decision'),choice=el('label','Decision for this gene'),comment=el('label','Stage 2 comment / reason');choice.append(form.decision);comment.append(form.notes);footer.append(choice,comment);
   const warnings=targetWarnings(item.model,{selection_kind:item.primary?state.models[item.model.model_id]?.selection_kind:form.role.value==='copy'?'additional_copy':''});
   if(warnings.length){footer.append(el('p',warnings.join('; '),'warn'));const expert=el('label',undefined,'candidate-choice');expert.append(form.override,document.createTextNode(' Expert exception for the MAIN model (requires a reason)'));footer.append(expert)}
   const save=el('button','Save gene + checked models','primary');save.setAttribute('aria-label','Save compared gene '+r.region_id);save.addEventListener('click',()=>row._save());footer.append(save,form.status);panel.append(footer);

@@ -1,4 +1,4 @@
-"""Study configuration and an append-only ledger above the native STOP stages.
+"""Study configuration and an append-only ledger above the native stage stages.
 
 Imported checkpoints are referenced in place. Only this project's own .gcf
 directory is writable; neither attaching a result nor importing a decision runs
@@ -289,7 +289,7 @@ def validate_decision(project, tid, run, path):
         state = validate_choices(json.loads(path.read_text()), evidence['spec'])
         return dict(review_id=state['review_id'], ready=all(c['reviewed'] for c in state['choices'].values()),
                     selected=len(state['choices']))
-    raise ValueError('STOP4 is an export; review decisions belong to STOP1–3')
+    raise ValueError('Stage 4 is an export; review decisions belong to Stage 1–3')
 
 
 def attach(project, tid, stage, source, new_attempt=False):
@@ -305,7 +305,7 @@ def attach(project, tid, stage, source, new_attempt=False):
             raise ValueError('A current result already exists; --new-attempt retains it in history')
         target = project.target(tid)
         if stage == 'stage1' and info['gene'] != target['gene']:
-            raise ValueError('STOP1 search-group name differs from target gene; describe the shared panel explicitly')
+            raise ValueError('Stage 1 search-group name differs from target gene; describe the shared panel explicitly')
         parent = project.current(state, tid, STAGES[STAGES.index(stage)-1]) if stage != 'stage1' else None
         if parent:
             verify_record(parent, True)
@@ -314,7 +314,7 @@ def attach(project, tid, stage, source, new_attempt=False):
             if stage == 'stage2':
                 data = json.loads((Path(source)/'evidence.json').read_text())
                 if data.get('source_evidence_sha256') != parent['checkpoint']['evidence_sha256']:
-                    raise ValueError('STOP2 source evidence differs from attached STOP1')
+                    raise ValueError('Stage 2 source evidence differs from attached Stage 1')
         run = dict(id=uuid4().hex, target=tid, stage=stage, output=info['path'],
                    imported=True, created=now(), status=info['status'], checkpoint=info,
                    source_run_id=parent['id'] if parent else None, decision_sha256=None)

@@ -1,4 +1,4 @@
-"""Shared scientific constraints for STOP-2 presentation and its consumer."""
+"""Shared scientific constraints for Stage 2 presentation and its consumer."""
 from collections import defaultdict
 import hashlib
 import json

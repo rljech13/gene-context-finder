@@ -2,7 +2,7 @@
 
 Find, review and compare gene loci across user-supplied genomes and reference panels.
 
-The primary workflow is **configure study → STOP1 loci → STOP2 models → STOP3 sequence comparison and final selection → STOP4 dossier**. Each transition requires the exact exported review decisions. Pluripotency is one application; gene names, families, species and references are configuration inputs. The [project guide](PROJECTS.md) covers multi-target studies, existing checkpoint adoption, safe review history, shared-queue execution and optional portable apps. Native single-stage commands below remain available.
+The primary workflow is **configure study → Stage 1 loci → Stage 2 models → Stage 3 sequence comparison and final selection → Stage 4 dossier**. Each transition requires the exact exported review decisions. Pluripotency is one application; gene names, families, species and references are configuration inputs. The [project guide](PROJECTS.md) covers multi-target studies, existing checkpoint adoption, safe review history, shared-queue execution and optional portable apps. Native single-stage commands below remain available.
 
 After installation, try a project using the bundled small POU5 control windows:
 
@@ -15,9 +15,9 @@ gene-context project run --project results/pou5-study --target all --stage stage
 gene-context project report --project results/pou5-study
 ```
 
-Open `project-report.html` in the study directory. Review STOP1, import its export with `project decisions`, then explicitly run the next stage. New projects default to planning-only STOP2 until a compute executor is configured. The six control windows are not whole-genome validation. Existing calculations continue on their pinned source; use `project attach` on the owning host after they complete, without copying or editing their data.
+Open `project-report.html` in the study directory. Review Stage 1, import its export with `project decisions`, then explicitly run the next stage. New projects default to planning-only Stage 2 until a compute executor is configured. The six control windows are not whole-genome validation. Existing calculations continue on their pinned source; use `project attach` on the owning host after they complete, without copying or editing their data.
 
-The optional [STOP 4 prototype](STAGE4.md) turns a sealed STOP 3 result into
+The optional [Stage 4 prototype](STAGE4.md) turns a sealed Stage 3 result into
 a compact candidate dossier with separate identity/model-quality assessments,
 per-group ML gene trees and optional exact-sequence structural comparisons.
 Unreviewed final suggestions require explicit `--preview`; no folding jobs or
@@ -88,7 +88,7 @@ gene-context stage2 --results results/pou5_stage1 --selection results/pou5_selec
   --predictor-cache /mnt/project/cache/tiberius --out results/pou5_stage2 --threads 8
 ```
 
-Open `results/pou5_stage2/report.html` for **STOP 2**: compare provided annotation and DNA-only predictions, inspect broad-database naming alternatives and target-query support, and choose target models/neighbors. No model is pre-approved. Overlapping selected windows share one bounded prediction interval. The downloadable draft/decisions preserve exact stage 2 IDs. Full details, draft-input rules and host2 memory limits are in [the stage 2 guide](STAGE2.md). Analysis is offline; reference/model preparation is explicit.
+Open `results/pou5_stage2/report.html` for **Stage 2**: compare provided annotation and DNA-only predictions, inspect broad-database naming alternatives and target-query support, and choose target models/neighbors. No model is pre-approved. Overlapping selected windows share one bounded prediction interval. The downloadable draft/decisions preserve exact stage 2 IDs. Full details, draft-input rules and host2 memory limits are in [the stage 2 guide](STAGE2.md). Analysis is offline; reference/model preparation is explicit.
 
 Interrupted stage 2 runs can continue with the **same command plus `--resume`**.
 Completed genome extraction, verified per-window predictions and completed protein
@@ -110,7 +110,7 @@ file size; it does not reduce the hydrated evidence or demonstrate lower browser
 memory use. The compact file uses native browser gzip decompression and offers a
 link to the original if that capability is unavailable.
 
-At STOP 1, **Groups for stage 2 — families or copies** lets you assign selected loci to named sets across assemblies. Download each group's JSON and submit it as `stage2 --draft` to its own output directory. Full grouped drafts and TSVs require `--analysis-group ID_OR_NAME`. This reuses the saved BLAST evidence and keeps families in separate STOP-2 reports; see [STOP-1 grouping](STAGE1.md#separate-familycopy-groups-after-stop-1).
+At Stage 1, **Groups for stage 2 — families or copies** lets you assign selected loci to named sets across assemblies. Download each group's JSON and submit it as `stage2 --draft` to its own output directory. Full grouped drafts and TSVs require `--analysis-group ID_OR_NAME`. This reuses the saved BLAST evidence and keeps families in separate Stage 2 reports; see [Stage 1 grouping](STAGE1.md#separate-familycopy-groups-after-stop-1).
 
 After saving the review, download `stage2.decisions.json` and run:
 
@@ -130,10 +130,10 @@ gene-context stage3-finalize --results results/pou5_comparison \
   --out results/pou5_final
 ```
 
-This final assignment retains the original STOP-2 selection and all-by-all comparisons; it does not resolve orthology automatically.
+This final assignment retains the original Stage 2 selection and all-by-all comparisons; it does not resolve orthology automatically.
 
-In the alignment-first route, STOP2 covers models → alignment → tree →
-confirmed-set handoff. **STOP3 is the separate synteny/context review.** At its
+In the alignment-first route, Stage 2 covers models → alignment → tree →
+confirmed-set handoff. **Stage 3 is the separate synteny/context review.** At its
 end, **«Approve model as reference»** enables preparation of a Server JSON for
 that exact protein. The legacy comparison table has no reference-approval
 button. Saved choices remain intact. Completed reports can be rebuilt in the
@@ -143,7 +143,7 @@ current form with preserved original results and independent drafts; see
 
 ## Earlier pipeline
 
-The earlier `search → contexts → compare-reviewed` workflow is preserved and documented in [the legacy workflow](LEGACY_WORKFLOW.md). Its model-first checkpoints differ from the new locus-first stage. Use the new `stage2` command for locus-first selections. Legacy `contexts` and `compare-reviewed` retain their different checkpoint format; they are not consumers of the new STOP-2 decisions.
+The earlier `search → contexts → compare-reviewed` workflow is preserved and documented in [the legacy workflow](LEGACY_WORKFLOW.md). Its model-first checkpoints differ from the new locus-first stage. Use the new `stage2` command for locus-first selections. Legacy `contexts` and `compare-reviewed` retain their different checkpoint format; they are not consumers of the new Stage 2 decisions.
 
 ## Tests
 

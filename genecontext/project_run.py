@@ -1,4 +1,4 @@
-"""Explicit one-stage execution; no automatic crossing of a manual STOP."""
+"""Explicit one-stage execution; no automatic crossing of a manual stage."""
 import argparse
 import json
 import os
@@ -168,7 +168,7 @@ def status_rows(project, state=None):
 def plan(project, tid, stage, new_attempt=False, state=None):
     state = state or project.load(); project.target(tid)
     if project.workflow=='sequential_v2' and stage=='stage3':
-        raise ValueError('STOP3 is the synteny review page. Use project review, then project handoff with its explicit final export.')
+        raise ValueError('Stage 3 is the synteny review page. Use project review, then project handoff with its explicit final export.')
     if project.workflow=='sequential_v2' and stage=='stage4':
         from .project_review import plan_final
         return plan_final(project,tid,new_attempt,state)
@@ -210,7 +210,7 @@ def plan(project, tid, stage, new_attempt=False, state=None):
         regions, selection, _, intervals = planned_regions(source, data, args, planning=True)
         windows = window_plan(source, data, args, regions, selection, intervals)
         if not windows['ready_for_prediction']:
-            raise ValueError('STOP2 window plan needs review:\n'+'\n'.join(b['message'] for b in windows['execution_blockers'] if not b['waived']))
+            raise ValueError('Stage 2 window plan needs review:\n'+'\n'.join(b['message'] for b in windows['execution_blockers'] if not b['waived']))
     else:
         windows = None
     return dict(action='run', target=tid, stage=stage, output=str(output),
@@ -253,7 +253,7 @@ def run_stage(project, tid, stage, new_attempt=False):
         if prepared['action'] == 'reuse':
             return prepared
         if prepared['executor'] == 'plan':
-            raise ValueError('STOP2 is plan-only. Configure the existing shared queue, or explicitly choose local execution on a separate machine.')
+            raise ValueError('Stage 2 is plan-only. Configure the existing shared queue, or explicitly choose local execution on a separate machine.')
         code = {str(p.relative_to(Path(__file__).parent)): sha256(p)
                 for p in Path(__file__).parent.rglob('*') if p.is_file() and p.suffix in {'.py', '.txt'} and '__pycache__' not in p.parts}
         record = dict(prepared, id=uuid4().hex, created=now(), status='running',
@@ -322,7 +322,7 @@ def sync(project):
 
 
 def register_cli(commands):
-    group = commands.add_parser('project', help='Configure a study, attach existing results and run one reviewed STOP at a time')
+    group = commands.add_parser('project', help='Configure a study, attach existing results and run one reviewed stage at a time')
     sub = group.add_subparsers(dest='project_action', required=True)
     p = sub.add_parser('init', help='Create a study configuration; no calculations')
     p.add_argument('--out', required=True); p.add_argument('--name', required=True)

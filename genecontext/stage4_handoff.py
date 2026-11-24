@@ -1,4 +1,4 @@
-"""Consume the exact alignment-first STOP 3 export without rebuilding its MSA or tree."""
+"""Consume the exact alignment-first Stage 3 export without rebuilding its MSA or tree."""
 import hashlib
 import json
 from pathlib import Path
@@ -24,16 +24,16 @@ def safe_id(value):
 def read_handoff(path):
     source = Path(path)
     if source.stat().st_size > 64 * 1024 * 1024:
-        raise ValueError('STOP 4 input exceeds 64 MiB')
+        raise ValueError('Stage 4 input exceeds 64 MiB')
     envelope = json.loads(source.read_bytes())
     payload = envelope['payload']
     if sha(payload) != envelope.get('sha256'):
-        raise ValueError('STOP 4 input checksum differs')
+        raise ValueError('Stage 4 input checksum differs')
     data = json.loads(payload)
     stage2, stage3 = data['stage2'], data['stage3']
     if (data['schema'] != 'gcf_stop4_input_v1' or stage2['schema'] != 'stage2_draft_v1'
             or stage2['review_id'] != data['source_review_id'] or stage3['reviewed'] is not True):
-        raise ValueError('Expected a reviewed alignment-first STOP 3 export')
+        raise ValueError('Expected a reviewed alignment-first Stage 3 export')
     members = {s['id']: s for s in data['members']}
     if len(members) != len(data['members']) or any(not safe_id(i) for i in members):
         raise ValueError('Invalid or duplicate sequence IDs')
@@ -56,7 +56,7 @@ def read_handoff(path):
               if choice['decision'] == 'inspect' and choice['role'] in ('target', 'alignment_candidate')}
     choices, analyses = stage3['decisions'], data['analyses']
     if not chosen or chosen != set(choices) or not chosen <= members.keys():
-        raise ValueError('STOP 3 must account for each confirmed candidate')
+        raise ValueError('Stage 3 must account for each confirmed candidate')
     regions = {r['region_id']: r for r in stage3['synteny']['regions']}
     if len(regions) != len(stage3['synteny']['regions']):
         raise ValueError('Duplicate synteny regions')
@@ -191,7 +191,7 @@ def run(args):
     if getattr(args,'structure_provider',None) not in (None,'none'):
         raise ValueError('Use structure-fetch separately and pass its exact --structures catalogue. Folding preparation requires separate post-synteny reference approval.')
     if args.decisions or args.reference_panel or args.preview or args.iqtree or args.tree != 'auto':
-        raise ValueError('The STOP 3 export already fixes the decisions, alignment, tree and references')
+        raise ValueError('The Stage 3 export already fixes the decisions, alignment, tree and references')
     root = new_output(Path(args.out).resolve())
     (root/'sequences').mkdir()
     dump(root/'finalization.decisions.json', data['stage3']['decisions'])
@@ -263,7 +263,7 @@ def run(args):
             coverage_reference=hit.get('coverage_subject'),protein_aa=len(s['protein']),protein_file=protein_file,cds_file=cds_file,
             protein_sha256=m['protein_sha256'],cds_sha256=m['cds_sha256'],structure=structures.get(mid),
             structure_match=max(measurements,key=lambda p:min(p['tm_model'],p['tm_reference']),default=None),
-            facts=['Exact selected protein and CDS verified.', 'Genome context reviewed in STOP 3.',
+            facts=['Exact selected protein and CDS verified.', 'Genome context reviewed in Stage 3.',
                    'Native coding status: '+m['coding_status']+'.'],
             
             limitations=['Tree, sequence and structure evidence are recorded separately. Orthology and expression require biological interpretation.']))
@@ -297,7 +297,7 @@ def run(args):
     dump(root/'evidence.json',payload)
     text=json.dumps(payload,ensure_ascii=True,separators=(',',':')).replace('<',chr(92)+'u003c').replace('&',chr(92)+'u0026')
     (root/'report.html').write_text(Path(__file__).with_name('stage4_report.txt').read_text().replace('__DATA__',text).replace('Evidence JSON</a> ·', 'Evidence JSON</a> · <a href="synteny.review.json">Reviewed synteny</a> ·'))
-    (root/'START_HERE.html').write_text('<!doctype html><html lang="en"><meta charset="utf-8"><title>STOP 4</title><p><a href="report.html">Open STOP 4 candidate dossier</a></p></html>')
+    (root/'START_HERE.html').write_text('<!doctype html><html lang="en"><meta charset="utf-8"><title>Stage 4</title><p><a href="report.html">Open Stage 4 candidate dossier</a></p></html>')
     dump(root/'manifest.json',dict(stage='stage4_prototype',status='completed',created=now(),
         source_review_id=data['source_review_id'],alignment_review_id=data['alignment_review_id'],
         source_code_sha256={n:sha256(Path(__file__).with_name(n)) for n in ('stage4_handoff.py','stage4_report.txt','stage4_structure.py','stage4_similarity.py','stage4_viewer.py','tree_views.py')},

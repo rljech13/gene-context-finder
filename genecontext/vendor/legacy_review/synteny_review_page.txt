@@ -4,12 +4,12 @@ if(new URLSearchParams(location.search).get('view')!=='synteny')return;
 const seed=JSON.parse(document.getElementById('interactiveReviewData').textContent),main=document.querySelector('main'),panels=document.getElementById('comparisonPanels'),add=document.getElementById('addComparison')?.closest('.comparison-actions');
 if(!main||!panels)return;
 document.documentElement.classList.add('gcf-synteny-stop');
-document.title = document.title.replace(/\s*[—·].*stage 2 neighborhood review/i, '') + ' — STOP 3 synteny';
+document.title = document.title.replace(/\s*[—·].*stage 2 neighborhood review/i, '') + ' — Stage 3 synteny';
 for(const e of main.children)if(e!==panels&&e!==add)e.hidden=true;
 panels.hidden=false;if(add)add.hidden=false;
-const header=document.createElement('section'),h=document.createElement('h1');h.textContent='STOP 3 · genomic context and synteny';
-const back=document.createElement('a');const previous=new URL(location.href);previous.searchParams.delete('view');back.href=previous.href;back.textContent='← Back to STOP 2 · models, alignment and tree';
+const header=document.createElement('section'),h=document.createElement('h1');h.textContent='Stage 3 · genomic context and synteny';
+const back=document.createElement('a');const previous=new URL(location.href);previous.searchParams.delete('view');back.href=previous.href;back.textContent='← Back to Stage 2 · models, alignment and tree';
 const note=document.createElement('p');let final;try{final=JSON.parse(localStorage.getItem('gcf-synteny-final-'+seed.source_review_id)||'null')}catch(e){}
-note.textContent=final?.review_id===seed.source_review_id?'The STOP 2 set is saved. Review genomic context, then record the final model decisions below.':'Draft context preview. Confirm the model set after reviewing its alignment and tree in STOP 2.';
+note.textContent=final?.review_id===seed.source_review_id?'The Stage 2 set is saved. Review genomic context, then record the final model decisions below.':'Draft context preview. Confirm the model set after reviewing its alignment and tree in Stage 2.';
 header.append(h,back,note);main.prepend(header);window.dispatchEvent(new Event('resize'));
 })();

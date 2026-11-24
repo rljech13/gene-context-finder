@@ -103,5 +103,5 @@ def context(args):
     for locus in data['loci']:locus.pop('early_synteny',None)
     error=attach(args,root,data)
     write_outputs(root,data)
-    print('STOP — open '+str(root/'report.html'),file=sys.stderr)
+    print('Stage 1 — open '+str(root/'report.html'),file=sys.stderr)
     return 1 if error else 0

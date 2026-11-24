@@ -1,4 +1,4 @@
-> The current study route is documented in [PROJECTS.md](PROJECTS.md). Numeric native commands below retain their historical engine/checkpoint meaning; current STOP3 is the separate synteny review.
+> The current study route is documented in [PROJECTS.md](PROJECTS.md). Numeric native commands below retain their historical engine/checkpoint meaning; current Stage 3 is the separate synteny review.
 
 # A workflow with two manual review stops
 
@@ -31,7 +31,7 @@ Open `results/01_search/review/report.html`. Edit `results/01_search/review/loci
 | `notes` | Required for `exclude`/`unresolved`; record why the pair is not advancing. |
 | `suggested_model_id` | A ranking suggestion only. Copying it to `model_ids` is an explicit choice; it is never accepted automatically. |
 
-Several distinct loci can advance for one pair. Pick one seed per locus; all matching source isoforms are offered again at STOP 2. Rankings, source gene names and short domain matches do not establish the correct gene family or copy. A pair without candidates still needs `exclude` or `unresolved`; the latter does not mean biological absence.
+Several distinct loci can advance for one pair. Pick one seed per locus; all matching source isoforms are offered again at Stage 2. Rankings, source gene names and short domain matches do not establish the correct gene family or copy. A pair without candidates still needs `exclude` or `unresolved`; the latter does not mean biological absence.
 
 ## Stage 2 — predict contexts, then stop
 
@@ -88,19 +88,19 @@ Original prediction GFF3 remains raw evidence. The final prediction table recomp
 
 ## Reuse existing results
 
-Create STOP 1 from a saved search:
+Create Stage 1 from a saved search:
 
 ```bash
 gene-context review-search --results previous/search --out results/01_review
 ```
 
-Create STOP 2 from a completed comparative run:
+Create Stage 2 from a completed comparative run:
 
 ```bash
 gene-context review-contexts --results previous/comparison --out results/02_review
 ```
 
-For a relocated portable report, pass `--search-results PATH_TO_SAVED_SEARCH`. Its manifest/models fingerprints must match the original comparison. The imported selections remain unapproved: every pair still needs a stage-2 decision. This import covers only the previously prepared windows. To inspect another locus, use STOP 1 and run contexts for that locus.
+For a relocated portable report, pass `--search-results PATH_TO_SAVED_SEARCH`. Its manifest/models fingerprints must match the original comparison. The imported selections remain unapproved: every pair still needs a stage-2 decision. This import covers only the previously prepared windows. To inspect another locus, use Stage 1 and run contexts for that locus.
 
 ## Review on one computer, execute on another
 

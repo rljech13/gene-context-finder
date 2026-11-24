@@ -55,14 +55,14 @@ main{padding-top:20px}section{padding:18px;margin:14px 0}.comparison-heading{mar
  <div class="legend"><span><i class="legend-line"></i>Proposed protein match</span><span><i class="legend-line control"></i>Same-assembly control</span><span><i class="legend-line uncertain"></i>Unresolved</span></div>
  <div id="diagramStatus" class="filter-notice" role="status" hidden></div>
  <p id="diagramExplanation" class="muted"></p><div id="windowDetails" class="muted"></div></details>
- <details id="priorContext" hidden><summary>Broader annotation context from STOP 1</summary><div id="priorContextBody"></div></details>
+ <details id="priorContext" hidden><summary>Broader annotation context from Stage 1</summary><div id="priorContextBody"></div></details>
  <details><summary>Neighbor matches for review</summary><p class="muted">These saved review proposals use all model alternatives. The diagram above uses only its selected source; a link there is not a new review decision.</p><div id="pairTable" class="scroll"></div></details>
 </section>
 </div>
 <div class="comparison-actions"><button id="addComparison" type="button">+ Add comparison</button></div>
 <section>
  <div class="queue-heading"><h2>Genes for the next stage</h2><span id="progress" class="muted"></span><button id="addReviewGene">Add gene</button></div>
- <p class="muted">One proposed main gene per STOP-1 locus. You may keep several paralogs from the same genome in one comparison group. Use + Gene to add copies or neighbors; save each decision.</p>
+ <p class="muted">One proposed main gene per Stage 1 locus. You may keep several paralogs from the same genome in one comparison group. Use + Gene to add copies or neighbors; save each decision.</p>
  <div id="addGenePanel" hidden></div>
  <div id="modelComparisonParking" hidden><div id="modelComparePanel" class="model-comparison" hidden></div></div>
  <div id="reviewQueue" class="review-queue"></div>
@@ -84,8 +84,8 @@ function table(headers,rows){const t=el('table'),head=el('tr');for(const h of he
 function pct(x){return (100*x).toFixed(1)+'%'}
 function stop1Comment(r,showEmpty=false){
  const notes=typeof r.notes==='string'?r.notes:'',reason=typeof r.reason==='string'?r.reason:'',box=el('div',undefined,'stop1-comment');box.dataset.regionId=r.region_id;
- if(!notes.trim()&&!reason.trim()){if(showEmpty){box.append(el('strong','STOP 1 comment'),el('p','No comment recorded at STOP 1.'))}else box.hidden=true;return box}
- box.append(el('strong','STOP 1 comment'));
+ if(!notes.trim()&&!reason.trim()){if(showEmpty){box.append(el('strong','Stage 1 comment'),el('p','No comment recorded at Stage 1.'))}else box.hidden=true;return box}
+ box.append(el('strong','Stage 1 comment'));
  if(notes.trim())box.append(el('p',notes,'stop1-comment-body'));
  if(reason.trim()&&(!notes.trim()||reason!=='other'))box.append(el('p','Reason: '+reason,'stop1-comment-reason'));
  return box;

@@ -72,7 +72,7 @@ def prepare_inputs(data, state, source, genomic_context=True):
     """Validate exact saved sequence/model identity before any output is created."""
     problems = validate_choices(data, state)
     if problems:
-        raise ValueError('STOP-2 decisions are not ready:\n' + '\n'.join(issue_text(data, p) for p in problems))
+        raise ValueError('Stage 2 decisions are not ready:\n' + '\n'.join(issue_text(data, p) for p in problems))
     proteins = read_fasta(source/'proteins.faa') if (source/'proteins.faa').stat().st_size else {}
     coding = read_fasta(source/'cds.fna') if (source/'cds.fna').stat().st_size else {}
     windows = read_fasta(source/'windows.fna', preserve_case=True)
@@ -251,7 +251,7 @@ def run(args):
     # status distinguishes an unrequested analysis from measured zero matches.
     dna,blocks,categories=compare_dna(args,root,selected if genomic_context else [],windows,runner,errors)
     genomic_status=dict(status=('completed_with_errors' if errors else 'completed') if genomic_context else 'not_requested',
-        requested=genomic_context,reason='' if genomic_context else 'STOP 3 prepares selected protein/CDS sequences and alignments for STOP 4; genomic windows are optional.')
+        requested=genomic_context,reason='' if genomic_context else 'Stage 3 prepares selected protein/CDS sequences and alignments for Stage 4; genomic windows are optional.')
     timings['genomic_alignment_seconds']=time.perf_counter()-step;step=time.perf_counter()
     context=reviewed_neighbors(data,state,selected);synteny=synteny_pairs(selected,context)
     write_tsv(root/'reviewed_neighbors.tsv',context,['locus_id','genome_id','model_id','physical_id','name','contig','start','end','strand','evidence','homology_group','correspondence_status'])

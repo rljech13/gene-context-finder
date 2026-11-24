@@ -1,4 +1,4 @@
-"""Read-only reuse of the STOP-2 genomic ruler and protein correspondences."""
+"""Read-only reuse of the Stage 2 genomic ruler and protein correspondences."""
 import json
 from pathlib import Path
 
@@ -29,7 +29,7 @@ def write_context_page(root,payload):
     css=template.split('<style>',1)[1].split('</style>',1)[0]
     helpers=Path(__file__).with_name('stage2_neighborhood.txt').read_text().split('function compare(){',1)[0]
     if 'function createComparisonPane(' in helpers:
-        # Reuse drawing helpers, not the STOP-2 pane setup and review controls.
+        # Reuse drawing helpers, not the Stage 2 pane setup and review controls.
         helpers=helpers[helpers.index('function diagramModels('):].split('function renderPriorContext(',1)[0]
         shared=template.split('const NEIGHBOR_COLORS=',1)[1].split('function openGeneModels(',1)[0]
         shared=('const NEIGHBOR_COLORS='+shared).replace(
@@ -64,7 +64,7 @@ refreshOther();
     code=code.replace('__DATA__',text).replace('__HELPERS__',helpers).replace('__CLUSTER__',cluster)
     page='''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Available gene context — read-only</title><style>'''+css+'''</style><main>
 <h1>Available gene context</h1><p><a href="report.html">Back to the reference sheet</a></p>
-<p class="muted">Read-only annotation + Tiberius evidence from STOP 2. Arrows use a shared kb ruler; zero is the selected CDS-model midpoint. Ribbons are saved protein-match proposals, not confirmed orthology or DNA alignments.</p>
+<p class="muted">Read-only annotation + Tiberius evidence from Stage 2. Arrows use a shared kb ruler; zero is the selected CDS-model midpoint. Ribbons are saved protein-match proposals, not confirmed orthology or DNA alignments.</p>
 <p id="reviewedStatus" class="muted"></p><section>
 <div class="controls"><label>Selected copy <select id="region"></select></label><label>Compare with <select id="other"></select></label></div>
 <div class="controls display-controls"><label>Show on diagram <select id="modelSource"><option value="all">Annotation + Tiberius</option><option value="annotation">Original annotation</option><option value="tiberius">Tiberius predictions</option></select></label><label>View <select id="scale"><option value="distance">Gene clusters (kb)</option><option value="models">CDS model details</option><option value="order">Gene order (schematic)</option></select></label><label>Zoom <select id="genomeZoom"><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option></select></label><label>Neighbors per side <select id="neighborsShown"><option value="5">Up to 5</option><option value="10" selected>Up to 10</option></select></label></div>

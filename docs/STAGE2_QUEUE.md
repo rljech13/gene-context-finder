@@ -45,7 +45,7 @@ links the original results and records missing/short predicted neighborhoods.
 
 Presentation release is a separate gate. A scientific job may pin an older
 renderer; successful completion and HTTP 200 do not establish that its public
-HTML is current. Before delivering a new STOP2, run the registered presentation
+HTML is current. Before delivering a new Stage 2, run the registered presentation
 method against its current public payload, retain its review ID and exact
 payload/decision bytes, validate the generated report in the UI, then atomically
 switch the existing report and ZIP aliases. Record the renderer version and

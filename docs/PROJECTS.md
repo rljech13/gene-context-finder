@@ -36,14 +36,14 @@ Global options can be overridden within a target's `options` object.
 | `project decisions --target ID --stage stage1 --file EXPORT` | Store exact exported locus decisions after native validation. |
 | `project plan/run --target ID --stage stage2` | Plan/run annotation and Tiberius preparation after locus selection. |
 | `project attach --target ID --stage stage2 --results CHECKPOINT` | Reference an existing sealed preparation checkpoint in place. |
-| `project review --target ID` | Create the current STOP2/STOP3 workspace from prepared models; run no prediction/alignment/folding. |
-| `project handoff --target ID --file STOP4-input.json` | Validate and retain the exact final STOP3 export. |
+| `project review --target ID` | Create the current Stage 2/Stage 3 workspace from prepared models; run no prediction/alignment/folding. |
+| `project handoff --target ID --file Stage4-input.json` | Validate and retain the exact final Stage 3 export. |
 | `project plan/run --target ID --stage stage4` | Build the final dossier from the accepted handoff, reusing its MSA/tree. |
-| `project status/report` | Read state or refresh an offline target × STOP overview. |
+| `project status/report` | Read state or refresh an offline target × stage overview. |
 
 Every command above except `init` requires `--project PATH`. Plan/run also accept
 `--target all`. `project run --stage stage3` is deliberately rejected for new
-projects: STOP3 is the synteny page, not the legacy alignment computation.
+projects: Stage 3 is the synteny page, not the legacy alignment computation.
 Preparation's `stage2` CLI name is retained as a stable engine/checkpoint API.
 
 The model/alignment/tree page and subsequent synteny section preserve source comments

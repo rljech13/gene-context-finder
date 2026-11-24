@@ -23,14 +23,14 @@ def write_report(project):
     html = '''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Gene Context study</title><style>body{font:15px/1.5 system-ui;color:#233a3e;background:#f4f7f6;max-width:1200px;margin:40px auto;padding:20px}table{border-collapse:collapse;width:100%;background:white}th,td{text-align:left;padding:14px;border-bottom:1px solid #d9e3e0;vertical-align:top}small{display:block;color:#52656a;margin-top:5px}a{color:#125d64}code{background:#e4edeb;padding:2px 5px}.scroll{overflow:auto}</style>
 <h1>__NAME__</h1><p>Search loci → review models → compare sequences → final dossier.</p>
-<p>Each STOP requires an explicit review. Opening this overview starts no calculations and approves no models. Historical attempts and byte-exact decisions remain in the project ledger.</p>
-<div class="scroll"><table><thead><tr><th>Gene / group</th><th>STOP 1 · loci</th><th>STOP 2 · models</th><th>STOP 3 · comparison</th><th>STOP 4 · dossier</th></tr></thead><tbody>__ROWS__</tbody></table></div>
+<p>Each stage requires an explicit review. Opening this overview starts no calculations and approves no models. Historical attempts and byte-exact decisions remain in the project ledger.</p>
+<div class="scroll"><table><thead><tr><th>Gene / group</th><th>Stage 1 · loci</th><th>Stage 2 · models</th><th>Stage 3 · comparison</th><th>Stage 4 · dossier</th></tr></thead><tbody>__ROWS__</tbody></table></div>
 <p>Refresh with <code>gene-context project report --project /path/to/project.json</code>. Server checkpoints should be viewed on their owning host or through its existing viewer.</p></html>'''.replace('__NAME__', escape(project.data['name'])).replace('__ROWS__', ''.join(body))
     path = project.root/'project-report.html'
     if project.workflow=='sequential_v2':
         html=html.replace('Search loci → review models → compare sequences → final dossier.',
             'Search loci → prepare annotation and prediction models → choose models, alignment and tree → review synteny → final dossier.')
-        html=html.replace('STOP 2 · models','STOP 2 · models, alignment and tree').replace('STOP 3 · comparison','STOP 3 · synteny and final models')
+        html=html.replace('Stage 2 · models','Stage 2 · models, alignment and tree').replace('Stage 3 · comparison','Stage 3 · synteny and final models')
     if path.exists() and '<title>Gene Context study</title>' not in path.read_text():
         raise ValueError('Refusing to replace an unrelated project-report.html')
     path.write_text(html)

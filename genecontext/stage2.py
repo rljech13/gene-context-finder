@@ -1,4 +1,4 @@
-"""Selected-locus reannotation and evidence, ending at human review STOP 2."""
+"""Selected-locus reannotation and evidence, ending at human review Stage 2."""
 from collections import defaultdict
 from dataclasses import replace
 import hashlib
@@ -319,7 +319,7 @@ def identify(runner, root, proteins, db, info, args):
 
 
 def reidentify(args):
-    """Replay only protein identification from a sealed STOP-2 checkpoint."""
+    """Replay only protein identification from a sealed Stage 2 checkpoint."""
     import shutil
     from .stage2_choices import verify_checkpoint
     source,data=verify_checkpoint(args.results);seal=json.loads((source/'seal.json').read_text())
@@ -360,7 +360,7 @@ def reidentify(args):
             key='stage2_evidence_sha256' if name=='prior_synteny_context.json' else 'source_evidence_sha256'
             supplement[key]=sha256(root/'evidence.json');dump(root/name,supplement)
     dump(root/'identification_hits.json',hits);write_outputs(root,data)
-    print('STOP 2 — '+str(root/'report.html'));return 1 if data['errors'] else 0
+    print('Stage 2 — '+str(root/'report.html'));return 1 if data['errors'] else 0
 
 
 def assign_groups(models):
@@ -476,7 +476,7 @@ def _run(args):
     plan_data=window_plan(source,data,args,regions,selection,prediction_intervals)
     root,run_record,input_hashes,input_stats,completed=prepare_resume(args,plan_data,by_genome,db_info,versions,predictor_identity)
     if completed is not None:
-        print('STOP 2 already complete — '+str(root/'report.html'))
+        print('Stage 2 already complete — '+str(root/'report.html'))
         return 1 if completed['errors'] else 0
     runner=TimedRunner(root);errors=[];models=[];coding={};proteins={};windows={};receipts=[];annotation_features=[]
     dump(root/'window_plan.json',plan_data)
@@ -575,12 +575,12 @@ def _run(args):
             source_files_sha256={name:sha256(Path(__file__).with_name(name)) for name in ['artifact_cache.py','stage2_resume.py','tiberius_session.py','stage2.py','analysis_groups.py','stage2_neighborhoods.py','stage2_windows.py','annotation_context.py','stage2_intervals.py','stage2_db.py','stage2_quality.py','stage2_display.py','stage2_reconstruct.py','stage2_prior_context.py','stage2_choices.py','stage2_report.py','stage2_review.txt','stage2_neighborhood.txt','stage2_cluster.txt','stage2_review_queue.txt','stage2_model_compare.txt','interactive_review.py','review_realign.txt','alignment_blossom.py','tiberius_backend.py','tiberius_worker.py','sequence.py']},parameters=dict({k:getattr(args,k) for k in ['identification_identity','identification_coverage','identification_evalue','competing_ratio','threads']},window_policy=selection['window_policy'],max_window_bases=args.max_window_bases,neighbors_per_side=getattr(args,'neighbors_per_side',10),minimum_neighbors_per_side=getattr(args,'minimum_neighbors_per_side',5),allow_incomplete_neighborhood=getattr(args,'allow_incomplete_neighborhood',False)),
             elapsed_seconds=time.perf_counter()-started),
         status='completed_with_errors' if errors else 'awaiting_manual_review',
-        note='No model or neighbor is automatically approved. No DNA/MSA alignment is run before STOP 2.')
+        note='No model or neighbor is automatically approved. No DNA/MSA alignment is run before Stage 2.')
     from .stage2_prior_context import collect
     payload['prior_synteny_context']=collect(payload,data,sha256(source/'evidence.json'))
     dump(root/'evidence.json',payload);dump(root/'identification_hits.json',id_hits)
     write_outputs(root,payload)
-    print('STOP 2 — '+str(root/'report.html'))
+    print('Stage 2 — '+str(root/'report.html'))
     return 1 if errors else 0
 
 

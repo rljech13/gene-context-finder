@@ -3,7 +3,7 @@
 const main=document.querySelector('main'),panels=document.getElementById('comparisonPanels');
 if(!main||!panels)return;
 const node=(tag,text)=>{const el=document.createElement(tag);if(text)el.textContent=text;return el};
-const review=node('details'),summary=node('summary','STOP 3 · Synteny and genomic context');
+const review=node('details'),summary=node('summary','Stage 3 · Synteny and genomic context');
 review.id='syntenyReview';review.className='inline-synteny-review';
 const links=node('nav');links.setAttribute('aria-label','Return to review steps');
 for(const [id,text] of [['initialModelChoices','Model selection'],['interactiveReview','Alignment'],['treeBuildStep','Tree']]){

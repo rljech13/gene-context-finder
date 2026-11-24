@@ -1,6 +1,6 @@
 """Read-only AlphaFold Server result adapter; requests and old results stay sealed.
 
-Provider-specific ZIP/mmCIF details end here. STOP4 consumes the ordinary exact
+Provider-specific ZIP/mmCIF details end here. Stage 4 consumes the ordinary exact
 sequence catalogue, so future providers can produce that same boundary object.
 """
 import hashlib

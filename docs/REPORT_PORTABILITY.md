@@ -5,14 +5,14 @@ gene/family labels. The pluripotency deployment is an application, not a
 required server or input catalogue.
 
 The review order is model choice, saved protein/CDS alignment, tree and outgroup,
-confirmation, then STOP3 synteny and final outcomes. STOP3 is a distinct step
+confirmation, then Stage 3 synteny and final outcomes. Stage 3 is a distinct step
 on the same page. Existing `?view=synteny` links open its section. Full model
 accessions and stable short identifiers are shown consistently in the model
 list, alignment, outgroup controls and final dossier. Exon/splice marks use the
 provided native CDS coordinates; protein-only references remain unmarked.
 
 Alignment and tree comments belong to exact result identifiers and are carried
-into the STOP4 handoff and dossier. Changing a model or rebuilding an alignment
+into the Stage 4 handoff and dossier. Changing a model or rebuilding an alignment
 does not silently reuse an old final decision. No calculation starts on opening
 an HTML file or launching the viewer.
 
@@ -63,7 +63,7 @@ waits for saving. A session file is limited to 128 MiB.
 
 `tests/installed_report_smoke.py` must run against an installed wheel from
 outside the checkout. It checks the current rendered assets, exact handoff,
-STOP4 comments, package contents and preservation of source checkpoints.
+Stage 4 comments, package contents and preservation of source checkpoints.
 
 `tests/report_portability_browser.cjs PROOF_DIRECTORY` launches the compiled
 viewer in Chromium, runs MAFFT on synthetic models, checks migration, saves

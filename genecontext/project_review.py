@@ -124,7 +124,7 @@ def plan_final(project,tid,new_attempt=False,state=None):
     from .cli import parser
     import sys
     state=state or project.load();entry=handoff(project,state,tid,True)
-    if not entry:raise ValueError('Import the explicit final STOP3 export with project handoff first')
+    if not entry:raise ValueError('Import the explicit final Stage 3 export with project handoff first')
     review=current_review(project,state,tid,True)
     args=parser().parse_args(['stage4','--handoff',str(project.root/entry['object']),'--out',str(project.store/'runs'/tid/'stage4'/uuid4().hex),*options_argv(project,tid,'stage4')])
     inputs=dict(input_files(project,tid,args),handoff_sha256=entry['sha256'])

@@ -20,7 +20,7 @@ def attach(html):
 def verify(approval, sequences):
     """Require explicit post-synteny approval of exact selected native proteins."""
     if approval.get('stage') != 3:
-        raise ValueError('Expected final STOP3 synteny approval')
+        raise ValueError('Expected final Stage 3 synteny approval')
     handoff = approval.get('handoff', {})
     decisions = handoff.get('decisions', {})
     source = approval.get('source_review_id')

@@ -1,4 +1,4 @@
-"""STOP 4 prototype: a compact, traceable candidate dossier from sealed STOP 3."""
+"""Stage 4 prototype: a compact, traceable candidate dossier from sealed Stage 3."""
 from collections import Counter
 import hashlib
 import importlib
@@ -23,14 +23,14 @@ def checked_source(folder):
     required = {'manifest.json','comparison.json','sequence_catalogue.tsv','selected.proteins.faa',
                 'selected.cds.fna','finalization.evidence.json','finalization.decisions.json',
                 'reference_comparisons.tsv','model_quality.tsv','synteny.tsv'}
-    if not required <= set(seal): raise ValueError('STOP 3 seal lacks required evidence files')
+    if not required <= set(seal): raise ValueError('Stage 3 seal lacks required evidence files')
     for name,digest in seal.items():
         path = (root/name).resolve()
         if root not in path.parents or not path.is_file() or sha256(path) != digest:
-            raise ValueError('STOP 3 seal mismatch: '+name)
+            raise ValueError('Stage 3 seal mismatch: '+name)
     manifest = json.loads((root/'manifest.json').read_text())
     if manifest.get('stage') != 'stage3_comparison' or manifest.get('status') != 'completed' or manifest.get('errors'):
-        raise ValueError('A completed, error-free STOP 3 checkpoint is required')
+        raise ValueError('A completed, error-free Stage 3 checkpoint is required')
     return root, manifest
 
 
@@ -42,7 +42,7 @@ def load_models(source, comparison, evidence):
     proteins = read_fasta(source/'selected.proteins.faa')
     coding = read_fasta(source/'selected.cds.fna')
     if len(rows) != len(catalogue) or set(rows) != set(selected) or set(rows) != set(proteins) or set(rows) != set(coding) or set(rows) != set(evidence['models']):
-        raise ValueError('Selected model IDs differ across STOP 3 inputs')
+        raise ValueError('Selected model IDs differ across Stage 3 inputs')
     groups = {g['id']:g['name'] for g in comparison['groups']}
     models = []
     if any(not re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.-]{0,150}', x) for x in [*rows,*groups]):
@@ -92,7 +92,7 @@ def assessment(model, reference_rows, synteny):
     if q['coding_status'] != 'complete_predicted': problems.append('Partial coding model')
     if str(model.get('window_edge','')).lower() == 'true': problems.append('Saved window edge')
     if q['source_agreement']=='different_CDS_models': problems.append('Annotation / Tiberius differ')
-    if q.get('cautions'): limitations.append('STOP 3 flags: '+q['cautions'])
+    if q.get('cautions'): limitations.append('Stage 3 flags: '+q['cautions'])
     facts.append('Saved protein/CDS hashes and CDS translation verified.')
     limitations.append('Transcript existence and expression are not evaluated; prediction or an accession alone is not experimental mRNA validation.')
     return dict(identity_assessment=identity,model_assessment='Check model' if problems else 'Coding consistent',
@@ -144,7 +144,7 @@ def run(args):
     extra=reference_panel(args.reference_panel,comparison['groups'])
     target=Path(args.out).resolve()
     if target==source or target in source.parents or source in target.parents:
-        raise ValueError('Use a separate STOP 4 output directory')
+        raise ValueError('Use a separate Stage 4 output directory')
     root=new_output(target); runner=TimedRunner(root)
     by_id={m['model_id']:m for m in models}; references=read_table(source/'reference_comparisons.tsv')
     synteny=read_table(source/'synteny.tsv'); rows=[]
@@ -259,7 +259,7 @@ def run(args):
             dump(root/'evidence.json',payload)
     text=json.dumps(payload,ensure_ascii=True,separators=(',',':')).replace('<','\\u003c').replace('&','\\u0026')
     (root/'report.html').write_text(Path(__file__).with_name('stage4_report.txt').read_text().replace('__DATA__',text))
-    (root/'START_HERE.html').write_text('<!doctype html><html lang="en"><meta charset="utf-8"><title>STOP 4</title><p><a href="report.html">Open STOP 4 candidate dossier</a></p><p>Extract the whole folder. Opens offline in a modern browser.</p></html>')
+    (root/'START_HERE.html').write_text('<!doctype html><html lang="en"><meta charset="utf-8"><title>Stage 4</title><p><a href="report.html">Open Stage 4 candidate dossier</a></p><p>Extract the whole folder. Opens offline in a modern browser.</p></html>')
     dump(root/'manifest.json',dict(stage='stage4_prototype',status='completed',created=now(),
         biological_approval_asserted=False,preview=bool(pending),source_manifest_sha256=sha256(source/'manifest.json'),
         source_seal_sha256=sha256(source/'seal.json'),final_decisions_sha256=sha256(root/'finalization.decisions.json'),

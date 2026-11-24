@@ -1,16 +1,16 @@
-# STOP 4 prototype — candidate dossier
+# Stage 4 prototype — candidate dossier
 
-STOP 4 reads a completed, sealed STOP 3 result. It does not search genomes,
-predict genes, resume queues, change STOP 2 selections or approve orthology.
+Stage 4 reads a completed, sealed Stage 3 result. It does not search genomes,
+predict genes, resume queues, change Stage 2 selections or approve orthology.
 The main view is one compact primary-model table. Extra copies are in a
 collapsed separate-cases table. Every row separates target identity from
 coding-model quality, with the exact source, locus, choice reason and limits.
 
 ```sh
-gene-context stage4 --results STOP3 --decisions stage3.final.decisions.json --out STOP4
+gene-context stage4 --results Stage 3 --decisions stage3.final.decisions.json --out Stage 4
 ```
 
-Without `--decisions`, the command uses STOP 3's saved finalization state.
+Without `--decisions`, the command uses Stage 3's saved finalization state.
 Unreviewed primary choices are rejected unless `--preview` is explicitly set.
 Preview reports have an unmistakable banner and never become manual approval.
 The saved reference panel and source annotation can support a candidate, but
@@ -25,7 +25,7 @@ Genomic windows and thousands of intermediate alignment files are not copied.
 ## Gene trees
 
 Each comparison group is independent. Saved selected models, separate cases and
-supplied protein queries are used; discarded STOP 2 models are not reintroduced.
+supplied protein queries are used; discarded Stage 2 models are not reintroduced.
 Identical full sequences share a leaf with all source aliases retained.
 The existing MSA is reused unless additional references require MAFFT.
 After deduplication, default column occupancy is 0.5. Empty taxa after masking
@@ -87,12 +87,12 @@ To attach the viewer to a sealed prototype and reproduce its structural pairs
 with explicit transforms (trees, sequences and manual choices stay unchanged):
 
 ```sh
-gene-context stage4-viewer --results STOP4 --out STOP4_WITH_3D --structures structures.json --usalign /path/to/USalign
+gene-context stage4-viewer --results Stage 4 --out STOP4_WITH_3D --structures structures.json --usalign /path/to/USalign
 ```
 
 The optional structure catalogue can restore full atomic coordinates. Every CA
 residue, position and confidence must match the structure already measured in
-STOP 4. The source result and its manual choices stay unchanged. The viewer bundle
+Stage 4. The source result and its manual choices stay unchanged. The viewer bundle
 and license are shipped under `genecontext/vendor/`, pinned by hash in
 `3Dmol-source.json`. Browser WebGL support is required for interactive rendering.
 
@@ -100,8 +100,8 @@ and license are shipped under `genecontext/vendor/`, pinned by hash in
 
 ### Preferred new predictions: AlphaFold Server
 
-Folding export is allowed **only after STOP3 and explicit approval of a final
-primary reference model** using **«Approve model as reference»** at the end of the new STOP3
+Folding export is allowed **only after Stage 3 and explicit approval of a final
+primary reference model** using **«Approve model as reference»** at the end of the new Stage 3
 synteny/context page. The old comparison table has no approval controls. A saved reviewed choice alone, saved candidate choices, a
 completed alignment or a proposed primary are insufficient. The approval is bound to the exact protein
 SHA-256 and reviewed final gene/genome decision. Alternatives, special cases,
@@ -127,7 +127,7 @@ flags as new post-synteny approval.
 For a whole multi-gene/multi-species collection:
 
 ```bash
-gene-context af3-approval --results STOP3 --decisions final.json --out final.references.json
+gene-context af3-approval --results Stage 3 --decisions final.json --out final.references.json
 gene-context af3-campaign --fasta all.selected.proteins.faa \
   --approval final.references.json \
   --metadata models.by_sequence_id.json --out SERVER_CAMPAIGN \
@@ -148,7 +148,7 @@ looked up by gene name. The Server's documented JSON upload is the initial
 transport; the prototype does not rely on internal browser RPC endpoints.
 
 ```bash
-gene-context stage4 --results STOP3 --decisions final.json --out STOP4_SERVER \
+gene-context stage4 --results Stage 3 --decisions final.json --out STOP4_SERVER \
   --structure-provider alphafold-server --structure-limit 2
 # Or prepare independently from an exact selected FASTA:
 gene-context af3-prepare --fasta final.proteins.faa --approval final.references.json --out SERVER_REQUESTS --limit 2
@@ -179,7 +179,7 @@ MSAs, templates and output terms remain in the original `source.zip`; selected
 raw mmCIF, confidence files and conversion details are also retained. Chain-A PDB
 conversion changes decimal precision; the raw structure is preserved. The
 catalogue can be supplied with `stage4 --structures SERVER_RESULT/catalogue.json`.
-Use a new STOP4 directory and preserve the existing report and decisions.
+Use a new Stage 4 directory and preserve the existing report and decisions.
 
 ### Extension boundary
 
@@ -201,14 +201,14 @@ round trip, not biological functional equivalence or all future service formats.
 
 ### Experimental API preparation and retrieval
 
-STOP4 can explicitly look up existing exact-sequence monomers through AlphaFold
+Stage 4 can explicitly look up existing exact-sequence monomers through AlphaFold
 DB, or prepare requests for genuinely new AlphaFold 3 predictions. They are
 separate operations and have separate statuses:
 
 ```sh
-gene-context stage4 --results STOP3 --decisions final.json --out STOP4_WITH_AFDB \
+gene-context stage4 --results Stage 3 --decisions final.json --out STOP4_WITH_AFDB \
   --structure-provider afdb --structure-limit 3
-gene-context stage4 --results STOP3 --decisions final.json --out STOP4_AF3_REQUESTS \
+gene-context stage4 --results Stage 3 --decisions final.json --out STOP4_AF3_REQUESTS \
   --structure-provider af3-prepare --structure-limit 3
 ```
 
@@ -232,7 +232,7 @@ a separate choice; see [service access comparison](STRUCTURE_SERVICES.md).
 These steps can also be run separately against an exact protein FASTA:
 
 ```sh
-gene-context structure-fetch --fasta STOP3/selected.proteins.faa --out AFDB_CATALOGUE
+gene-context structure-fetch --fasta Stage 3/selected.proteins.faa --out AFDB_CATALOGUE
 gene-context af3-prepare --fasta final.proteins.faa --approval final.references.json --out AF3_REQUESTS --limit 2
 ```
 
@@ -245,7 +245,7 @@ PAE matrices are dimension/value checked and downloadable; domain interpretation
 and a PAE plot are outside this prototype. pLDDT remains separate from measured
 structural similarity. The default `stage4` command is offline. Both structure
 providers work through `project.json` stage4 options without changing saved
-STOP1–3 decisions. Downloading or predicting a structure never approves a gene.
+Stage 1–3 decisions. Downloading or predicting a structure never approves a gene.
 
 ### Import an existing catalogue
 

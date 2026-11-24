@@ -108,7 +108,7 @@ def search(args):
     write_outputs(root,data)
     dump(root/'batch.json',dict(jobs=args.jobs,threads_per_genome=args.threads,
                                source_part_reviews=data['source_part_reviews'],failures=failures))
-    print('STOP — open '+str(root/'report.html'),file=sys.stderr)
+    print('Stage 1 — open '+str(root/'report.html'),file=sys.stderr)
     return 1 if failures or context_error else 0
 
 

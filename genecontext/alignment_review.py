@@ -1,6 +1,6 @@
-"""Alignment-first STOP 2: candidate membership is distinct from approval.
+"""Alignment-first Stage 2: candidate membership is distinct from approval.
 
-The adapter reads sealed STOP 1 products or reuses a sealed legacy STOP 2 pool.
+The adapter reads sealed Stage 1 products or reuses a sealed legacy Stage 2 pool.
 It never searches, runs Tiberius, modifies old checkpoints or transfers approval.
 """
 from html import escape
@@ -63,7 +63,7 @@ def stage1_pool(source, args):
                 seen.add(m['model_id'])
                 seq = proteins[product['search_id']]
                 if hashlib.sha256(seq.encode()).hexdigest() != m['sequence_sha256']:
-                    raise ValueError('STOP 1 product identity differs: '+m['model_id'])
+                    raise ValueError('Stage 1 product identity differs: '+m['model_id'])
                 mid = 'A'+digest([region['genome_id'], m['model_id'], m['sequence_sha256']])[:24]
                 records.append(dict(id=mid, protein=seq, cds='', group=region['gene'], reference=False,
                     label=region['genome_id'].split('_GC')[0].replace('_', ' ')+' · '+m['model_id']+' · annotation',
@@ -129,7 +129,7 @@ def build(source, out, *, legacy=False, args=None, title='Candidate models'):
     root = new_output(out)
     dump(root/'review_data.json', pool)
     from .interactive_review import attach
-    html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+escape(title)+' · alignment-first STOP 2</title></head><body><main style="max-width:1400px;margin:24px auto;padding:16px;font-family:system-ui"><h1>'+escape(title)+' · STOP 2: alignment and gene tree</h1><p>STOP 1 loci and annotation preparation → <strong>STOP 2: candidate models, alignment and tree</strong> → STOP 3: synteny / genomic context → STOP 4: final dossier.</p><p>Annotation or Tiberius models are prepared before selection when needed. Choose several models per locus. Rebuild the alignment and tree together, then inspect synteny. Initial checkboxes are comparison suggestions, never approved models. Existing manual decisions remain separate.</p><p>Protein and CDS views remain distinct. Missing query or annotation CDS is not invented. Similar isoforms from one locus are alternative models, not independent species observations.</p></main></body></html>'
+    html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+escape(title)+' · alignment-first Stage 2</title></head><body><main style="max-width:1400px;margin:24px auto;padding:16px;font-family:system-ui"><h1>'+escape(title)+' · Stage 2: alignment and gene tree</h1><p>Stage 1 loci and annotation preparation → <strong>Stage 2: candidate models, alignment and tree</strong> → Stage 3: synteny / genomic context → Stage 4: final dossier.</p><p>Annotation or Tiberius models are prepared before selection when needed. Choose several models per locus. Rebuild the alignment and tree together, then inspect synteny. Initial checkboxes are comparison suggestions, never approved models. Existing manual decisions remain separate.</p><p>Protein and CDS views remain distinct. Missing query or annotation CDS is not invented. Similar isoforms from one locus are alternative models, not independent species observations.</p></main></body></html>'
     html = attach(html, pool)
     html = html.replace('</body>', '<script>'+Path(__file__).with_name('alignment_review.txt').read_text()+'</script></body>')
     if legacy and provenance.get('checkpoint'):
