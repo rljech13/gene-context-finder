@@ -1,0 +1,28 @@
+// gcf-completed-review-bootstrap-v1
+(()=>{
+const m=JSON.parse(document.getElementById('legacyReviewData').textContent),seed=JSON.parse(document.getElementById('interactiveReviewData').textContent),sid=m.source_review_id,rid=m.alignment_review_id,key='gcf-stage2-'+sid,storage='gcf-realign-selection-'+rid;
+const read=k=>{try{return JSON.parse(localStorage.getItem(k)||'null')}catch(e){return null}},copy=o=>JSON.parse(JSON.stringify(o));
+const ordered=o=>Object.fromEntries(Object.entries(o||{}).sort(([a],[b])=>a.localeCompare(b)));
+const selection=d=>JSON.stringify([d?.review_id,ordered(d?.regions),ordered(d?.models)]);
+const rolesFrom=final=>{const roles={};for(const s of m.members){const bucket=m.buckets.find(b=>b.model_ids.includes(s.id)),choice=final.choices[bucket.key],note=final.cases?.[s.id];roles[s.id]={role:choice.primary===s.id?'primary_target':'special_case',reason:choice.primary===s.id?choice.reason:note?.reason||'Additional saved copy; retained as a separate case.'}}return roles};
+try{
+ if(localStorage.getItem(key)!==null)return;
+ const old=read('gcf-stage2-'+m.original_review_id),d=old?.schema==='stage2_draft_v1'&&old.review_id===m.original_review_id?copy(old):copy(m.baseline);d.review_id=sid;
+ localStorage.setItem(key,JSON.stringify(d));
+ const chosen=seed.sequences.filter(s=>s.reference||d.models[s.id]?.decision==='inspect'&&['target','alignment_candidate'].includes(d.models[s.id].role));
+ localStorage.setItem(storage,JSON.stringify(chosen.map(s=>s.id)));
+ const oldFinal=read('gcf.final.v1.'+m.original_set_id),final=oldFinal?.review_id===m.original_review_id&&oldFinal.set_id===m.original_set_id?oldFinal:m.default_final;
+ const first=Object.keys(m.analyses)[0];let firstHandoff;
+ for(const [group,a]of Object.entries(m.analyses)){
+  const ids=chosen.filter(s=>s.group===group).map(s=>s.id).sort();if(JSON.stringify(ids)!==JSON.stringify([...a.alignment.ids].sort()))continue;
+  localStorage.setItem(storage+'-saved-alignment-'+group,JSON.stringify(a.alignment));
+  localStorage.setItem(storage+'-result-'+group,JSON.stringify(a.tree));
+  localStorage.setItem(storage+'-input-models-'+a.alignment.id,JSON.stringify(a.alignment.ids));
+  localStorage.setItem(storage+'-tree-members-'+group+'-'+a.alignment.id,JSON.stringify(a.alignment.ids));
+  const h={review_id:sid,alignment_review_id:rid,decisions:d,group,alignment_result_id:a.alignment.id,tree_result_id:a.tree.id,imported_completed_analysis:true};
+  localStorage.setItem(storage+'-confirmed-'+group,JSON.stringify(h));if(group===first)firstHandoff=h;
+ }
+ if(firstHandoff){const h=firstHandoff;localStorage.setItem('gcf-synteny-final-'+sid,JSON.stringify(h));const signature=JSON.stringify([h.alignment_result_id,h.tree_result_id,selection(d),ordered(d.pairs)]);localStorage.setItem('gcf-stop4-final-'+sid,JSON.stringify({signature,roles:rolesFrom(final),inherited_from_review_id:m.original_review_id}));}
+ localStorage.setItem(storage+'-group',first);
+}catch(e){document.getElementById('legacyImportNotice').textContent='Automatic draft restoration is unavailable. Original reports and decisions are retained; use the import control or local launcher. '+e.message}
+})();

@@ -1,0 +1,83 @@
+// Alignment-first controls remain separate from any legacy decision namespace.
+(()=>{
+const seed=JSON.parse(document.getElementById('interactiveReviewData').textContent);
+if(seed.workflow!=='gcf_alignment_first_v1'||document.querySelector('meta[name="gcf-review-flow"][content="sequential-v2"]'))return;
+const host=document.getElementById('interactiveReview'),title=host.querySelector('h2');
+title.textContent='Choose models → align → inspect the tree';
+const oldHelp=document.getElementById('workflowHelp');if(oldHelp)oldHelp.textContent='Choose annotation/Tiberius models first, inspect their alignment and gene tree, then open the Stage 3 synteny view below.';
+const pageTitle=document.getElementById('pageTitle');if(pageTitle)pageTitle.textContent=pageTitle.textContent.replace('stage 2 neighborhood review','Stage 2 model choice and gene tree').replace('Stage 2 — neighborhood review','Stage 2 — model choice and gene tree');
+const groups=host.querySelector('[aria-label="Interactive gene group"]');
+const tools=host.querySelector('.interactive-tools'),rootTools=document.createElement('details');rootTools.open=true;
+const summary=document.createElement('summary');summary.textContent='Outgroup and tree view';rootTools.append(summary);
+const outer=document.createElement('select');outer.multiple=true;outer.size=5;outer.style='display:block;max-width:100%;min-width:min(600px,100%)';outer.setAttribute('aria-label','Outgroup sequences');
+const basis=document.createElement('input');basis.placeholder='Why these homologs are outside the group being compared';basis.setAttribute('aria-label','Outgroup basis');basis.style='width:95%';
+const mode=document.createElement('select');mode.setAttribute('aria-label','Tree rooting view');for(const [value,text]of [['unrooted','Unrooted'],['rooted','Rooted on selected outgroup']]){const o=document.createElement('option');o.value=value;o.textContent=text;mode.append(o)}
+const geometry=document.createElement('select');geometry.setAttribute('aria-label','Tree branch layout');for(const [value,text]of [['topology','Topology · readable spacing'],['lengths','Branch lengths']]){const o=document.createElement('option');o.value=value;o.textContent=text;geometry.append(o)}
+const zoom=document.createElement('select');zoom.setAttribute('aria-label','Tree zoom');for(const value of [100,150,200,400]){const o=document.createElement('option');o.value=String(value);o.textContent=value===100?'Fit tree':value+'%';zoom.append(o)}
+const rootNote=document.createElement('p');rootNote.textContent='Optional: choose one or more included homologs and explain the outgroup. One ML topology is kept in both views. No automatic outgroup or orthology assignment.';
+const clearRoot=document.createElement('button');clearRoot.type='button';clearRoot.id='clearOutgroup';clearRoot.textContent='Clear outgroup';clearRoot.addEventListener('click',()=>{for(const o of outer.options)o.selected=false;saveRoot();host.dispatchEvent(new Event('change'))});
+rootTools.append(rootNote,outer,clearRoot,basis,mode,geometry,zoom);tools.after(rootTools);
+function rootKey(){return 'gcf-outgroup-'+seed.review_id+'-'+groups.value}
+function rootChoices(){
+ let saved={};try{saved=JSON.parse(localStorage.getItem(rootKey())||'{}')}catch(e){}
+ outer.replaceChildren();for(const s of seed.sequences.filter(s=>s.group===groups.value)){
+  const o=document.createElement('option');o.value=s.id;o.textContent=s.label;o.selected=(saved.ids||[]).includes(s.id);outer.append(o)
+ }basis.value=saved.basis||'';
+}
+function saveRoot(){localStorage.setItem(rootKey(),JSON.stringify({ids:[...outer.selectedOptions].map(o=>o.value),basis:basis.value}))}
+outer.addEventListener('change',saveRoot);basis.addEventListener('input',saveRoot);groups.addEventListener('change',rootChoices);rootChoices();
+window.GCFPhylogenyRequest=()=>{saveRoot();return {outgroup_ids:[...outer.selectedOptions].map(o=>o.value),root_basis:basis.value}};
+const button=host.querySelector('#realignSelected');
+button.textContent='Rebuild alignment + tree';
+const tree=document.createElement('section');tree.id='candidateTree';tree.style='overflow:auto;max-height:650px;border-top:1px solid #ccd8e0;padding-top:12px';
+host.insertBefore(tree,host.querySelector('#interactiveAlignment'));
+const exportChoice=document.createElement('button');exportChoice.type='button';exportChoice.textContent='Export candidates for context confirmation';
+const notes=document.createElement('textarea');notes.placeholder='Model choice comments / remaining doubts';notes.setAttribute('aria-label','Alignment model review comments');notes.style='display:block;width:95%;margin:12px 0';
+const key='gcf-alignment-first-notes-'+seed.review_id;notes.value=localStorage.getItem(key)||'';notes.addEventListener('input',()=>localStorage.setItem(key,notes.value));
+host.append(notes,exportChoice);
+// Preserve the existing model cards. Only the viewing order changes.
+const queue=document.getElementById('reviewQueue'),comparisons=document.getElementById('comparisonPanels');
+if(queue&&comparisons){
+ const main=document.querySelector('main'),genes=queue.closest('section'),context=document.createElement('details');context.id='contextStage3';
+ const s=document.createElement('summary');s.textContent='Stage 3 · inspect synteny after the alignment and tree';context.append(s);
+ context.append(comparisons);const add=document.getElementById('addComparison')?.closest('.comparison-actions');if(add)context.append(add);
+ host.before(genes);host.after(context);
+ const heading=genes.querySelector('h2');if(heading)heading.textContent='Stage 2 · choose annotation / Tiberius models';
+ const p=document.createElement('p');p.textContent='Stage 1: select loci and annotation region → prepare annotation/Tiberius models if needed → Stage 2: choose models, align and inspect the tree → Stage 3: synteny confirmation → Stage 4: final dossier.';
+ main.insertBefore(p,genes);context.addEventListener('toggle',()=>{if(context.open)window.dispatchEvent(new Event('resize'))});
+}
+exportChoice.addEventListener('click',()=>{
+ const ids=[...document.querySelectorAll('#interactiveReview input[aria-label^="Alignment membership "]:checked')].map(c=>c.getAttribute('aria-label').slice('Alignment membership '.length));
+ // Use the complete persisted membership, including selected hidden alternatives.
+ const stored=JSON.parse(localStorage.getItem('gcf-realign-selection-'+seed.review_id)||'null');
+ const chosen=Array.isArray(stored)?stored:ids;
+ const result=JSON.parse(localStorage.getItem('gcf-realign-selection-'+seed.review_id+'-result')||'null');
+ const group=host.querySelector('[aria-label="Interactive gene group"]').value;
+ const groupIDs=chosen.filter(id=>seed.sequences.some(s=>s.id===id&&s.group===group));
+ if(!groupIDs.some(id=>seed.sequences.some(s=>s.id===id&&!s.reference))){alert('Select at least one candidate model.');return}
+ const d={schema:'alignment_model_selection_v1',review_id:seed.review_id,source_review_id:seed.source_review_id,group,ids:groupIDs,notes:notes.value,
+  alignment_result_id:result?.group===group&&JSON.stringify([...result.ids].sort())===JSON.stringify([...groupIDs].sort())?result.id:null,
+  outgroup_ids:[...outer.selectedOptions].map(o=>o.value),root_basis:outer.selectedOptions.length?basis.value:'',
+  models:groupIDs.map(id=>({id,metadata:seed.sequences.find(s=>s.id===id).metadata})),biological_approval_asserted:false,next_step:'context_confirmation'};
+ const url=URL.createObjectURL(new Blob([JSON.stringify(d,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='alignment.models.'+seed.review_id+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+});
+let last='';function draw(){
+ const group=host.querySelector('[aria-label="Interactive gene group"]').value;
+ let r;try{r=JSON.parse(localStorage.getItem('gcf-realign-selection-'+seed.review_id+'-result-'+group)||'null')}catch(e){}
+ const signature=(r?.id||'')+'-'+mode.value+'-'+geometry.value+'-'+zoom.value;if(signature===last)return;last=signature;tree.replaceChildren();
+ if(!r){tree.textContent='Select candidate models and rebuild to obtain their preliminary gene tree.';return}
+ const chosen=JSON.parse(localStorage.getItem('gcf-realign-selection-'+seed.review_id)||'[]').filter(id=>seed.sequences.some(s=>s.id===id&&s.group===group));
+ const stale=JSON.stringify([...chosen].sort())!==JSON.stringify([...r.ids].sort());
+ const h=document.createElement('h3');h.textContent='Preliminary gene tree'+(stale?' · previous model set':'');tree.append(h);
+ const p=document.createElement('p');p.textContent=r.phylogeny?.status==='computed'?'Protein ML · ModelFinder BIC · UFBoot 1000. Alternative isoforms are not independent taxa. '+(mode.value==='rooted'?'Root basis: '+(r.phylogeny.root_basis||'No outgroup-rooted result is available; choose an outgroup and rebuild.'):'Unrooted view: its layout centre is not an ancestor.'):(r.phylogeny?.reason||'Tree not computed for this result.');tree.append(p);
+ const field=mode.value+(geometry.value==='lengths'?'_phylogram_svg':'_svg');let svg=r.phylogeny?.[field];
+ // Early cached topology SVGs duplicated this legend on the first leaf row.
+ if(svg)svg=svg.replace(/<text x="18" y="24">Topology layout[^<]*<\/text>/,'');
+ const caption=document.createElement('p');caption.textContent=geometry.value==='lengths'?'Branch lengths are proportional to substitutions/site.':'Topology layout: readable spacing; branch lengths are not to scale. Exact lengths are retained in Newick.';tree.append(caption);
+ if(svg){const image=document.createElement('img');image.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);image.alt=(mode.value==='rooted'?'Rooted':'Unrooted')+' gene tree for exact selected candidate proteins';image.style='max-width:none;width:'+zoom.value+'%;height:auto';tree.append(image)}
+}
+const observe=new MutationObserver(()=>{button.textContent=button.disabled?'Rebuilding alignment + tree…':'Rebuild alignment + tree';last='';draw()});observe.observe(host.querySelector('#interactiveAlignment'),{childList:true});
+host.addEventListener('change',()=>{last='';draw()});draw();
+mode.addEventListener('change',()=>{last='';draw()});
+geometry.addEventListener('change',()=>{last='';draw()});zoom.addEventListener('change',()=>{last='';draw()});
+})();

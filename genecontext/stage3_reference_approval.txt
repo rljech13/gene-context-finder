@@ -1,0 +1,65 @@
+function referenceHash(mid){return finalSpec.protein_sha256?.[mid]||modelMap.get(mid)?.protein_sha256||''}
+function referenceMatches(choice,bucket){
+ const a=choice?.reference_approval,mid=choice?.primary;
+ return !!(a&&choice.reviewed===true&&a.schema==='stage3_reference_approval_v1'&&a.confirmed===true&&a.stage===3&&
+  a.model_id===mid&&bucket.model_ids.includes(mid)&&a.review_id===finalSpec.review_id&&a.set_id===finalSpec.set_id&&
+  a.gene===(bucket.gene||'')&&a.genome_id===(bucket.genome_id||'')&&/^[0-9a-f]{64}$/.test(a.protein_sha256)&&a.protein_sha256===referenceHash(mid));
+}
+function referenceEvent(action,bucket,approval){
+ finalState.reference_history??=[];
+ finalState.reference_history.push({action,bucket:bucket.key,model_id:approval.model_id,protein_sha256:approval.protein_sha256,at:new Date().toISOString(),approval:{...approval}});
+}
+function normalizeReferenceState(state){
+ const copy=JSON.parse(JSON.stringify(state));
+ for(const bucket of finalSpec.buckets){const c=copy.choices[bucket.key];if(c.reference_approval&&!referenceMatches(c,bucket)){
+  copy.reference_history??=[];copy.reference_history.push({action:'invalidated_on_load',bucket:bucket.key,approval:c.reference_approval});
+  delete c.reference_approval;$('finalMessage').textContent='Утверждение эталона устарело. Выбор модели сохранён; эталон нужно подтвердить заново.';
+ }}return copy;
+}
+async function exactReferenceProtein(mid){
+ const sequence=DATA.finalization.raw_sequences.protein[mid];
+ if(!sequence||!globalThis.crypto?.subtle)throw Error('Проверка последовательности недоступна. Утверждение и отправка заблокированы.');
+ const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(sequence));
+ const hash=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
+ if(hash!==referenceHash(mid))throw Error('Последовательность белка изменилась. Сначала обновите окончательный выбор модели.');
+ return {sequence,hash};
+}
+async function approveReference(key,mid){
+ try{const b=finalSpec.buckets.find(x=>x.key===key),c=finalState.choices[key];
+  if(!b||c.primary!==mid||c.reviewed!==true)throw Error('Сначала сохраните окончательный выбор модели на шаге 3.');
+  const protein=await exactReferenceProtein(mid);
+  if(finalState.choices[key]!==c||c.primary!==mid)throw Error('Выбор изменился во время проверки. Утвердите текущую модель.');
+  c.reference_approval={schema:'stage3_reference_approval_v1',stage:3,confirmed:true,model_id:mid,protein_sha256:protein.hash,
+   review_id:finalSpec.review_id,set_id:finalSpec.set_id,gene:b.gene||'',genome_id:b.genome_id||'',approved_at:new Date().toISOString()};
+  referenceEvent('approved',b,c.reference_approval);persistFinal();finalChoices();
+  $('finalMessage').textContent='Модель утверждена как эталон. Подготовка отправки в AlphaFold Server доступна.';
+ }catch(e){$('finalMessage').textContent=e.message;}
+}
+function revokeReference(key){const b=finalSpec.buckets.find(x=>x.key===key),c=finalState.choices[key];
+ if(c.reference_approval){referenceEvent('revoked',b,c.reference_approval);delete c.reference_approval;persistFinal();finalChoices();
+ $('finalMessage').textContent='Утверждение эталона отозвано. Отправка в AlphaFold Server заблокирована.';}
+}
+async function exportReferenceJob(key,mid){
+ try{const b=finalSpec.buckets.find(x=>x.key===key),c=finalState.choices[key],approval=c.reference_approval;
+  if(!referenceMatches(c,b))throw Error('Сначала нажмите «Утвердить модель как эталон».');
+  const protein=await exactReferenceProtein(mid);
+  if(finalState.choices[key]!==c||c.reference_approval!==approval||!referenceMatches(c,b))throw Error('Утверждение изменилось. Отправка заблокирована.');
+  if(protein.sequence.length<4||protein.sequence.length>5000||/[^ACDEFGHIKLMNPQRSTVWY]/.test(protein.sequence))throw Error('Эта последовательность не поддерживается AlphaFold Server без изменения; задание не создано.');
+  const name='GCF_'+protein.hash.slice(0,24),job=[{name,modelSeeds:['42'],dialect:'alphafoldserver',version:1,sequences:[{proteinChain:{sequence:protein.sequence,count:1}}]}];
+  saveBlob(new Blob([JSON.stringify(job,null,2)+'\n'],{type:'application/json'}),name+'.server.json');
+  const open=link('https://alphafoldserver.com/','Открыть AlphaFold Server');open.target='_blank';open.rel='noopener';
+  $('finalMessage').replaceChildren(document.createTextNode('Задание скачано. Загрузите JSON в AlphaFold Server и подтвердите запуск. '),open);
+ }catch(e){$('finalMessage').textContent=e.message;}
+}
+function appendReferenceButtons(files,row){
+ const b=finalSpec.buckets.find(x=>x.model_ids.includes(row.model_id)),c=finalState.choices[b.key],approved=referenceMatches(c,b);
+ const controls=el('div',undefined,'reference-approval-controls');controls.style.cssText='display:grid;gap:6px;margin-top:10px';controls.dataset.referenceModelId=row.model_id;
+ const approve=el('button',approved?'Эталон утверждён':'Утвердить модель как эталон','choice-button');approve.type='button';approve.dataset.action='approve-reference';
+ approve.disabled=approved||!c.reviewed||!referenceHash(row.model_id);approve.title=c.reviewed?'Подтвердить эту модель и точную последовательность как финальный эталон':'Сначала сохраните окончательный выбор модели';
+ approve.addEventListener('click',()=>approveReference(b.key,row.model_id));controls.append(approve);
+ const send=el('button','Подготовить отправку в AlphaFold Server','choice-button');send.type='button';send.dataset.action='send-alphafold';send.disabled=!approved;send.title=approved?'Скачать задание для загрузки на официальный Server':'Сначала утвердите модель как эталон';
+ send.addEventListener('click',()=>exportReferenceJob(b.key,row.model_id));controls.append(send);
+ if(approved){const revoke=el('button','Отозвать утверждение','choice-button');revoke.type='button';revoke.dataset.action='revoke-reference';revoke.addEventListener('click',()=>revokeReference(b.key));controls.append(revoke);}
+ for(const button of controls.querySelectorAll('button')){button.style.cssText='border:1px solid #bfd2cf;border-radius:5px;padding:7px 9px;margin:0;background:#f2f8f6;text-align:left;line-height:1.5';if(button.disabled){button.style.opacity='.45';button.style.cursor='not-allowed';}}
+ files.append(controls);
+}

@@ -42,16 +42,18 @@ def parse_protein_hits(path, queries, subjects):
             continue
         seen.add(line)
         f = line.split('\t')
-        if len(f) != 12 or f[0] not in queries or f[1] not in subjects:
+        if len(f) not in {12, 14} or f[0] not in queries or f[1] not in subjects:
             raise ValueError(f'Unknown/malformed BLASTP hit, line {n}')
         qa, qb, sa, sb = int(f[4])-1, int(f[5]), int(f[6])-1, int(f[7])
         qlen, slen = len(queries[f[0]]['sequence']), subjects[f[1]]
         if not (0 <= qa < qb <= qlen and 0 <= sa < sb <= slen) or (int(f[10]), int(f[11])) != (qlen, slen):
             raise ValueError(f'BLASTP coordinates/lengths differ from input, line {n}')
-        hits.append(dict(hsp_id='h_'+hashlib.sha256(line.encode()).hexdigest()[:20],
+        from .blast_alignment import alignment_fields
+        trace = alignment_fields(f, queries[f[0]]['sequence'])
+        hits.append(dict(hsp_id='h_'+hashlib.sha256('\t'.join(f[:12]).encode()).hexdigest()[:20],
             query=f[0], contig=f[1], start=sa, end=sb, strand='+',
             qstart=qa, qend=qb, alignment_length=int(f[3]), identity=float(f[2])/100,
-            evalue=float(f[8]), bitscore=float(f[9]), qlen=qlen, slen=slen))
+            evalue=float(f[8]), bitscore=float(f[9]), qlen=qlen, slen=slen, **trace))
     return hits
 
 
@@ -128,12 +130,25 @@ def search_annotated(row, args, config, queries, root, work, runner, record, ver
                 subject_coverage=union_length([(h['start'],h['end']) for h in c['hsps']])/lengths[pid],
                 annotation_model=model, shared_product_loci=sorted({m['gene_id'] for m in product['mappings']}))
             assigned[gid].append(own)
+    contigs=dict(catalog['contigs'])
+    missing={genes[gid]['contig'] for gid in assigned}-set(contigs)
+    if missing and row.get('fasta'):
+        # GFF3 sequence-region directives are optional. With supplied products,
+        # the catalogue intentionally avoided reading genomic DNA; obtain an
+        # exact, separately verified FASTA index only when bounds are missing.
+        from .search_cache import prepare_genome
+        genome,index_receipt=prepare_genome(row['fasta'],cache/'search_inputs',runner,versions=versions)
+        try:
+            for contig in missing:
+                if contig in genome.index:contigs[contig]=(0,genome.length(contig))
+        finally:genome.close()
+        record.update(fasta_read=True,contig_extent_source='verified_genomic_fasta',contig_index=index_receipt)
     loci = []
     for gid, own in assigned.items():
         gene = genes[gid]; qids = sorted({c['query'] for c in own})
         members = [m for qid in qids for m in queries[qid]['members']]
         species = sorted({m['species'] for m in members if m.get('species')})
-        region = catalog['contigs'].get(gene['contig'])
+        region = contigs.get(gene['contig'])
         if not region or region[1] < gene['end']:
             raise ValueError('Missing/invalid contig extent for annotated locus: '+gene['contig'])
         lid = 'locus_'+hashlib.sha256(json.dumps([row['genome_id'], config['gene'], gid]).encode()).hexdigest()[:16]

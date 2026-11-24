@@ -68,11 +68,11 @@ def matrix_html(path, selected):
     return ''.join(out)+'</table></div>'
 
 
-def prepare_inputs(data, state, source):
+def prepare_inputs(data, state, source, genomic_context=True):
     """Validate exact saved sequence/model identity before any output is created."""
     problems = validate_choices(data, state)
     if problems:
-        raise ValueError('STOP-2 decisions are not ready:\n' + '\n'.join(issue_text(data, p) for p in problems))
+        raise ValueError('Stage 2 decisions are not ready:\n' + '\n'.join(issue_text(data, p) for p in problems))
     proteins = read_fasta(source/'proteins.faa') if (source/'proteins.faa').stat().st_size else {}
     coding = read_fasta(source/'cds.fna') if (source/'cds.fna').stat().st_size else {}
     windows = read_fasta(source/'windows.fna', preserve_case=True)
@@ -80,7 +80,7 @@ def prepare_inputs(data, state, source):
     metadata = constraints(data); selected = []
     for m in data['models']:
         c = state.get('models', {}).get(m['model_id'], {})
-        if c.get('decision') != 'inspect' or c.get('role') != 'target':
+        if c.get('decision') != 'inspect' or c.get('role') not in {'target','alignment_candidate'}:
             continue
         mid = m['model_id']; dna = coding.get(mid, ''); protein = proteins.get(mid, '')
         if not protein or '*' in protein or any(hashlib.sha256(seq.encode()).hexdigest() != m[field]
@@ -114,14 +114,15 @@ def prepare_inputs(data, state, source):
             target_start=m['start'] if own_anchor else r['anchor_start'],
             target_end=m['end'] if own_anchor else r['anchor_end'],
             discovery_seed_start=r['anchor_start'],discovery_seed_end=r['anchor_end'],
-            window_bp=len(sequence),window_fasta='windows/'+mid+'.fna',
+            window_bp=len(sequence),window_fasta='windows/'+mid+'.fna' if genomic_context else '',
             physical_id=metadata[mid]['physical_id'],recommendation_reason=c.get('notes') or state['regions'][r['region_id']]['notes'],
-            target_override=c.get('target_override',False),selection_kind=c.get('selection_kind',''),source_region_id=r['region_id'])
+            target_override=c.get('target_override',False),selection_kind=c.get('selection_kind',''),source_region_id=r['region_id'],
+            alignment_candidate=c.get('role')=='alignment_candidate')
         row.update(selection_status='explicit_model_choice',anchor_kind='reviewed_target',context_status='reviewed_neighbor_models')
         row['target_relative_start'],row['target_relative_end']=orient_interval(row,row['target_start'],row['target_end'])
         row['relative_cds']=[orient_interval(row,a,b) for a,b,_ in m['cds_blocks']]
-        row['softmasked_bases']=sum(x.islower() for x in sequence)
-        selected.append((row,protein,dna,sequence if m['strand']=='+' else reverse_complement(sequence)))
+        row['softmasked_bases']=sum(x.islower() for x in sequence) if genomic_context else None
+        selected.append((row,protein,dna,(sequence if m['strand']=='+' else reverse_complement(sequence)) if genomic_context else ''))
     return selected
 
 
@@ -162,7 +163,8 @@ def reviewed_neighbors(data,state,selected):
 def run(args):
     started=time.perf_counter();timings={};source,data=verify_checkpoint(args.results)
     state=json.loads(Path(args.decisions).read_text())
-    inputs=prepare_inputs(data,state,source)
+    genomic_context=getattr(args,'genomic_context',False)
+    inputs=prepare_inputs(data,state,source,genomic_context=genomic_context)
     # Stage-2 BLAST queries are extracted model proteins; its subjects are
     # the supplied target references. Neighbors must not enter the target MSA.
     raw_queries=source/'target_support'/'subjects.faa'
@@ -175,14 +177,15 @@ def run(args):
         print(json.dumps(dict(valid=True,review_id=data['review_id'],selected_models=len(inputs),
             selected_species=len({r['genome_id'] for r,_,_,_ in inputs}),output_created=False)))
         return 0
-    versions=tool_versions(['mafft',args.dna_engine]) if len(inputs)>1 else {}
+    versions=tool_versions(['mafft']+([args.dna_engine] if genomic_context else [])) if len(inputs)>1 else {}
     if any(not v['path'] for v in versions.values()):
         raise ValueError('Missing comparison tool: '+', '.join(k for k,v in versions.items() if not v['path']))
     timings['input_validation_seconds']=time.perf_counter()-started
     order={r['region_id']:i for i,r in enumerate(data['regions'])}
     inputs.sort(key=lambda item:(order[item[0]['source_region_id']],item[0]['start'],item[0]['model_id']))
     root=new_output(args.out);runner=TimedRunner(root);errors=[];step=time.perf_counter()
-    (root/'windows').mkdir();(root/'sequences').mkdir()
+    if genomic_context:(root/'windows').mkdir()
+    (root/'sequences').mkdir()
     shutil.copyfile(source/'evidence.json',root/'source.evidence.json')
     # Keep original evidence byte-for-byte and carry its separate support
     # supplements into the handoff; later ledgers must use the same constraints.
@@ -193,39 +196,41 @@ def run(args):
     shutil.copyfile(args.decisions,root/'decisions.snapshot.json')
     selected=[];windows={};overrides={};catalogue=[];all_flanks=dict(upstream=[],downstream=[])
     for row,protein,cds,sequence in inputs:
-        mid=row['model_id'];selected.append(row);windows[mid]=sequence
+        mid=row['model_id'];selected.append(row)
+        if genomic_context:windows[mid]=sequence
         overrides[mid]=dict(protein=protein,cds=cds)
-        write_fasta(root/row['window_fasta'],[(mid,sequence)])
+        if genomic_context:write_fasta(root/row['window_fasta'],[(mid,sequence)])
         for suffix,value in [('protein.faa',protein),('cds.fna',cds)]:
             write_fasta(root/'sequences'/(mid+'.'+suffix),[(mid,value)])
-        native_window=sequence if row['strand']=='+' else reverse_complement(sequence)
-        fully_observed=row['window_start']<=row['start']<row['end']<=row['window_end']
+        native_window=(sequence if row['strand']=='+' else reverse_complement(sequence)) if genomic_context else ''
+        fully_observed=genomic_context and row['window_start']<=row['start']<row['end']<=row['window_end']
         gene=''
         if fully_observed:
             gene=native_window[row['start']-row['window_start']:row['end']-row['window_start']]
             if row['strand']=='-':gene=reverse_complement(gene)
             write_fasta(root/'sequences'/(mid+'.gene.fna'),[(mid,gene)])
-        flanks,flank_info=extract_flanks(row,native_window)
+        flanks,flank_info=extract_flanks(row,native_window) if genomic_context else ({},dict(flank_status='not_requested',upstream_bp=0,downstream_bp=0,flank_requested_bp=0))
         for kind,sequence_flank in flanks.items():
             write_fasta(root/'sequences'/(mid+'.'+kind+'.fna'),[(mid,sequence_flank)])
             all_flanks[kind].append((mid,sequence_flank))
         catalogue.append(dict(**flank_info,target=row['group_name'],species=species(row['genome_id']),genome_id=row['genome_id'],
             assembly_accession=('GC'+row['genome_id'].rsplit('_GC',1)[1]) if '_GC' in row['genome_id'] else '',
-            physical_id=row['physical_id'],copy_label=row['copy_label'],selection_kind=row['selection_kind'],region_id=row['source_region_id'],model_id=mid,source=row['source'],
+            physical_id=row['physical_id'],copy_label=row['copy_label'],selection_kind=row['selection_kind'],alignment_candidate=row.get('alignment_candidate',False),region_id=row['source_region_id'],model_id=mid,source=row['source'],
             original_model=row['original_model'],original_gene=row['original_gene'],gene_label=row['target_name'],
             contig=row['contig'],start=row['start'],end=row['end'],strand=row['strand'],protein_aa=len(protein),
             coding_status=row['coding_status'],window_edge=row['window_edge'],target_override=row['target_override'],
             protein_sha256=row['protein_sha256'],cds_sha256=row['cds_sha256'],
-            genomic_window_sha256=hashlib.sha256(sequence.encode()).hexdigest(),
-            gene_dna_status='exported' if fully_observed else 'not_fully_observed_in_saved_window',
+            genomic_window_sha256=hashlib.sha256(sequence.encode()).hexdigest() if genomic_context else '',
+            gene_dna_status='not_requested' if not genomic_context else 'exported' if fully_observed else 'not_fully_observed_in_saved_window',
             protein_file='sequences/'+mid+'.protein.faa',cds_file='sequences/'+mid+'.cds.fna',
             gene_file='sequences/'+mid+'.gene.fna' if fully_observed else '',window_file=row['window_fasta'],
             upstream_file='sequences/'+mid+'.upstream.fna' if 'upstream' in flanks else '',downstream_file='sequences/'+mid+'.downstream.fna' if 'downstream' in flanks else '',
             recommendation_reason=row['recommendation_reason'],comparison_scope='reviewed target candidates; copy orthology not inferred by this command'))
     for name,values in [('selected.proteins.faa',[(r['model_id'],p) for r,p,_,_ in inputs]),
-                        ('selected.cds.fna',[(r['model_id'],c) for r,_,c,_ in inputs]),
-                        ('selected.genomic_windows.fna',list(windows.items()))]:write_fasta(root/name,values)
-    for kind,records in all_flanks.items():write_fasta(root/('selected.'+kind+'.fna'),records)
+                        ('selected.cds.fna',[(r['model_id'],c) for r,_,c,_ in inputs])]:write_fasta(root/name,values)
+    if genomic_context:
+        write_fasta(root/'selected.genomic_windows.fna',list(windows.items()))
+        for kind,records in all_flanks.items():write_fasta(root/('selected.'+kind+'.fna'),records)
     fields=list(catalogue[0]) if catalogue else ['target','species','model_id','source','recommendation_reason']
     write_tsv(root/'sequence_catalogue.tsv',catalogue,fields)
     chosen_by_region={r['source_region_id'] for r in selected}
@@ -242,7 +247,11 @@ def run(args):
     timings['sequence_exports_seconds']=time.perf_counter()-step;step=time.perf_counter()
     protein_summary=protein_comparison(args,source,root,groups,queries,selected,runner,errors,sequence_overrides=overrides)
     timings['protein_and_codon_alignment_seconds']=time.perf_counter()-step;step=time.perf_counter()
-    dna,blocks,categories=compare_dna(args,root,selected,windows,runner,errors)
+    # Empty, schema-bearing tables keep readers compatible. Their explicit
+    # status distinguishes an unrequested analysis from measured zero matches.
+    dna,blocks,categories=compare_dna(args,root,selected if genomic_context else [],windows,runner,errors)
+    genomic_status=dict(status=('completed_with_errors' if errors else 'completed') if genomic_context else 'not_requested',
+        requested=genomic_context,reason='' if genomic_context else 'Stage 3 prepares selected protein/CDS sequences and alignments for Stage 4; genomic windows are optional.')
     timings['genomic_alignment_seconds']=time.perf_counter()-step;step=time.perf_counter()
     context=reviewed_neighbors(data,state,selected);synteny=synteny_pairs(selected,context)
     write_tsv(root/'reviewed_neighbors.tsv',context,['locus_id','genome_id','model_id','physical_id','name','contig','start','end','strand','evidence','homology_group','correspondence_status'])
@@ -251,15 +260,17 @@ def run(args):
     analysis['reviewed_cross_locus_pairs']=len(state.get('pairs',{}))
     write_context(root,source,data,state,selected)
     timings['context_and_summaries_seconds']=time.perf_counter()-step
-    dump(root/'comparison.json',dict(groups=groups,selected=selected,protein=protein_summary,dna=dna,blocks=blocks,categories=categories,context=context,synteny=synteny,errors=errors,analysis=analysis))
+    dump(root/'comparison.json',dict(groups=groups,selected=selected,protein=protein_summary,dna=dna,blocks=blocks,categories=categories,context=context,synteny=synteny,errors=errors,analysis=analysis,genomic_context=genomic_status))
     manifest=dict(stage='stage3_comparison',status='completed_with_errors' if errors else 'completed' if selected else 'no_selected_targets',
         created=now(),source_checkpoint=str(source),source_review_id=data['review_id'],
         source_evidence_sha256=sha256(source/'evidence.json'),decisions_sha256=sha256(root/'decisions.snapshot.json'),
         selected_models=len(selected),selected_species=len({r['genome_id'] for r in selected}),
         target_reference_ids=list(references),
+        comparison_scope='selected_protein_cds_with_genomic_context' if genomic_context else 'selected_protein_cds',
+        genomic_context=genomic_status,
         control_run=args.control_run,biological_approval_asserted=False,parameters=vars(args),tools=versions,
         commands=runner.commands,errors=errors,elapsed_seconds=time.perf_counter()-started,timings=timings,resources=resource_usage(),
-        source_code_sha256={n:sha256(Path(__file__).with_name(n)) for n in ['stage3.py','stage3_analysis.py','stage3_report.py','stage3_report.txt','stage3_summary.py','stage3_summary.txt','stage3_handoff.py','stage3_finalization.py','stage3_finalization.txt','gene_identity.py','stage3_context.py','stage2_choices.py','alignment.py','comparison_report.py','dna_compare.py','stage2_neighborhood.txt','stage2_cluster.txt']})
+        source_code_sha256={n:sha256(Path(__file__).with_name(n)) for n in ['interactive_review.py','review_realign.txt','stage3_export.py','cli.py','stage3.py','stage3_analysis.py','stage3_report.py','stage3_report.txt','stage3_summary.py','stage3_summary.txt','stage3_handoff.py','stage3_finalization.py','stage3_finalization.txt','stage3_reference_approval.txt','gene_identity.py','stage3_context.py','stage2_choices.py','alignment.py','alignment_blossom.py','comparison_report.py','dna_compare.py','stage2_neighborhood.txt','stage2_cluster.txt']})
     step=time.perf_counter()
     from .stage3_report import write_report as full_report
     full_report(root,data,catalogue,groups,selected,observations,blocks,context,errors,args.control_run,analysis,manifest)

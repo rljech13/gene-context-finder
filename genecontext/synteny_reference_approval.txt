@@ -1,0 +1,59 @@
+// gcf-synteny-reference-approval-v1
+(()=>{
+'use strict';
+const isSynteny=new URLSearchParams(location.search).get('view')==='synteny'||document.querySelector('meta[name="gcf-review-page"][content="synteny"]');
+if(!isSynteny||!document.documentElement.classList.contains('gcf-synteny-stop'))return;
+const main=document.querySelector('main'),panels=document.getElementById('comparisonPanels'),seedNode=document.getElementById('interactiveReviewData');
+if(!main||!panels||!seedNode||document.getElementById('syntenyReferenceApproval'))return;
+const seed=JSON.parse(seedNode.textContent),source=seed.source_review_id;
+if(!source||typeof DATA==='undefined'||DATA.review_id!==source)return;
+const pool=new Map(seed.sequences.filter(s=>!s.reference).map(s=>[s.id,s]));
+const key='gcf-synteny-reference-v1-'+source,handoffKey='gcf-synteny-final-'+source;
+const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n};
+function canonical(x){if(Array.isArray(x))return '['+x.map(canonical).join(',')+']';if(x&&typeof x==='object')return '{'+Object.keys(x).sort().filter(k=>x[k]!==undefined).map(k=>JSON.stringify(k)+':'+canonical(x[k])).join(',')+'}';return JSON.stringify(x)}
+function selection(d){return {schema:d?.schema,review_id:d?.review_id,regions:d?.regions||{},models:d?.models||{}}}
+function read(k){const raw=localStorage.getItem(k);return raw?JSON.parse(raw):null}
+async function hash(text){if(!crypto?.subtle)throw Error('Sequence verification is unavailable. Reference approval is blocked.');const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));return Array.from(new Uint8Array(bytes),b=>b.toString(16).padStart(2,'0')).join('')}
+function snapshot(h){return h?{review_id:h.review_id,alignment_review_id:h.alignment_review_id,alignment_result_id:h.alignment_result_id||null,tree_result_id:h.tree_result_id||null,decisions:selection(h.decisions)}:null}
+function context(){
+ const draft=typeof exportState==='function'?exportState():read('gcf-stage2-'+source),saved=read('gcf-stage2-'+source),handoff=read(handoffKey);
+ const chosen=Array.from(pool.values()).filter(s=>draft?.models?.[s.id]?.decision==='inspect'&&['target','alignment_candidate'].includes(draft.models[s.id].role));
+ let reason='';
+ if(!handoff||handoff.review_id!==source||handoff.alignment_review_id!==seed.review_id||handoff.decisions?.review_id!==source)reason='Confirm the selected set in Stage 2, then review its synteny.';
+ else if(canonical(selection(handoff.decisions))!==canonical(selection(draft))||(saved&&canonical(selection(saved))!==canonical(selection(draft))))reason='The model selection changed. Confirm the current set in Stage 2 and review its synteny again.';
+ else if(saved&&canonical(saved.pairs||{})!==canonical(draft?.pairs||{}))reason='The context changed in another tab. Reload Stage 3 before approving a reference.';
+ else if(!chosen.length)reason='The confirmed set contains no target gene models.';
+ return {draft,handoff,chosen,reason,signature:handoff?canonical({handoff:snapshot(handoff),synteny_pairs:draft?.pairs||{}}):''};
+}
+const section=node('section');section.id='syntenyReferenceApproval';section.setAttribute('aria-labelledby','syntenyReferenceTitle');
+const title=node('h2','After synteny · approve reference models');title.id='syntenyReferenceTitle';
+section.append(title,node('p','After reviewing genomic context and synteny, approve the exact model for each locus. Confirming the set in Stage 2 does not approve a reference.'));
+const notice=node('p'),list=node('div'),status=node('p');status.setAttribute('role','status');status.id='syntenyReferenceStatus';
+const save=node('button','Download reference approvals · JSON');save.type='button';save.dataset.action='export-reference-approvals';section.append(notice,list,save,status);if(window.GCFSyntenyReview)window.GCFSyntenyReview.mountReference(section);else main.append(section);
+const style=node('style');style.textContent='#syntenyReferenceApproval{margin-top:24px}#syntenyReferenceApproval .reference-row{border-top:1px solid #dce3eb;padding:14px 0}#syntenyReferenceApproval button{margin:8px 8px 0 0}#syntenyReferenceApproval button:disabled{opacity:.45;cursor:not-allowed}#syntenyReferenceApproval small{display:block;overflow-wrap:anywhere}';section.append(style);
+function sameApproval(a,c,s,fingerprint){return !!(a&&a.schema==='synteny_reference_approval_v1'&&a.confirmed===true&&a.stage===3&&a.synteny_reviewed===true&&a.model_id===s.id&&a.source_review_id===source&&a.alignment_review_id===seed.review_id&&a.context_sha256===fingerprint&&a.protein_sha256===s.metadata?.protein_sha256&&a.gene===s.group&&a.genome_id===s.metadata.genome_id&&a.physical_id===physical(s)&&a.region_id===s.metadata.region_id&&a.cds_sha256===(s.metadata.cds_sha256||'')&&a.contig===s.metadata.contig&&a.start===s.metadata.start&&a.end===s.metadata.end&&a.strand===s.metadata.strand)}
+function approvals(){const a=read(key);return a?.schema==='gcf_synteny_reference_draft_v1'&&a.source_review_id===source?a:{schema:'gcf_synteny_reference_draft_v1',source_review_id:source,references:{}}}
+function physical(s){const m=s.metadata;return m.genome_id+'|'+(m.model_constraints?.physical_id||m.gene_group||m.region_id)}
+function validRecords(c){const a=approvals();if(a.context_canonical!==c.signature)return {};return Object.fromEntries(c.chosen.filter(s=>!c.reason&&sameApproval(a.references?.[s.id],c,s,a.context_sha256)).map(s=>[s.id,a.references[s.id]]))}
+function render(){try{const c=context(),valid=validRecords(c);notice.textContent=c.reason||'The confirmed Stage 2 set is saved. Approve references separately here, after reviewing synteny.';list.replaceChildren();save.disabled=!Object.keys(valid).length;
+ for(const s of c.chosen){const row=node('div');row.className='reference-row';row.dataset.modelId=s.id;const m=s.metadata;
+  row.append(node('strong',s.label),node('small',m.contig+':'+(Number(m.start)+1)+'–'+m.end+' ('+m.strand+')'));
+  const approve=node('button',valid[s.id]?'Reference approved':'Approve model as reference');approve.type='button';approve.dataset.action='approve-synteny-reference';approve.disabled=!!c.reason||!!valid[s.id];approve.title=c.reason||'Approve this exact model after reviewing synteny';approve.addEventListener('click',()=>act(()=>approveModel(s.id)));
+  const send=node('button','Prepare AlphaFold Server submission');send.type='button';send.dataset.action='send-alphafold';send.disabled=!valid[s.id];send.addEventListener('click',()=>act(()=>exportJob(s.id)));row.append(approve,send);
+  if(valid[s.id]){const revoke=node('button','Revoke reference approval');revoke.type='button';revoke.dataset.action='revoke-synteny-reference';revoke.addEventListener('click',()=>act(async()=>{const a=approvals();delete a.references[s.id];localStorage.setItem(key,JSON.stringify(a));render();status.textContent='Reference approval revoked. Submission preparation is blocked.'}));row.append(revoke)}list.append(row);
+ }
+ }catch(e){notice.textContent='Reference approval blocked: '+e.message;save.disabled=true;list.replaceChildren()}}
+async function act(f){try{await f()}catch(e){render();status.textContent=e.message}}
+async function checked(id){const c=context(),s=c.chosen.find(x=>x.id===id);if(c.reason||!s)throw Error(c.reason||'This model is not in the confirmed set.');const digest=await hash(s.protein);if(digest!==s.metadata?.protein_sha256)throw Error('The sequence changed. Approve the model again.');if(context().signature!==c.signature||context().reason)throw Error('The set changed during verification. Confirm it again.');return {c,s,digest}}
+async function approveModel(id){const {c,s,digest}=await checked(id),fingerprint=await hash(c.signature);
+ if(context().signature!==c.signature||context().reason)throw Error('The set changed. Reference approval is blocked.');
+ const a=approvals(),valid=validRecords(c);
+ if(c.chosen.some(other=>other.id!==id&&physical(other)===physical(s)&&valid[other.id]))throw Error('Another model is already approved for this physical locus. Revoke that approval first.');
+ a.references=valid;a.context_canonical=c.signature;a.context_sha256=fingerprint;
+ a.references[id]={schema:'synteny_reference_approval_v1',stage:3,confirmed:true,synteny_reviewed:true,model_id:id,source_review_id:source,alignment_review_id:seed.review_id,context_sha256:fingerprint,protein_sha256:digest,gene:s.group,genome_id:s.metadata.genome_id,physical_id:physical(s),region_id:s.metadata.region_id,cds_sha256:s.metadata.cds_sha256||'',contig:s.metadata.contig,start:s.metadata.start,end:s.metadata.end,strand:s.metadata.strand,approved_at:new Date().toISOString()};localStorage.setItem(key,JSON.stringify(a));render();status.textContent='Model approved as reference after synteny review. Submission preparation is available.';
+}
+function download(text,name){const url=URL.createObjectURL(new Blob([text],{type:'application/json'})),a=node('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+async function exportJob(id){const {c,s}=await checked(id);if(!validRecords(c)[id])throw Error('Approve the model after reviewing synteny first.');if(s.protein.length<4||s.protein.length>5000||/[^ACDEFGHIKLMNPQRSTVWY]/.test(s.protein))throw Error('The exact sequence is unsupported by AlphaFold Server. No job was created.');const name='GCF_'+s.metadata.protein_sha256.slice(0,24);download(JSON.stringify([{name,modelSeeds:['42'],dialect:'alphafoldserver',version:1,sequences:[{proteinChain:{sequence:s.protein,count:1}}]}],null,2)+'\n',name+'.server.json');const a=node('a','Open AlphaFold Server');a.href='https://alphafoldserver.com/';a.target='_blank';a.rel='noopener';status.replaceChildren(document.createTextNode('Job downloaded. Upload the JSON to AlphaFold Server and confirm the run. '),a)}
+save.addEventListener('click',()=>act(async()=>{const c=context(),references=validRecords(c);if(c.reason||!Object.keys(references).length)throw Error(c.reason||'No reference models are approved.');for(const id of Object.keys(references))await checked(id);if(context().signature!==c.signature||context().reason)throw Error('The set changed. Export is blocked.');const latest=validRecords(context());if(Object.entries(references).some(([id,a])=>canonical(latest[id]||null)!==canonical(a)))throw Error('Reference approval was revoked or changed. Export is blocked.');const result={schema:'gcf_synteny_reference_approval_v1',stage:3,source_review_id:source,alignment_review_id:seed.review_id,handoff:snapshot(c.handoff),synteny_pairs:c.draft.pairs||{},references,proteins:Object.fromEntries(Object.entries(references).map(([id,a])=>[id,a.protein_sha256]))};download(JSON.stringify(result,null,2)+'\n','stage3.synteny.references.json');status.textContent='Reference approvals saved separately from the original decisions.'}));
+main.addEventListener('change',()=>setTimeout(render,0));window.addEventListener('storage',render);window.addEventListener('pageshow',render);window.addEventListener('focus',render);render();
+})();

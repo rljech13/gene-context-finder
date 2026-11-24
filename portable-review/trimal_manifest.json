@@ -1,0 +1,32 @@
+{
+  "darwin-amd64": {
+    "Archive": "trimAl_MacOS_x86-64.zip",
+    "Entry": "trimAl_MacOS_x86-64/trimal",
+    "SHA256": "d4a5a178d003ccde8c1c41e0914a8faa7a5212bc92321aabe84caec0329971bb",
+    "URL": "https://github.com/inab/trimal/releases/download/v1.5.1/trimAl_MacOS_x86-64.zip"
+  },
+  "darwin-arm64": {
+    "Archive": "trimAl_MacOS_aarch64.zip",
+    "Entry": "trimAl_MacOS_aarch64/trimal",
+    "SHA256": "3ff59049e46c578f6fbb0f80bc734430ec4cd780c28ffdace598187cead22513",
+    "URL": "https://github.com/inab/trimal/releases/download/v1.5.1/trimAl_MacOS_aarch64.zip"
+  },
+  "linux-amd64": {
+    "Archive": "trimAl_Linux_x86-64.zip",
+    "Entry": "trimAl_Linux_x86-64/trimal",
+    "SHA256": "0e70e1aba9e2b7590993f3ff19834f2440574e1694d54f2fe56854284ef151a6",
+    "URL": "https://github.com/inab/trimal/releases/download/v1.5.1/trimAl_Linux_x86-64.zip"
+  },
+  "linux-arm64": {
+    "Archive": "trimAl_Linux_aarch64.zip",
+    "Entry": "trimAl_Linux_aarch64/trimal",
+    "SHA256": "1a9e8bfd10f701cdc6401c996186f65d14c69fec95982a46afb171b733557e27",
+    "URL": "https://github.com/inab/trimal/releases/download/v1.5.1/trimAl_Linux_aarch64.zip"
+  },
+  "windows-amd64": {
+    "Archive": "trimAl_Windows_x86-64.zip",
+    "Entry": "trimAl_Windows_x86-64/trimal.exe",
+    "SHA256": "ee202e46687eb8e58556daa33edce28acb9131550e902a398a04edf1e672a3be",
+    "URL": "https://github.com/inab/trimal/releases/download/v1.5.1/trimAl_Windows_x86-64.zip"
+  }
+}

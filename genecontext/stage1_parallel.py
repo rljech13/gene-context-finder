@@ -19,7 +19,7 @@ OPTIONS = ['discovery','gene','query','query_type','query_metadata','threads','s
            'refine_max_models','min_query_coverage','min_identity','max_evalue']
 
 
-def merge_parts(parts, output, expected_genomes):
+def merge_parts(parts, output, expected_genomes, write=True):
     """Verify worker checkpoints and produce one ordinary stage 1 checkpoint."""
     data=None;seen=set();receipts=[];roots=[]
     for part in parts:
@@ -51,7 +51,7 @@ def merge_parts(parts, output, expected_genomes):
                 if target.exists():raise ValueError('Worker raw evidence names collide: '+path.name)
                 if path.is_dir():shutil.copytree(path,target)
                 else:shutil.copyfile(path,target)
-    write_outputs(root,data)
+    if write:write_outputs(root,data)
     return data
 
 
@@ -72,7 +72,7 @@ def search(args):
         gid=row['genome_id'];folder=work/gid;folder.mkdir()
         manifest=folder/'genome.tsv';write_tsv(manifest,[row],list(row))
         output=folder/'result'
-        argv=[sys.executable,'-m','genecontext','stage1',*options,'--jobs','1','--early-synteny','off',
+        argv=[sys.executable,'-m','genecontext.stage1_parallel',*options,'--jobs','1','--early-synteny','off',
               '--neighbor-cache',str(cache),'--genomes',str(manifest),'--out',str(output)]
         env=dict(os.environ,OMP_NUM_THREADS=str(args.threads))
         with (folder/'stdout.log').open('w') as out,(folder/'stderr.log').open('w') as err:
@@ -100,7 +100,7 @@ def search(args):
         raise RuntimeError('Some workers did not produce valid checkpoints; see '+str(root/'progress.json'))
     # Aggregate into the output root so the normal report/selection paths work.
     merged=root/'merged'
-    data=merge_parts([completed[g['genome_id']] for g in genomes],merged,[g['genome_id'] for g in genomes])
+    data=merge_parts([completed[g['genome_id']] for g in genomes],merged,[g['genome_id'] for g in genomes],write=False)
     for path in merged.iterdir():shutil.move(str(path),root/path.name)
     merged.rmdir()
     from .stage1_context import attach
@@ -108,5 +108,13 @@ def search(args):
     write_outputs(root,data)
     dump(root/'batch.json',dict(jobs=args.jobs,threads_per_genome=args.threads,
                                source_part_reviews=data['source_part_reviews'],failures=failures))
-    print('STOP — open '+str(root/'report.html'),file=sys.stderr)
+    print('Stage 1 — open '+str(root/'report.html'),file=sys.stderr)
     return 1 if failures or context_error else 0
+
+
+if __name__ == '__main__':
+    from .cli import parser
+    from .stage1 import search as search_one_genome
+    worker_args=parser().parse_args(['stage1',*sys.argv[1:]])
+    worker_args._defer_candidate_limit=True
+    raise SystemExit(search_one_genome(worker_args))

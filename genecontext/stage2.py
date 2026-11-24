@@ -1,4 +1,4 @@
-"""Selected-locus reannotation and evidence, ending at human review STOP 2."""
+"""Selected-locus reannotation and evidence, ending at human review Stage 2."""
 from collections import defaultdict
 from dataclasses import replace
 import hashlib
@@ -34,7 +34,9 @@ def ident(*values):
 
 def selected_regions(data, args):
     """Validate existing decisions; never turn a draft checkbox into approval."""
+    from .analysis_groups import DRAFT_SCHEMAS, draft_groups, row_groups, choose_group, project_rows, annotate_selection, validate_row_bindings
     provenance = {}
+    group = None
     if args.selection:
         root = Path(args.selection).resolve()
         manifest = json.loads((root/'manifest.json').read_text())
@@ -48,17 +50,20 @@ def selected_regions(data, args):
     omitted=[]; subset=data
     if args.draft:
         path=Path(args.draft).resolve(); draft=json.loads(path.read_text())
-        if draft.get('schema')!='stage1_pair_draft_v1' or draft.get('review_id')!=data['review_id']:
+        if draft.get('schema') not in DRAFT_SCHEMAS or draft.get('review_id')!=data['review_id']:
             raise ValueError('Wrong stage 1 draft')
         pairs=draft.get('pairs',[]); genomes={g['genome_id'] for g in data['genomes']}
         if not isinstance(pairs,list) or any(not isinstance(p,dict) or type(p.get('committed')) is not bool for p in pairs):
             raise ValueError('Draft pairs require explicit boolean committed states')
         if len(pairs)!=len(genomes) or {p['genome_id'] for p in pairs}!=genomes:
             raise ValueError('Draft must contain each stage 1 genome exactly once')
-        omitted=[p['genome_id'] for p in pairs if not p.get('committed')]
+        definitions=draft_groups(data,draft)
+        group=choose_group(definitions,getattr(args,'analysis_group',None),draft.get('active_analysis_group'))
+        scope={m['genome_id'] for m in group['members']} if group else genomes
+        omitted=[p['genome_id'] for p in pairs if p['genome_id'] in scope and not p.get('committed')]
         if omitted and not args.committed_only:
             raise ValueError('Draft has unsaved pairs. Finish the review, or explicitly use --committed-only.')
-        accepted={p['genome_id']:p for p in pairs if p.get('committed')}
+        accepted={p['genome_id']:p for p in pairs if p['genome_id'] in scope and p.get('committed')}
         subset=dict(data,genomes=[g for g in data['genomes'] if g['genome_id'] in accepted],
                     loci=[l for l in data['loci'] if l['genome_id'] in accepted])
         rows=[]
@@ -79,16 +84,28 @@ def selected_regions(data, args):
         provenance['draft'] = str(path)
     else:
         path=Path(args.decisions).resolve(); rows=table(path)
+        group=choose_group(row_groups(data,rows),getattr(args,'analysis_group',None))
+    if group:
+        validate_row_bindings(data,rows)
+        rows=project_rows(rows,group)
+        scope={r['genome_id'] for r in rows}
+        subset=dict(data,genomes=[g for g in data['genomes'] if g['genome_id'] in scope],
+                    loci=[l for l in data['loci'] if l['genome_id'] in scope])
+        provenance['analysis_group']=group
+        provenance['omitted_other_group_genomes']=[g['genome_id'] for g in data['genomes']
+                                                   if g['genome_id'] not in {m['genome_id'] for m in group['members']}]
     result=validate_decisions(subset,rows)
     if not result['valid']:
         raise ValueError('Stage 1 decisions are not valid:\n'+'\n'.join(result['errors']))
     if not result['regions']:
         raise ValueError('No explicitly selected region')
-    return result['regions'],dict(provenance,decision_source_sha256=sha256(path),omitted_unsaved_genomes=omitted,
-        neighbor_shortlist=(draft.get('neighbor_shortlist',[]) if args.draft else [])),rows
+    selected_ids={r['locus_id'] for r in result['regions']}
+    return annotate_selection(result['regions'],group),dict(provenance,decision_source_sha256=sha256(path),omitted_unsaved_genomes=omitted,
+        neighbor_shortlist=([c for c in draft.get('neighbor_shortlist',[]) if c.get('locus_id') in selected_ids]
+                            if args.draft else [])),rows
 
 
-def planned_regions(source, data, args):
+def planned_regions(source, data, args, planning=False):
     """One boundary policy for both dry planning and actual DNA extraction."""
     if args.committed_only and not args.draft:raise ValueError('--committed-only requires --draft')
     regions,selection,rows=selected_regions(data,args)
@@ -103,36 +120,67 @@ def planned_regions(source, data, args):
         selection['explicit_genome_subset']=args.only_genomes
     from .stage2_windows import resolve_windows
     from .stage2_intervals import canonical_windows
-    policy=getattr(args,'window_policy','pre-synteny')
-    regions=resolve_windows(data,regions,rows,policy)
-    if any(r['window_end']-r['window_start']>args.max_window_bases for r in regions):
-        raise ValueError('Resolved window exceeds --max-window-bases; review its bounds or explicitly raise the cap')
-    intervals=canonical_windows(regions,args.max_window_bases)
+    policy=getattr(args,'window_policy','annotation-neighbors')
+    contexts=None
+    if policy=='annotation-neighbors':
+        from .stage2_neighborhoods import annotation_neighborhoods
+        contexts=annotation_neighborhoods(data,regions,getattr(args,'genomes',None),
+            getattr(args,'neighbors_per_side',10),getattr(args,'minimum_neighbors_per_side',5))
+    regions=resolve_windows(data,regions,rows,policy,contexts)
+    # A dry plan records complete spans even above the execution budget. This
+    # larger planning bound never authorizes extraction or inference.
+    maximum=max([args.max_window_bases]+[r['window_end'] for r in regions])
+    intervals=canonical_windows(regions,maximum)
+    blockers=window_blockers(regions,intervals,args)
+    if not planning and any(not b['waived'] for b in blockers):
+        raise ValueError('Window plan is not ready for prediction:\n'+'\n'.join(b['message'] for b in blockers if not b['waived']))
     selection['window_policy']=policy
     return regions,selection,rows,intervals
 
 
+def window_blockers(regions,intervals,args):
+    result=[]
+    for r in regions:
+        check=r.get('window_resolution',{}).get('neighborhood_coverage')
+        if check and not check['ready_for_prediction']:
+            result.append(dict(kind='incomplete_neighborhood',genome_id=r['genome_id'],locus_id=r['locus_id'],
+                waived=bool(getattr(args,'allow_incomplete_neighborhood',False)),
+                message=f"{r['genome_id']} {r['locus_id']}: coding neighbors captured left/right {check['captured']['left']}/{check['captured']['right']}; minimum {check['minimum_per_side']} per side; {check['status']}. Review the full neighborhood plan before prediction."))
+    for r in intervals:
+        length=r['window_end']-r['window_start']
+        if length>args.max_window_bases:
+            result.append(dict(kind='window_size',genome_id=r['genome_id'],region_ids=r['region_ids'],waived=False,
+                message=f"{r['genome_id']}: full prediction interval {length} bp exceeds --max-window-bases {args.max_window_bases}; retained without clipping in the plan."))
+    return result
+
+
 def window_plan(source,data,args,regions,selection,intervals):
+    blockers=window_blockers(regions,intervals,args)
     return dict(schema='stage2_window_plan_v1',source_checkpoint=str(source),
         source_review_id=data['review_id'],source_evidence_sha256=sha256(source/'evidence.json'),
         selection=selection,max_window_bases=args.max_window_bases,regions=regions,
         prediction_intervals=intervals,total_region_bases=sum(r['window_end']-r['window_start'] for r in regions),
         total_prediction_bases=sum(r['window_end']-r['window_start'] for r in intervals),
+        ready_for_prediction=not any(not b['waived'] for b in blockers),execution_blockers=blockers,
         note='Planned bounds; extraction, prediction and human model approval are separate operations.')
 
 
 def plan(args):
     source,data=verify(args.results)
-    regions,selection,_,intervals=planned_regions(source,data,args)
+    regions,selection,_,intervals=planned_regions(source,data,args,planning=True)
     payload=window_plan(source,data,args,regions,selection,intervals)
     root=new_output(args.out)
     dump(root/'window_plan.json',payload)
     write_tsv(root/'windows.tsv',[dict(r,window_bp=r['window_end']-r['window_start'],
         preliminary_neighbors=len(r['window_resolution']['neighbor_genes']),
-        window_reason=r['window_resolution']['reason']) for r in regions],
+        window_reason=r['window_resolution']['reason'],
+        coding_left=r['window_resolution'].get('neighborhood_coverage',{}).get('captured',{}).get('left',''),
+        coding_right=r['window_resolution'].get('neighborhood_coverage',{}).get('captured',{}).get('right',''),
+        neighborhood_status=r['window_resolution'].get('neighborhood_coverage',{}).get('status','not_refreshed')) for r in regions],
         ['genome_id','locus_id','region_id','contig','anchor_start','anchor_end','window_start','window_end',
-         'window_bp','window_source','preliminary_neighbors','window_reason'])
+         'window_bp','window_source','preliminary_neighbors','window_reason','coding_left','coding_right','neighborhood_status'])
     print('Window plan — '+str(root/'windows.tsv'))
+    if not payload['ready_for_prediction']:print('Not ready for prediction: '+str(len(payload['execution_blockers']))+' blocker(s); complete gene spans retained for review.')
     return 0
 
 
@@ -271,7 +319,7 @@ def identify(runner, root, proteins, db, info, args):
 
 
 def reidentify(args):
-    """Replay only protein identification from a sealed STOP-2 checkpoint."""
+    """Replay only protein identification from a sealed Stage 2 checkpoint."""
     import shutil
     from .stage2_choices import verify_checkpoint
     source,data=verify_checkpoint(args.results);seal=json.loads((source/'seal.json').read_text())
@@ -312,7 +360,7 @@ def reidentify(args):
             key='stage2_evidence_sha256' if name=='prior_synteny_context.json' else 'source_evidence_sha256'
             supplement[key]=sha256(root/'evidence.json');dump(root/name,supplement)
     dump(root/'identification_hits.json',hits);write_outputs(root,data)
-    print('STOP 2 — '+str(root/'report.html'));return 1 if data['errors'] else 0
+    print('Stage 2 — '+str(root/'report.html'));return 1 if data['errors'] else 0
 
 
 def assign_groups(models):
@@ -428,7 +476,7 @@ def _run(args):
     plan_data=window_plan(source,data,args,regions,selection,prediction_intervals)
     root,run_record,input_hashes,input_stats,completed=prepare_resume(args,plan_data,by_genome,db_info,versions,predictor_identity)
     if completed is not None:
-        print('STOP 2 already complete — '+str(root/'report.html'))
+        print('Stage 2 already complete — '+str(root/'report.html'))
         return 1 if completed['errors'] else 0
     runner=TimedRunner(root);errors=[];models=[];coding={};proteins={};windows={};receipts=[];annotation_features=[]
     dump(root/'window_plan.json',plan_data)
@@ -524,15 +572,15 @@ def _run(args):
         provenance=dict(genomes=receipts,prediction=prediction_receipt,protein_steps=steps,protein_db=db_info,protein_db_path=str(db),commands=runner.commands,
             input_manifest_sha256=sha256(args.genomes),
             prediction_models_sha256=sha256(args.prediction_models) if args.prediction_models else None,
-            source_files_sha256={name:sha256(Path(__file__).with_name(name)) for name in ['artifact_cache.py','stage2_resume.py','tiberius_session.py','stage2.py','stage2_windows.py','annotation_context.py','stage2_intervals.py','stage2_db.py','stage2_quality.py','stage2_display.py','stage2_reconstruct.py','stage2_prior_context.py','stage2_choices.py','stage2_report.py','stage2_review.txt','stage2_neighborhood.txt','stage2_cluster.txt','stage2_review_queue.txt','tiberius_backend.py','tiberius_worker.py','sequence.py']},parameters=dict({k:getattr(args,k) for k in ['identification_identity','identification_coverage','identification_evalue','competing_ratio','threads']},window_policy=selection['window_policy'],max_window_bases=args.max_window_bases),
+            source_files_sha256={name:sha256(Path(__file__).with_name(name)) for name in ['artifact_cache.py','stage2_resume.py','tiberius_session.py','stage2.py','analysis_groups.py','stage2_neighborhoods.py','stage2_windows.py','annotation_context.py','stage2_intervals.py','stage2_db.py','stage2_quality.py','stage2_display.py','stage2_reconstruct.py','stage2_prior_context.py','stage2_choices.py','stage2_report.py','stage2_review.txt','stage2_neighborhood.txt','stage2_cluster.txt','stage2_review_queue.txt','stage2_model_compare.txt','interactive_review.py','review_realign.txt','alignment_blossom.py','tiberius_backend.py','tiberius_worker.py','sequence.py']},parameters=dict({k:getattr(args,k) for k in ['identification_identity','identification_coverage','identification_evalue','competing_ratio','threads']},window_policy=selection['window_policy'],max_window_bases=args.max_window_bases,neighbors_per_side=getattr(args,'neighbors_per_side',10),minimum_neighbors_per_side=getattr(args,'minimum_neighbors_per_side',5),allow_incomplete_neighborhood=getattr(args,'allow_incomplete_neighborhood',False)),
             elapsed_seconds=time.perf_counter()-started),
         status='completed_with_errors' if errors else 'awaiting_manual_review',
-        note='No model or neighbor is automatically approved. No DNA/MSA alignment is run before STOP 2.')
+        note='No model or neighbor is automatically approved. No DNA/MSA alignment is run before Stage 2.')
     from .stage2_prior_context import collect
     payload['prior_synteny_context']=collect(payload,data,sha256(source/'evidence.json'))
     dump(root/'evidence.json',payload);dump(root/'identification_hits.json',id_hits)
     write_outputs(root,payload)
-    print('STOP 2 — '+str(root/'report.html'))
+    print('Stage 2 — '+str(root/'report.html'))
     return 1 if errors else 0
 
 

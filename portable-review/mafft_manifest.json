@@ -1,0 +1,23 @@
+{
+  "darwin": {
+    "url": "https://mafft.ddbj.nig.ac.jp/alignment/software/mafft-7.526-mac.zip?signed",
+    "sha256": "704e0d2284f87b1b40e7f065359880967649136d4d328809b00288e2370be71f",
+    "archive": "mafft-7.526-mac.zip",
+    "entry": "mafft-mac/mafft.bat",
+    "bytes": 21442050
+  },
+  "linux": {
+    "url": "https://mafft.ddbj.nig.ac.jp/alignment/software/mafft-7.526-linux.tgz",
+    "sha256": "bf59d016f1b2030bc7fc83b7715ae1f0823570de3bd059c26eb522a72f9c2952",
+    "archive": "mafft-7.526-linux.tgz",
+    "entry": "mafft-linux64/mafft.bat",
+    "bytes": 16021747
+  },
+  "windows": {
+    "url": "https://mafft.ddbj.nig.ac.jp/alignment/software/mafft-7.526-win64-signed.zip",
+    "sha256": "7c3a508c8512af04007d68019c6fbd4ff00d891244b58f87ec9aa0e53fbae8a7",
+    "archive": "mafft-7.526-win64-signed.zip",
+    "entry": "mafft-win/mafft.bat",
+    "bytes": 27476513
+  }
+}

@@ -1,0 +1,130 @@
+// gcf-stop2-inline-models-20261119-v1
+// One coordinate transform for every CDS model and its ruler.
+function pendingComparisonChoice(r,m){
+ const p=reviewPlan(r),key=p.primary_model===m.model_id?'primary':m.model_id,pending=p.form_drafts?.[key];return pending?.model_id===m.model_id?pending:null;
+}
+function toggleAlignmentCandidate(r,m,checked){
+ const p=reviewPlan(r),pending=pendingComparisonChoice(r,m);if(p.form_drafts)delete p.form_drafts[p.primary_model===m.model_id?'primary':m.model_id];state.review_plan[r.region_id]=p;if(pending)state.models[m.model_id]={decision:'not_selected',role:'',...(state.models[m.model_id]||{}),notes:pending.notes,copy_label:pending.copy_label||'',comparison_group:pending.comparison_group};
+ if(checked){
+  const old=state.models[m.model_id]||{};
+  if(old.decision!=='inspect')state.models[m.model_id]={...old,decision:'inspect',role:'alignment_candidate',notes:pending?.notes??old.notes??'',target_override:false,comparison_group:r.gene||'target',copy_label:old.copy_label||''};
+  const p=reviewPlan(r);if(m.model_id!==p.primary_model&&!p.additional.includes(m.model_id))p.additional.push(m.model_id);
+  p.additional_roles={...p.additional_roles,[m.model_id]:'alignment_candidate'};state.review_plan[r.region_id]=p;
+ }else clearModelChoice(m);
+ const region=state.regions[r.region_id];if(region)region.saved=false;
+ persisted();renderReviewQueue();
+}
+function cdsComparisonScale(values,mode='exons',zoom=1,availableWidth=800){
+ const lo=Math.min(...values.map(m=>m.start)),hi=Math.max(...values.map(m=>m.end));
+ const blocks=values.flatMap(m=>m.cds_blocks.map(b=>[b[0],b[1]])).sort((a,b)=>a[0]-b[0]);
+ const union=[];for(const b of blocks){const last=union.at(-1);if(last&&b[0]<=last[1])last[1]=Math.max(last[1],b[1]);else union.push([...b])}
+ let cursor=lo;const segments=[];
+ for(const [a,b]of union){if(a>cursor)segments.push({a:cursor,b:a,gap:a-cursor>200});segments.push({a,b,gap:false});cursor=b}
+ if(cursor<hi)segments.push({a:cursor,b:hi,gap:hi-cursor>200});
+ const compressed=mode==='exons',breaks=compressed?segments.filter(s=>s.gap).length:0;
+ const width=Math.max(120,availableWidth),gapWidth=breaks?Math.min(22,(width-40)*.35/breaks):0;
+ const native=compressed?segments.filter(s=>!s.gap).reduce((n,s)=>n+s.b-s.a,0):hi-lo;
+ const px=(width-40-breaks*gapWidth)/Math.max(1,native);let x=20;
+ for(const s of segments){s.x=x;s.w=compressed&&s.gap?gapWidth:(s.b-s.a)*px;x+=s.w}
+ const map=v=>{if(!compressed)return 20+(v-lo)*px;const s=segments.find(s=>v>=s.a&&v<=s.b)||segments.at(-1);return s.x+(v-s.a)/(s.b-s.a)*s.w};
+ return {lo,hi,width,px,segments,map,compressed};
+}
+// Model-specific CDS exon intervals and intervening genomic introns.
+// Coordinates stay 0-based half-open internally; UI tables use 1-based inclusive.
+function cdsModelSegments(m){
+ const exons=[];
+ for(const b of [...m.cds_blocks].sort((a,b)=>a[0]-b[0]||a[1]-b[1])){const last=exons.at(-1);if(last&&b[0]<=last.end)last.end=Math.max(last.end,b[1]);else exons.push({start:b[0],end:b[1]})}
+ const reverse=m.strand==='-',ordered=reverse?[...exons].reverse():exons,segments=[];
+ ordered.forEach((e,i)=>{segments.push({...e,type:'exon',label:'E'+(i+1),length:e.end-e.start});if(i+1<ordered.length){const next=ordered[i+1],start=Math.min(e.end,next.end),end=Math.max(e.start,next.start);if(end>start)segments.push({start,end,type:'intron',label:'I'+(i+1),length:end-start})}});
+ const cds=exons.reduce((n,e)=>n+e.end-e.start,0),span=exons.length?exons.at(-1).end-exons[0].start:0;
+ return {segments,cds,span,introns:span-cds,start:exons[0]?.start,end:exons.at(-1)?.end,exonCount:exons.length};
+}
+function cdsIntronDisplay(segment,scale){
+ if(!scale.compressed)return 'true genomic scale';
+ const compressed=scale.segments.filter(s=>s.gap).reduce((n,s)=>n+Math.max(0,Math.min(segment.end,s.b)-Math.max(segment.start,s.a)),0);
+ return compressed===0?'true bp scale':compressed===segment.length?'shortened on screen':'partly shortened on screen';
+}
+function renderModelComparison(){
+ const seed=document.getElementById('interactiveReviewData');const alignable=seed?new Set(JSON.parse(seed.textContent).sequences.map(s=>s.id)):null;
+ const panel=$('modelComparePanel');panel.replaceChildren();panel.hidden=!modelComparison;if(!modelComparison)return;
+ const r=regions.get(modelComparison.region_id),item=r&&displayQueueItems(r).find(v=>v.model&&modelConstraint(v.model).physical_id===modelComparison.physical);
+ if(!item){modelComparison=null;panel.hidden=true;return}
+ const physical=modelComparison.physical||modelConstraint(item.model).physical_id,available=rankedModels(own(r).filter(m=>modelConstraint(m).physical_id===physical));
+ modelComparison.physical=physical;
+ const values=available.filter(m=>modelConstraint(m).physical_id===physical);
+ const head=el('div',undefined,'queue-heading'),close=el('button','Close');
+ close.addEventListener('click',()=>{modelComparison=null;renderReviewQueue()});head.append(el('h3','CDS models · '+groupLabel([item.model])+' · '+speciesName(r)),close);panel.append(head);
+ const tools=el('div',undefined,'compare-tools');
+ const mode=el('select');mode.setAttribute('aria-label','CDS comparison scale');
+ for(const [id,label]of [['exons','Exons · compressed long introns'],['genomic','Exact genomic scale']]){const o=el('option',label);o.value=id;mode.append(o)}
+ mode.value=modelComparison.mode||'exons';mode.addEventListener('change',()=>{modelComparison.mode=mode.value;renderModelComparison()});
+ const fit=el('button','Fit to width');fit.setAttribute('aria-label','Fit CDS models to width');fit.addEventListener('click',()=>renderModelComparison());
+ const preview=el('button','Align selected CDS models');preview.addEventListener('click',()=>window.GCFReview?.show());tools.append(fit,preview);panel.append(tools);const options=el('details',undefined,'cds-comparison-options');options.append(el('summary','Coordinate options / interpretation'),mode);const intronLabel=el('label',undefined,'candidate-choice'),intronCheck=el('input');intronCheck.type='checkbox';intronCheck.checked=!!modelComparison.introns;intronCheck.setAttribute('aria-label','Show intron annotations');intronCheck.addEventListener('change',()=>{modelComparison.introns=intronCheck.checked;renderModelComparison()});intronLabel.append(intronCheck,document.createTextNode(' Show intron annotations'));options.append(intronLabel);panel.append(options);
+ if(!values.length){panel.append(el('p','No alternative CDS models in this gene.','muted'));return}
+ const fullWidth=panel.clientWidth||Math.min(1200,window.innerWidth||1000),narrow=fullWidth<680,labelWidth=narrow?0:190;panel.classList.toggle('cds-compact-narrow',narrow);panel.style.setProperty('--cds-label-width',labelWidth+'px');
+ const style=getComputedStyle(panel),padding=(parseFloat(style.paddingLeft)||12)+(parseFloat(style.paddingRight)||12),availableWidth=Math.max(120,fullWidth-padding-18-labelWidth-(narrow?0:12));
+ const groups=comparisonModelGroups(values),scale=cdsComparisonScale(values,mode.value,1,availableWidth),reverse=r.strand==='-';
+ const x=v=>reverse?scale.width-scale.map(v):scale.map(v);
+ const axis=svgNode('svg',{viewBox:'0 0 '+scale.width+' 48',width:scale.width,role:'img','aria-label':scale.compressed?'Shared exon scale; marked intron breaks':'Shared exact genomic ruler','data-px-per-bp':scale.px});
+ axis.classList.add('cds-shared-axis');axis.style.width='100%';axis.style.height='52px';axis.append(svgNode('line',{x1:20,x2:scale.width-20,y1:12,y2:12,stroke:'#92a6b6'}));
+ if(scale.compressed){
+  for(const s of scale.segments.filter(s=>s.gap)){const xx=x((s.a+s.b)/2);axis.append(svgNode('text',{x:xx,y:17,'text-anchor':'middle',fill:'#80500c','font-size':13},'//'));const title=svgNode('title',{},(s.b-s.a).toLocaleString('en-US')+' bp shared compressed interval');axis.lastChild.append(title)}
+  const bar=Math.pow(10,Math.floor(Math.log10(100/scale.px))),w=bar*scale.px;
+  axis.append(svgNode('line',{x1:20,x2:20+w,y1:33,y2:33,stroke:'#334c5f','stroke-width':2}),svgNode('text',{x:24+w,y:37,'font-size':11,fill:'#334c5f'},bar.toLocaleString('en-US')+' bp · uncompressed DNA'));
+ }else{
+  const ideal=(scale.hi-scale.lo)/5,base=10**Math.floor(Math.log10(Math.max(1,ideal))),step=[1,2,5,10].find(n=>n*base>=ideal)*base;
+  for(let bp=Math.ceil(scale.lo/step)*step;bp<=scale.hi;bp+=step){const xx=x(bp);axis.append(svgNode('line',{x1:xx,x2:xx,y1:8,y2:17,stroke:'#62788a'}),svgNode('text',{x:xx,y:33,'font-size':10,'text-anchor':'middle',fill:'#62788a'},(bp/1000).toLocaleString('en-US',{maximumFractionDigits:3})+' kb'))}
+ }
+ const legend=el('div',undefined,'cds-compare-legend');
+ legend.append(el('span','■ CDS exon (coding part; no UTR)','cds-legend-exon'),el('span','┄┄ Intron between CDS exons','cds-legend-intron'),el('span','// Shared compressed interval','cds-legend-break'));panel.append(legend);
+ options.append(el('p',scale.compressed?'One shared coordinate transform for all models. Only DNA without a CDS exon in any displayed model is shortened. CDS exons and uncompressed DNA use one bp scale; introns can be partly shortened. The bp values below each row are real genomic lengths, not screen distances.':'One true genomic bp scale for all models and introns. No intervals are shortened. The bp values below each row are real genomic lengths.','muted'));
+ options.append(el('p','E1, I1, E2… are numbered in each model’s own 5′→3′ direction. Coordinates in the model details are 1-based inclusive. The span runs from the first CDS base to the last CDS base; UTRs and full mRNA exon boundaries are not supplied here.','muted'));
+ const stack=el('div',undefined,'cds-model-stack');panel.append(axis);
+ for(const variants of groups){
+  const m=variants.find(v=>v.model_id===item.model?.model_id)||variants[0],structure=cdsModelSegments(m),tr=el('article',undefined,'cds-model-card');tr.dataset.modelIds=variants.map(v=>v.model_id).join(' ');if(m.model_id===item.model?.model_id)tr.classList.add('selected-model');
+  const label=el('div',undefined,'cds-model-label');label.append(el('strong',[...new Set(variants.map(v=>v.reconstruction?'Annotation + transcript':v.source==='annotation'?'Annotation':'Tiberius'))].join(' + ')),el('div',m.original_model,'model-accession'),el('div',m.protein_length+' aa · '+structure.exonCount+' CDS exons · '+Math.max(0,structure.exonCount-1)+' introns','muted'));
+
+  const codes=variants.map(v=>window.GCFModelLabels?.code(v.model_id)).filter(Boolean);
+  if(codes.length)label.prepend(el('div',codes.join(' / '),'gcf-model-code'));
+  label.title=variants.map(v=>v.original_model+' · '+v.contig+':'+v.start+'–'+v.end).join('\n');
+  const warn=modelQualityNotice(m)||((m.coding_status!=='complete_predicted'||m.window_edge)?m.coding_status+(m.window_edge?' · edge':''):'');
+  if(warn)label.append(el('div',warn,'scope-warning'));
+  if(variants.length>1)label.append(el('div',variants.length+' identical CDS records','muted'));
+  const td=el('div',undefined,'cds-model-track'),svg=svgNode('svg',{viewBox:'0 0 '+scale.width+' '+(modelComparison.introns?76:48),width:scale.width,height:modelComparison.introns?76:48,role:'img','aria-label':m.original_model+' CDS exons and introns','data-px-per-bp':scale.px});svg.style.width='100%';svg.style.height=(modelComparison.introns?76:48)+'px';
+  const lengths=el('div',undefined,'cds-segment-lengths');lengths.setAttribute('aria-label','Real exon and intron lengths '+m.model_id);
+  const detail=el('details',undefined,'cds-segment-details');detail.append(el('summary','CDS / intron lengths and coordinates'));  detail.append(el('div','CDS: '+structure.cds.toLocaleString('en-US')+' bp · introns: '+structure.introns.toLocaleString('en-US')+' bp','cds-model-totals'),el('div','Genomic CDS span: '+structure.span.toLocaleString('en-US')+' bp','cds-model-totals'));const list=el('ol');
+  for(const segment of structure.segments){
+   const {start:a,end:b,type,label:id,length}=segment,lo=Math.min(x(a),x(b)),w=Math.abs(x(b)-x(a)),display=type==='intron'?cdsIntronDisplay(segment,scale):'true bp scale',coords=r.contig+':'+(a+1).toLocaleString('en-US')+'–'+b.toLocaleString('en-US'),description=id+' · '+(type==='exon'?'CDS exon':'intron')+' · '+length.toLocaleString('en-US')+' bp · '+coords+' · '+display;
+   if(type==='exon'){
+    const rect=svgNode('rect',{x:lo,y:18,width:w,height:18,fill:m.source==='annotation'?'#4778a3':'#4b8969','data-start':a,'data-end':b,'data-segment':id,'data-kind':type});rect.append(svgNode('title',{},description));svg.append(rect);
+    if(w>=18)svg.append(svgNode('text',{x:lo+w/2,y:12,'text-anchor':'middle','font-size':10,fill:'#244861'},id));
+    if(w>=75)svg.append(svgNode('text',{x:lo+w/2,y:31,'text-anchor':'middle','font-size':10,fill:'#fff'},length.toLocaleString('en-US')+' bp'));
+   }else{
+    const line=svgNode('line',{x1:lo,x2:lo+w,y1:27,y2:27,stroke:'#a26416','stroke-width':2,'stroke-dasharray':'4 3','data-start':a,'data-end':b,'data-segment':id,'data-kind':type});line.append(svgNode('title',{},description));svg.append(line);
+    if(modelComparison.introns&&w>=16)svg.append(svgNode('text',{x:lo+w/2,y:52,'text-anchor':'middle','font-size':10,fill:'#80500c'},id));
+    if(modelComparison.introns&&w>=80)svg.append(svgNode('text',{x:lo+w/2,y:66,'text-anchor':'middle','font-size':10,fill:'#80500c'},length.toLocaleString('en-US')+' bp'));
+    for(const gap of scale.segments.filter(s=>scale.compressed&&s.gap&&Math.min(b,s.b)>Math.max(a,s.a))){const center=x((Math.max(a,gap.a)+Math.min(b,gap.b))/2);svg.append(svgNode('text',{x:center,y:32,'text-anchor':'middle','font-size':13,fill:'#80500c','data-gap-start':Math.max(a,gap.a),'data-gap-end':Math.min(b,gap.b)},'//'))}
+   }
+   const chip=el('span',id+' · '+(type==='exon'?'exon':'intron')+' · '+length.toLocaleString('en-US')+' bp',type==='exon'?'cds-exon-chip':'cds-intron-chip');chip.title=description;lengths.append(chip);
+   list.append(el('li',description));
+  }
+  detail.append(lengths,list);td.append(svg,detail);
+  const actions=el('div',undefined,'cds-model-actions');for(const v of variants){const l=el('label',undefined,'candidate-choice'),check=el('input');check.type='checkbox';check.disabled=alignable&&!alignable.has(v.model_id);if(check.disabled)check.title='No intact native protein is available for alignment; inspect the CDS quality warning.';const pending=pendingComparisonChoice(r,v);check.checked=v.model_id===item.model?.model_id||(pending?pending.decision==='inspect':state.models[v.model_id]?.decision==='inspect'&&['target','alignment_candidate'].includes(state.models[v.model_id]?.role));check.disabled=v.model_id===item.model?.model_id||!!(alignable&&!alignable.has(v.model_id)&&!check.checked);check.dataset.modelId=v.model_id;check.setAttribute('aria-label','Include CDS model '+v.model_id);check.addEventListener('change',()=>toggleAlignmentCandidate(r,v,check.checked));l.append(check,document.createTextNode(variants.length>1?v.original_model:v.model_id===item.model?.model_id?'Main model':'Include in alignment'));actions.append(l)}
+  const use=el('button',m.model_id===item.model?.model_id?'Main model':'Set main');use.disabled=m.model_id===item.model?.model_id;use.setAttribute('aria-label','Select comparison model '+m.model_id);use.addEventListener('click',()=>changeQueueModel(r,item,m.model_id));actions.append(use);const top=el('div',undefined,'cds-model-header');top.append(label,actions);tr.append(top,td);stack.append(tr);
+ }panel.append(stack);
+ const card=[...document.querySelectorAll('.review-gene-card')].find(n=>n.dataset.regionId===r.region_id&&n.dataset.physicalId===physical),row=card?.querySelector('tr[data-region-id]'),form=row?._reviewForm;
+ if(form){
+  const footer=el('div',undefined,'cds-gene-decision'),choice=el('label','Decision for this gene'),comment=el('label','Stage 2 comment / reason');choice.append(form.decision);comment.append(form.notes);footer.append(choice,comment);
+  const warnings=targetWarnings(item.model,{selection_kind:item.primary?state.models[item.model.model_id]?.selection_kind:form.role.value==='copy'?'additional_copy':''});
+  if(warnings.length){footer.append(el('p',warnings.join('; '),'warn'));const expert=el('label',undefined,'candidate-choice');expert.append(form.override,document.createTextNode(' Expert exception for the MAIN model (requires a reason)'));footer.append(expert)}
+  const save=el('button','Save gene + checked models','primary');save.setAttribute('aria-label','Save compared gene '+r.region_id);save.addEventListener('click',()=>row._save());footer.append(save,form.status);panel.append(footer);
+ }
+ panel.append(el('p','The main model defines this gene choice. Checked alternatives enter alignment as CDS candidates. One Save records the gene decision; partial / exceptional models still need your reason.','muted'));
+
+}
+
+// Refit an open comparison after resizing its panel, without touching review state.
+if(typeof ResizeObserver!=='undefined'){
+ let cdsLastWidth=0,cdsFitTimer;
+ new ResizeObserver(entries=>{const width=entries[0]?.contentRect.width||0;if(width>0&&Math.abs(width-cdsLastWidth)>1){cdsLastWidth=width;clearTimeout(cdsFitTimer);cdsFitTimer=setTimeout(()=>{if(modelComparison)renderModelComparison()},100)}}).observe(document.getElementById('modelComparePanel'));
+}

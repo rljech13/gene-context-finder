@@ -1,0 +1,2 @@
+# Keep vendored distributions and notices byte-exact.
+genecontext/vendor/** -whitespace

@@ -1,0 +1,202 @@
+// gcf-sequential-model-alignment-tree-v2
+(()=>{
+if(!document.querySelector('meta[name="gcf-review-flow"][content="sequential-v2"]')||document.querySelector('meta[name="gcf-review-page"][content="synteny"]'))return;
+const seed=JSON.parse(document.getElementById('interactiveReviewData').textContent),host=document.getElementById('interactiveReview'),api=window.GCFAlignmentWorkflow;
+if(!api)return;
+const pageTitle=document.getElementById('pageTitle');if(pageTitle)pageTitle.textContent=(seed.title||'Gene context')+' · choose models → alignment → tree';
+const workflowHelp=document.getElementById('workflowHelp');if(workflowHelp)workflowHelp.textContent='Save the chosen annotation/Tiberius models, inspect their alignment, build the tree and optionally root it with a documented outgroup, then review synteny.';
+const make=(tag,text)=>{const e=document.createElement(tag);if(text)e.textContent=text;return e};
+const group=host.querySelector('[aria-label="Interactive gene group"]'),canvas=document.getElementById('interactiveAlignment'),button=document.getElementById('realignSelected'),status=document.getElementById('realignStatus');
+host.querySelector('h2').textContent='2 · Inspect the alignment and select sequences';
+group.hidden=group.options.length<2;
+const help=host.querySelector('p');help.textContent='Inspect the saved protein/CDS alignment. Check the rows to keep, then rebuild the alignment here or use those rows for the tree. Model choices above remain unchanged; MAFFT runs only when you press a rebuild button.';
+const queue=document.getElementById('reviewQueue'),comparisons=document.getElementById('comparisonPanels');
+let finalGenes,finalActions;
+if(queue&&comparisons){
+ finalGenes=queue.closest('section');finalGenes.id='initialModelChoices';host.before(finalGenes);const heading=finalGenes.querySelector('h2');if(heading)heading.textContent='1 · Choose gene models';
+ finalActions=document.getElementById('export')?.closest('section');if(finalActions)finalGenes.after(finalActions);
+}
+const notes=make('textarea');notes.placeholder='Model choice comments / remaining doubts';notes.setAttribute('aria-label','Alignment model review comments');notes.style='display:block;width:95%;margin:10px 0';
+const notesKey='gcf-alignment-first-notes-'+seed.review_id;notes.value=localStorage.getItem(notesKey)||'';notes.addEventListener('input',()=>localStorage.setItem(notesKey,notes.value));
+const actions=make('div');actions.style='padding:14px 0';actions.append(notes,button);canvas.before(actions,status);button.textContent='Save models and build alignment';
+const advanced=make('details');advanced.id='alignmentAdvanced';advanced.append(make('summary','Additional models, query references and imports'));
+const modelList=host.querySelector('.interactive-models'),search=host.querySelector('[aria-label="Find CDS candidate"]'),more=host.querySelector('[aria-label="Show additional CDS models"]')?.closest('label'),importLabel=host.querySelector('[aria-label="Import alignment model choices"]')?.closest('label');
+const packageButton=[...host.querySelectorAll('button')].find(e=>e.textContent==='Download current alignment + native sequences · ZIP');
+for(const e of [search,more,modelList,actions,importLabel,packageButton])if(e)advanced.append(e);if(finalGenes){finalGenes.append(advanced,actions)}else canvas.before(advanced);
+const rootStep=make('section');rootStep.id='treeBuildStep';rootStep.style='padding-top:20px;border-top:1px solid #ccd8e0';rootStep.append(make('h2','3 · Choose an outgroup and build the tree'));
+const gate=make('p');gate.id='treeGateStatus';rootStep.append(gate);
+const rootTools=make('div');rootTools.id='treeOutgroupTools';
+rootTools.append(make('p','Select an outgroup and explain your choice to build a rooted tree. Leave the outgroup empty to build an unrooted tree.'));
+const outer=make('select');outer.multiple=true;outer.size=5;outer.style='display:block;max-width:100%;width:min(800px,100%)';outer.setAttribute('aria-label','Outgroup sequences');
+const basis=make('input');basis.placeholder='Why is this an appropriate outgroup?';basis.id='treeOutgroupBasis';basis.setAttribute('aria-label','Outgroup basis');basis.style='display:block;width:95%;margin:10px 0';
+const clear=make('button','Clear outgroup');clear.type='button';clear.id='clearOutgroup';
+const build=make('button','Build tree from this alignment');build.type='button';build.id='buildSelectedTree';build.style='margin-left:12px';
+const progress=make('p');progress.id='treeBuildStatus';progress.setAttribute('role','status');
+const trim=make('input'),trimLabel=make('label');trim.type='checkbox';trim.id='treeTrimming';trimLabel.htmlFor=trim.id;
+trimLabel.style='display:block;margin:10px 0';trimLabel.hidden=true;trimLabel.append(trim,document.createTextNode(' Use trimAl before building the tree'));
+const trimMode=()=>trim.checked?'trimal_automated1':'none';
+const sameIDs=(left,right)=>JSON.stringify([...left].sort())===JSON.stringify([...right].sort());
+const basisLabel=make('label','Outgroup basis (required when an outgroup is selected)');basisLabel.htmlFor=basis.id;basisLabel.style='display:block;margin-top:10px';const requirement=make('p');requirement.id='outgroupRequirement';requirement.setAttribute('role','status');rootTools.append(outer,clear,basisLabel,basis,requirement,trimLabel,build,progress);rootStep.append(rootTools);canvas.after(rootStep);
+const fine=make('details');fine.id='treeFineSettings';fine.append(make('summary','Tree display settings'));
+const mode=make('select');mode.setAttribute('aria-label','Tree rooting view');for(const [v,t]of [['unrooted','Unrooted'],['rooted','Rooted on selected outgroup']]){const o=make('option',t);o.value=v;mode.append(o)}
+const zoom=make('select');zoom.setAttribute('aria-label','Tree zoom');for(const v of [100,150,200,400]){const o=make('option',v===100?'Fit tree':v+'%');o.value=String(v);zoom.append(o)}
+fine.append(mode,zoom,make('p','These display controls do not run MAFFT or IQ-TREE again. To change the root, change the outgroup above and press Build tree.'));
+const tree=make('section');tree.id='candidateTree';tree.style='overflow:auto;max-height:650px;padding:12px 0';rootStep.append(fine,tree);
+let lastView={mode:mode.value,zoom:zoom.value};
+const rootKey=()=> 'gcf-outgroup-'+seed.review_id+'-'+group.value;
+function rootSave(){localStorage.setItem(rootKey(),JSON.stringify({ids:[...outer.selectedOptions].map(o=>o.value),basis:basis.value,trim_al:trim.checked}))}
+const checkpointPrefix='gcf-realign-selection-'+seed.review_id;
+const syntenyCheckKey=id=>checkpointPrefix+'-synteny-check-'+id;
+const checkpointState=(a,t,ids)=>JSON.stringify([a,t,[...ids].sort()]);
+const readCheckpoint=(key,id)=>JSON.parse(localStorage.getItem(checkpointPrefix+key+id)||'null');
+window.GCFSyntenySelectedRows=(h,id)=>{
+ if(Array.isArray(h.selected_row_ids))return h.selected_row_ids;
+ // Confirmations from earlier releases stored the checked rows separately.
+ const a=readCheckpoint('-saved-alignment-',id);
+ if(a?.id!==h.alignment_result_id)return [];
+ const checked=readCheckpoint('-tree-members-'+id+'-',a.id);
+ return a.ids.filter(row=>!Array.isArray(checked)||checked.includes(row));
+};
+let liveGroup,livePair;
+function noteSyntenyCheckpoint(pair){
+ const id=group.value;
+ if(id===liveGroup&&pair===livePair)return;
+ liveGroup=id;livePair=pair;
+ try{if(localStorage.getItem(syntenyCheckKey(id))!==pair)localStorage.setItem(syntenyCheckKey(id),pair)}catch(e){/* The active group can still be verified in memory. */}
+ document.dispatchEvent(new Event('gcf-review-checkpoint-change'));
+}
+window.GCFIsSyntenyCheckpointCurrent=(h,id)=>{
+ try{
+  const rows=window.GCFSyntenySelectedRows(h,id);
+  const expected=checkpointState(h.alignment_result_id,h.tree_result_id,rows);
+  if(id===liveGroup)return !!livePair&&livePair===expected;
+  const observed=localStorage.getItem(syntenyCheckKey(id));
+  if(observed===expected)return true;
+  if(observed!==null&&observed!==h.alignment_result_id+' '+h.tree_result_id)return false;
+  return readCheckpoint('-saved-alignment-',id)?.id===h.alignment_result_id&&readCheckpoint('-result-',id)?.id===h.tree_result_id;
+ }catch(e){return false}
+};
+function analysisComment(phase,labelText,after){
+ const box=make('div'),label=make('label',labelText),input=make('textarea');
+ input.id=phase+'ReviewComment';input.rows=2;input.style='display:block;width:100%;box-sizing:border-box';
+ label.htmlFor=input.id;box.style='margin:12px 0';box.hidden=true;box.append(label,input);after.after(box);
+ let key='';
+ input.addEventListener('input',()=>{if(key)localStorage.setItem(key,input.value)});
+ return id=>{
+  const next=id?checkpointPrefix+'-'+phase+'-comment-'+id:'';
+  if(key!==next){key=next;input.value=key?localStorage.getItem(key)||'':'';}
+  box.hidden=!key;
+ };
+}
+const alignmentComment=analysisComment('alignment','Alignment comment (optional)',canvas);
+const treeComment=analysisComment('tree','Tree comment (optional)',tree);
+let optionsKey='',viewKey='',previousSavedID='';
+function update(){
+ const support=!!window.GCFLocalTrimAl||!!document.querySelector('meta[name="gcf-portable-review"][content="review23-v4"]');
+ trimLabel.hidden=!support;
+ const current=api.current(),saved=api.savedAlignment(),same=!!saved&&api.alignmentMatchesModels(current.ids);
+ button.textContent=current.running?'Building…':'Save models and build alignment';
+ const included=api.treeIDs();
+ if(typeof rebuildRows!=='undefined'){rebuildRows.disabled=current.running||!same||included.length<2;rebuildRows.textContent=current.running?'Calculation in progress…':'Rebuild alignment from checked rows';rebuildRows.title=included.length<2?'Select at least two rows':included.length+' checked rows will be aligned with MAFFT';}
+ if(typeof finalSummary!=='undefined'){
+  const checked=same?included:current.ids,chosen=seed.sequences.filter(s=>checked.includes(s.id)&&!s.reference);
+  finalSummary.replaceChildren(make('summary',(same?'Checked for review: ':'Awaiting alignment: ')+chosen.length+' models · '+(checked.length-chosen.length)+' query references'));
+  const list=make('ul');
+  for(const s of window.GCFSpeciesOrder?.sequences(chosen)||chosen){
+   const r=typeof regions!=='undefined'?regions.get(s.metadata?.region_id):null;
+   list.append(make('li',(r?.gene||s.metadata?.annotation_name||s.group)+' · '+(window.GCFModelLabels?.name(s)||s.label)));
+  }
+  finalSummary.append(list);
+ }
+ if(typeof alignmentDownload!=='undefined')alignmentDownload.disabled=!saved;
+ if(typeof treeDownload!=='undefined'){treeInputDownload.hidden=!current.result?.phylogeny?.tree_input_fasta;treeDownload.disabled=!current.result?.phylogeny?.[mode.value+'_newick'];imageDownload.disabled=!current.result?.phylogeny?.[mode.value+'_phylogram_svg']}
+ if((saved?.id||'')!==previousSavedID){previousSavedID=saved?.id||'';advanced.open=!saved}else if(!same)advanced.open=true;
+ const canBuild=same&&included.length>=2&&!current.running;rootTools.hidden=!same;build.disabled=!canBuild;
+ gate.textContent=current.running?'Calculation in progress; the saved selection is retained.':!saved?'First save the selected models and build their alignment.':!same?'The model selection has changed. Save and rebuild its alignment before building a tree.':'Saved alignment: '+saved.ids.length+' rows · '+included.length+' selected for the tree. An outgroup may use another row from this alignment.';
+ const next=group.value+'-'+(saved?.id||'')+'-'+[...included].sort().join(',');if(next!==optionsKey){optionsKey=next;let old={};try{old=JSON.parse(localStorage.getItem(rootKey())||'{}')}catch(e){}
+  const options=seed.sequences.filter(s=>s.group===group.value&&saved?.ids.includes(s.id));
+  outer.replaceChildren();for(const s of window.GCFSpeciesOrder?.sequences(options)||options){const o=make('option',window.GCFModelLabels?.name(s)||s.label);o.value=s.id;o.title=s.label;o.selected=(old.ids||[]).includes(s.id);outer.append(o)}basis.value=old.basis||'';trim.checked=old.trim_al===true;
+ }
+ build.textContent=support&&trim.checked?'Trim with trimAl and build tree':'Build tree from this alignment';
+ const outgroupIDs=[...outer.selectedOptions].map(o=>o.value);
+ const treeInput=[...new Set([...included,...outgroupIDs])];
+ const hasOutgroup=outgroupIDs.length>0,missingBasis=hasOutgroup&&!basis.value.trim();basis.required=hasOutgroup;basis.setAttribute('aria-required',String(hasOutgroup));
+ const allOutgroup=hasOutgroup&&treeInput.length===outgroupIDs.length;
+ if(missingBasis||allOutgroup)build.disabled=true;
+ requirement.textContent=allOutgroup?'Keep at least one sequence outside the outgroup.':missingBasis?'Enter the outgroup basis to build a rooted tree.':hasOutgroup?'Outgroup and justification provided.':'No outgroup selected. The tree will be unrooted.';
+ for(const e of [outer,basis,clear,trim])e.disabled=!canBuild;
+ const r=current.result;
+ const valid=same&&!missingBasis&&!allOutgroup&&r?.phase==='tree'&&r.alignment_id===saved.id&&sameIDs(r.ids,treeInput)
+  &&sameIDs(r.phylogeny?.outgroup_sequence_ids||[],outgroupIDs)
+  &&(!hasOutgroup||(r.phylogeny?.root_basis||'').trim()===basis.value.trim())
+  &&(!support||(r.phylogeny?.mask?.trimming?.method||'occupancy_50')===trimMode());
+ noteSyntenyCheckpoint(valid&&!current.running?checkpointState(saved.id,r.id,included):'');
+ alignmentComment(saved?.id);
+ treeComment(valid?r.id:'');
+ const rooted=mode.querySelector('option[value="rooted"]');
+ rooted.disabled=!(valid&&r.phylogeny?.rooted_phylogram_svg);
+ if(rooted.disabled&&mode.value==='rooted'){mode.value='unrooted';lastView.mode=mode.value}
+ fine.hidden=!valid;tree.hidden=!valid;
+ if(saved&&!current.running&&!current.error){status.textContent='Models saved; alignment verified · '+saved.ids.length+' sequences. Reloading keeps both steps.';progress.textContent=valid?'Tree verified and saved · '+r.id:same&&r?.phase==='tree'?'Tree settings changed. Build the tree again to use the current settings.':'';}
+ if(current.error?.phase==='tree')progress.textContent=current.error.message;
+ basis.setAttribute('aria-invalid',String(!!(canBuild&&missingBasis)));
+ const svg=valid?r.phylogeny?.[mode.value+'_phylogram_svg']:undefined;
+ const sig=(valid?r.id:'')+'-'+mode.value+'-'+zoom.value+'-'+(svg?.includes('tree-distance-scale')||false);if(sig===viewKey)return;viewKey=sig;tree.replaceChildren();
+ if(!valid)return;
+ const mask=r.phylogeny.mask,method=mask?.trimming?.method;
+ if(method)tree.append(make('p',(method==='trimal_automated1'?'trimAl · automated1':method==='none'?'All columns':'50% occupancy')+' · '+mask.retained_columns+' / '+mask.original_columns+' columns retained'));
+ tree.append(make('h3','Preliminary gene tree'));
+ tree.append(make('p',r.phylogeny.status==='computed'?(mode.value==='rooted'?'Root basis: '+(r.phylogeny.root_basis||'No outgroup was selected; choose one above and rebuild the tree.'):'Unrooted view; its layout centre is not an ancestor.'):(r.phylogeny.reason||'Tree unavailable')));
+ if(svg){const image=make('img');image.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(window.GCFModelLabels?.treeLabel(svg,r.phylogeny.leaves,seed.sequences)||svg);image.alt=(mode.value==='rooted'?'Rooted':'Unrooted')+' tree from saved alignment';image.style='max-width:none;width:'+zoom.value+'%;height:auto';tree.append(image)}
+}
+window.GCFPhylogenyRequest=()=>{rootSave();return {outgroup_ids:[...outer.selectedOptions].map(o=>o.value),root_basis:basis.value,...(!trimLabel.hidden?{trim_mode:trimMode()}:{})}};
+trim.addEventListener('change',()=>{rootSave();api.clearError()});
+outer.addEventListener('change',()=>{rootSave();api.clearError()});basis.addEventListener('input',()=>{rootSave();api.clearError()});clear.addEventListener('click',()=>{for(const o of outer.options)o.selected=false;rootSave();api.clearError()});
+build.addEventListener('click',()=>api.buildTree());host.addEventListener('gcf-review-state',update);host.addEventListener('change',update);
+for(const e of [mode,zoom])e.addEventListener('change',()=>{lastView={mode:mode.value,zoom:zoom.value};update()});
+new MutationObserver(()=>{const c=api.current();if(c.running)progress.textContent=status.textContent;else if(c.error?.phase==='tree')progress.textContent=c.error.message}).observe(status,{childList:true,characterData:true,subtree:true});
+function download(text,name,type){const url=URL.createObjectURL(new Blob([text],{type})),a=make('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+const alignmentDownload=make('button','Download this alignment · FASTA');alignmentDownload.type='button';alignmentDownload.id='downloadCurrentAlignment';
+const kind=host.querySelector('[aria-label="Interactive alignment kind"]');kind.after(alignmentDownload);
+const rebuildRows=make('button','Rebuild alignment from checked rows');rebuildRows.type='button';rebuildRows.id='rebuildCurrentAlignment';alignmentDownload.after(rebuildRows);rebuildRows.addEventListener('click',()=>api.rebuildAlignment());
+alignmentDownload.addEventListener('click',()=>{const saved=api.savedAlignment();if(!saved)return;const records=saved[kind.value]||{},ids=saved.ids.filter(id=>records[id]);download(ids.map(id=>'>'+id+' '+(seed.sequences.find(s=>s.id===id)?.label||id).replace(/[\r\n]/g,' ')+'\n'+records[id]).join('\n')+'\n','gene-context_'+saved.id+'.aligned.'+(kind.value==='protein'?'faa':'fna'),'text/plain')});
+const treeInputDownload=make('button','Download tree input · FASTA');treeInputDownload.type='button';
+ treeInputDownload.addEventListener('click',()=>{const r=api.current().result,text=r?.phylogeny?.tree_input_fasta;if(text)download(text,'gene-context_'+r.id+'_tree_input.faa','text/plain')});
+ const treeDownload=make('button','Download this tree · Newick'),imageDownload=make('button','Download this tree · SVG');treeDownload.type=imageDownload.type='button';treeDownload.id='downloadCurrentTree';imageDownload.id='downloadCurrentTreeImage';fine.append(treeDownload,imageDownload,treeInputDownload);
+treeDownload.addEventListener('click',()=>{const r=api.current().result,text=r?.phylogeny?.[mode.value+'_newick'];if(text)download(text,'gene-context_'+r.id+'_'+mode.value+'.nwk','text/plain')});
+imageDownload.addEventListener('click',()=>{const r=api.current().result,svg=r?.phylogeny?.[mode.value+'_phylogram_svg'];if(svg)download(window.GCFModelLabels?.treeLabel(svg,r.phylogeny.leaves,seed.sequences)||svg,'gene-context_'+r.id+'_'+mode.value+'.svg','image/svg+xml')});
+const finish=make('section');finish.id='finalContextHandoff';finish.append(make('h2','4 · Confirm the set for synteny'),make('p','Confirm the current model choices, alignment and tree before recording final decisions in the synteny section below.'));
+const finalSummary=make('details');finalSummary.id='finalDefaultSummary';finish.append(finalSummary);const backToModels=make('button','Back to model selection');backToModels.type='button';backToModels.addEventListener('click',()=>finalGenes?.scrollIntoView({behavior:'smooth',block:'start'}));finish.append(backToModels);
+const nextStop=make('button','Confirm current choices and open Stage 3 · synteny');nextStop.type='button';nextStop.id='openSyntenyStop';const handoffStatus=make('p');handoffStatus.setAttribute('role','status');finish.append(nextStop,handoffStatus);host.after(finish);if(finalActions){const exports=make('details');exports.append(make('summary','Decision exports and diagnostics'),finalActions);finish.append(exports)}
+nextStop.addEventListener('click', async () => {
+ const issues=typeof reviewIssues==='function'?reviewIssues():[{message:'Model validation unavailable'}];
+ if(issues.length){handoffStatus.textContent='Resolve '+issues.length+' review items. '+issues[0].message;return}
+ const current=api.current(), alignment=api.savedAlignment(), treeResult=current.result;
+ if(current.running||!alignment||!api.alignmentMatchesModels(current.ids)){
+  handoffStatus.textContent='First save the current models and build their alignment.';return;
+ }
+ const root=window.GCFPhylogenyRequest();
+ if(treeResult?.phase!=='tree'||treeResult.alignment_id!==alignment.id||!sameIDs(treeResult.ids,[...new Set([...api.treeIDs(),...root.outgroup_ids])])
+  ||!sameIDs(treeResult.phylogeny?.outgroup_sequence_ids||[],root.outgroup_ids)
+  ||(root.trim_mode&&(treeResult.phylogeny?.mask?.trimming?.method||'occupancy_50')!==root.trim_mode)
+  ||(root.outgroup_ids.length&&(treeResult.phylogeny?.root_basis||'').trim()!==root.root_basis.trim())){
+  handoffStatus.textContent='Build the tree with the current sequence, outgroup and trimming settings before continuing.';return;
+ }
+ const final=exportState();
+ const handoff=JSON.stringify({
+  review_id:seed.source_review_id,alignment_review_id:seed.review_id,decisions:final,
+  alignment_result_id:alignment.id,tree_result_id:treeResult.id,group:alignment.group,selected_row_ids:api.treeIDs(),
+  notes:notes.value
+ });
+ try{
+  localStorage.setItem('gcf-realign-selection-'+seed.review_id+'-confirmed-'+alignment.group,handoff);
+  localStorage.setItem('gcf-synteny-final-'+seed.source_review_id,handoff);
+  await window.GCFPortableSession?.flush();
+  handoffStatus.textContent='Selection confirmed. Review synteny below.';
+  document.dispatchEvent(new Event('gcf-synteny-confirmed'));
+  window.GCFSyntenyReview?.open();
+ }catch(e){handoffStatus.textContent=e.message}
+});
+window.GCFUndoUI={capture:()=>({root:localStorage.getItem(rootKey()),view:{...lastView}}),restore:ui=>{if(!ui)return;if(ui.root!==null)localStorage.setItem(rootKey(),ui.root);else localStorage.removeItem(rootKey());if(ui.view){mode.value=ui.view.mode;zoom.value=ui.view.zoom;lastView={...ui.view}}optionsKey='';viewKey='';update()}};
+update();
+})();

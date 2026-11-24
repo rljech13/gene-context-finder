@@ -22,7 +22,7 @@ from .stage1_proteins import discovery_rows, engine_for, search_annotated
 from .sequence import read_gff, sha256, union_length, write_fasta, write_tsv
 from .tools import Genome, Runner, tool_versions
 
-OUTFMT = '6 qseqid sseqid pident length qstart qend sstart send evalue bitscore qlen slen'
+OUTFMT = '6 qseqid sseqid pident length qstart qend sstart send evalue bitscore qlen slen qseq sseq'
 DECISIONS = ['review_id', 'genome_id', 'locus_id', 'decision', 'anchor_intervals',
              'window_start', 'window_end', 'notes', 'pair_decision', 'reason']
 FILTERS = ['min_query_coverage', 'min_identity', 'max_evalue']
@@ -81,7 +81,7 @@ def parse_hits(path, queries, genome):
     result, seen = [], set()
     for number, line in enumerate(path.read_text().splitlines(), 1):
         f = line.split('\t')
-        if len(f) != 12 or f[0] not in queries or f[1] not in genome.index:
+        if len(f) not in {12, 14} or f[0] not in queries or f[1] not in genome.index:
             raise ValueError(f'Malformed/unknown BLAST hit at line {number}')
         qstart, qend = int(f[4])-1, int(f[5])
         begin, end = int(f[6]), int(f[7])
@@ -93,10 +93,13 @@ def parse_hits(path, queries, genome):
         if line in seen:
             continue
         seen.add(line)
-        result.append(dict(hsp_id='h_'+hashlib.sha256(line.encode()).hexdigest()[:20],
+        from .blast_alignment import alignment_fields
+        trace = alignment_fields(f, queries[f[0]]['sequence'],
+            subject_step=3 if int(f[11]) and abs(end-begin)+1 == 3*len(f[13].replace('-', '')) else 1) if len(f)==14 else {}
+        result.append(dict(hsp_id='h_'+hashlib.sha256('\t'.join(f[:12]).encode()).hexdigest()[:20],
             query=f[0], contig=f[1], start=start, end=stop, strand='+' if end>=begin else '-',
             qstart=qstart, qend=qend, alignment_length=int(f[3]), identity=float(f[2])/100,
-            evalue=float(f[8]), bitscore=float(f[9]), qlen=int(f[10]), slen=int(f[11])))
+            evalue=float(f[8]), bitscore=float(f[9]), qlen=int(f[10]), slen=int(f[11]), **trace))
     return result
 
 
@@ -386,6 +389,7 @@ def write_outputs(root, data):
         created=now(),status='awaiting_review',config=data['config'],filters=data['filters'],
         query_provenance=data['query_provenance'],genomes=data['genomes'],tools=data['tools'],
         commands=data.get('commands',[]),parent_review=data.get('parent_review'),
+        candidate_limit=data.get('candidate_limit'),source_checkpoint=data.get('source_checkpoint'),
         early_synteny=dict(status=data['early_synteny']['status'],artifact=data['early_synteny']['artifact']) if data.get('early_synteny') else None)
     dump(root/'manifest.json',manifest)
     write_report(root,data)
@@ -488,7 +492,7 @@ def search(args):
     from .stage1_context import attach
     context_error=attach(args,root,data,runner)
     write_outputs(root,data)
-    print('STOP — open '+str(root/'report.html'),file=sys.stderr)
+    print('Stage 1 — open '+str(root/'report.html'),file=sys.stderr)
     return 1 if context_error or any(g['status']=='error' or g.get('refinement_errors') for g in data['genomes']) else 0
 
 
@@ -504,7 +508,11 @@ def refilter(args):
     for name in ['queries.fasta','loci.fna']:
         if (source/name).exists():shutil.copyfile(source/name,root/name)
     shutil.copytree(source/'raw',root/'raw')
+    from .stage1_limit import inherit_parent_locator
+    inherit_parent_locator(source,root,data)
     data['parent_review']=data['review_id'];data['review_id']=str(uuid4())
+    from .stage1_limit import apply_limit
+    apply_limit(args,root,data)
     write_outputs(root,data)
     print('No BLAST rerun. New review: '+str(root/'report.html'),file=sys.stderr)
     return 0

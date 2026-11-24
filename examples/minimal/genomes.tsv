@@ -1,0 +1,3 @@
+genome_id	fasta	gff3	protein	cds
+Synthetic_species_1	assembly_1.fna	assembly_1.gff3	assembly_1.faa	assembly_1.cds.fna
+Synthetic_species_2	assembly_2.fna	assembly_2.gff3	assembly_2.faa	assembly_2.cds.fna

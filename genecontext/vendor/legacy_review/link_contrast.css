@@ -1,0 +1,12 @@
+/* gcf-synteny-link-contrast-v1 */
+.gcf-synteny-stop .linked-neighborhood .neighbor-link {
+  opacity: .95;
+  stroke-opacity: .85;
+  stroke-width: 1.6;
+}
+.gcf-synteny-stop .linked-neighborhood.link-focus .neighbor-link { opacity: .25; }
+.gcf-synteny-stop .linked-neighborhood.link-focus .neighbor-link.link-active {
+  opacity: 1;
+  stroke-opacity: 1;
+  stroke-width: 2.8;
+}

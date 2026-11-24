@@ -1,0 +1,78 @@
+// Explicit analysis sets across assemblies. This edits review metadata only.
+const analysisGroups=[];
+let activeAnalysisGroup=null;
+function selectedLoci(){return DATA.genomes.flatMap(g=>state.get(g.genome_id).selected.map(id=>lmap.get(id)))}
+function analysisGroupFor(id){return analysisGroups.find(g=>g.members.some(m=>m.locus_id===id))}
+function syncAnalysisGroups(){const selected=new Set(selectedLoci().map(l=>l.locus_id));for(const g of analysisGroups)g.members=g.members.filter(m=>selected.has(m.locus_id))}
+function parseAnalysisGroups(values,pairs){
+ if(!Array.isArray(values))throw Error('Analysis groups must be a list.');
+ const selected=new Set(pairs.flatMap(p=>Array.isArray(p.selected)?p.selected:[])),ids=new Set(),names=new Set(),members=new Set();
+ return values.map(g=>{
+  if(!g||typeof g.group_id!=='string'||!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(g.group_id)||typeof g.name!=='string'||!g.name.trim()||g.name!==g.name.trim()||g.name.length>120||/[\x00-\x1f\x7f]/.test(g.name)||!Array.isArray(g.members))throw Error('Invalid analysis group.');
+  if(ids.has(g.group_id)||names.has(g.name.toLowerCase()))throw Error('Duplicate analysis group ID or name.');ids.add(g.group_id);names.add(g.name.toLowerCase());
+  return{group_id:g.group_id,name:g.name,members:g.members.map(m=>{if(!m||!selected.has(m.locus_id)||lmap.get(m.locus_id)?.genome_id!==m.genome_id||members.has(m.locus_id))throw Error('Unknown, unselected or multiply assigned analysis-group locus.');members.add(m.locus_id);return{genome_id:m.genome_id,locus_id:m.locus_id}})};
+ });
+}
+function addAnalysisGroups(value){
+ syncAnalysisGroups();
+ if(analysisGroups.length){value.schema='stage1_pair_draft_v2';value.analysis_groups=analysisGroups.map(g=>({...g,members:g.members.map(m=>({...m}))}));if(activeAnalysisGroup)value.active_analysis_group=activeAnalysisGroup}
+ return value;
+}
+function groupFeedback(message,error=true){$('analysisGroupFeedback').replaceChildren(el('p',message,error?'error':'legend'))}
+function createAnalysisGroup(name){
+ name=name.trim();if(!name||name.length>120||/[\x00-\x1f\x7f]/.test(name))throw Error('Enter a group name (1–120 characters).');
+ if(analysisGroups.some(g=>g.name.toLowerCase()===name.toLowerCase()))throw Error('A group with this name already exists.');
+ let n=1;while(analysisGroups.some(g=>g.group_id==='group-'+n))n++;
+ const group={group_id:'group-'+n,name,members:[]};analysisGroups.push(group);persist();renderAnalysisGroups();return group;
+}
+function assignAnalysisGroup(locusId,groupId){
+ const locus=lmap.get(locusId);if(!locus||!state.get(locus.genome_id).selected.includes(locusId))throw Error('Select the locus before assigning a group.');
+ const chosen=analysisGroups.find(g=>g.group_id===groupId);if(groupId&&!chosen)throw Error('Unknown analysis group.');
+ for(const g of analysisGroups)g.members=g.members.filter(m=>m.locus_id!==locusId);
+ if(chosen)chosen.members.push({genome_id:locus.genome_id,locus_id:locusId});
+ persist();renderAnalysisGroups();
+}
+function analysisGroupErrors(groupId=null){
+ const errors=[];
+ if(groupId){const g=analysisGroups.find(g=>g.group_id===groupId);if(!g||!g.members.length)return['Select at least one locus for this group.'];for(const gid of new Set(g.members.map(m=>m.genome_id)))for(const e of pairErrors(gid,true))errors.push(species(gid)+': '+e)}
+ else if(analysisGroups.length)for(const l of selectedLoci())if(!analysisGroupFor(l.locus_id))errors.push('Assign a stage-2 group to selected locus '+l.locus_id+'.');
+ return errors;
+}
+function groupDraft(groupId){
+ const errors=analysisGroupErrors(groupId);if(errors.length)throw Error(errors.join('\n'));
+ const value=draft(),group=analysisGroups.find(g=>g.group_id===groupId),ids=new Set(group.members.map(m=>m.locus_id));
+ value.active_analysis_group=groupId;value.neighbor_shortlist=value.neighbor_shortlist.filter(c=>ids.has(c.locus_id));return value;
+}
+function analysisGroupsFromRows(rows){
+ const definitions=new Map();
+ for(const row of rows){const id=row.analysis_group_id||'',name=row.analysis_group||'';if(!id&&!name)continue;
+  if(!id||!name||row.decision!=='inspect')throw Error('Grouped TSV needs both group ID and name on selected loci.');
+  if(definitions.has(id)&&definitions.get(id).name!==name)throw Error('Conflicting names for one analysis group.');
+  if(!definitions.has(id))definitions.set(id,{group_id:id,name,members:[]});definitions.get(id).members.push({genome_id:row.genome_id,locus_id:row.locus_id});
+ }
+ return [...definitions.values()];
+}
+function renderAnalysisGroups(){
+ const management=$('analysisGroupList'),assignments=$('analysisGroupAssignments');if(!management||!assignments)return;
+ syncAnalysisGroups();
+ management.replaceChildren();
+ if(analysisGroups.length)management.append(table(['Group name','Selected loci','Export'],analysisGroups.map(g=>{
+  const name=el('input');name.value=g.name;name.maxLength=120;name.setAttribute('aria-label','Rename analysis group '+g.name);
+  name.addEventListener('change',()=>{const value=name.value.trim();if(!value||value.length>120||/[\x00-\x1f\x7f]/.test(value)||analysisGroups.some(x=>x!==g&&x.name.toLowerCase()===value.toLowerCase())){name.value=g.name;groupFeedback('Use a nonempty, unique group name.');return}g.name=value;persist();renderAnalysisGroups()});
+  const actions=el('div',undefined,'actions'),save=el('button','Download group JSON'),remove=el('button','Delete empty group');
+  save.disabled=!g.members.length;save.setAttribute('aria-label','Download group '+g.name);
+  save.addEventListener('click',()=>{try{const value=groupDraft(g.group_id),filename=g.name.replace(/[^A-Za-z0-9_-]+/g,'_').slice(0,50)||g.group_id;download(filename+'.'+g.group_id+'.stage1.draft.json',JSON.stringify(value,null,2)+'\n','application/json');groupFeedback('Group exported: '+g.name+'. Use this JSON as the stage-2 input.',false)}catch(error){groupFeedback(error.message)}});
+  remove.disabled=!!g.members.length;remove.addEventListener('click',()=>{analysisGroups.splice(analysisGroups.indexOf(g),1);if(activeAnalysisGroup===g.group_id)activeAnalysisGroup=null;persist();renderAnalysisGroups()});actions.append(save,remove);return[name,g.members.length,actions];
+ })));
+ const selected=selectedLoci();assignments.replaceChildren();
+ if(selected.length&&analysisGroups.length)assignments.append(table(['Assembly','Selected locus','Stage-2 group','Review'],selected.map(l=>{
+  const select=el('select'),empty=el('option','Choose a group');empty.value='';select.append(empty);select.setAttribute('aria-label','Analysis group for '+l.locus_id);
+  for(const g of analysisGroups){const o=el('option',g.name);o.value=g.group_id;select.append(o)}select.value=analysisGroupFor(l.locus_id)?.group_id||'';
+  select.addEventListener('change',()=>assignAnalysisGroup(l.locus_id,select.value));
+  return[species(l.genome_id)+' · '+accession(l.genome_id),locusName(l)+' · '+l.contig+':'+l.start+'–'+l.end+' · '+l.locus_id,select,state.get(l.genome_id).committed?'Pair saved':'Save this pair first'];
+ })));
+ else assignments.append(el('p',selected.length?'Create named groups, then assign the selected loci.':'Select target loci above, then assign them to groups here.','legend'));
+ const unassigned=selected.filter(l=>!analysisGroupFor(l.locus_id)).length;
+ $('analysisGroupSummary').textContent=analysisGroups.length?`${analysisGroups.length} groups · ${selected.length} selected loci · ${unassigned} unassigned${activeAnalysisGroup?' · scoped input: '+(analysisGroups.find(g=>g.group_id===activeAnalysisGroup)?.name||activeAnalysisGroup):''}`:'Optional: keep one analysis, or create separate family/copy groups.';
+}
+$('addAnalysisGroup').addEventListener('click',()=>{try{createAnalysisGroup($('analysisGroupName').value);$('analysisGroupName').value='';groupFeedback('Group created. Assign its selected loci below.',false)}catch(error){groupFeedback(error.message)}});

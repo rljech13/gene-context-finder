@@ -4,6 +4,7 @@ from copy import deepcopy
 import hashlib
 import json
 from pathlib import Path
+import re
 
 from .gene_identity import identity as reference_identity, model_identities, export_identities
 from .sequence import read_fasta, write_fasta, write_tsv
@@ -11,6 +12,20 @@ from .stage3_analysis import read_table
 
 
 SCHEMA='stage3_final_choices_v1'
+
+
+def reference_approved(choice,bucket,spec,protein_sha256=None):
+    approval=choice.get('reference_approval')
+    if not isinstance(approval,dict) or choice.get('reviewed') is not True:
+        return False
+    mid=choice.get('primary');expected=protein_sha256 or spec.get('protein_sha256',{}).get(mid)
+    return bool(mid and approval.get('schema')=='stage3_reference_approval_v1'
+        and approval.get('confirmed') is True and approval.get('stage')==3
+        and approval.get('model_id')==mid and mid in bucket['model_ids']
+        and approval.get('review_id')==spec['review_id'] and approval.get('set_id')==spec['set_id']
+        and approval.get('gene')==bucket.get('gene','') and approval.get('genome_id')==bucket.get('genome_id','')
+        and re.fullmatch(r'[0-9a-f]{64}',str(approval.get('protein_sha256','')))
+        and (not expected or approval['protein_sha256']==expected))
 
 
 def normalized(value):
@@ -33,6 +48,8 @@ def validate_choices(state, spec):
             raise ValueError('Supply the basis for every primary assignment, including an unresolved assignment')
         if type(choice.get('reviewed')) is not bool:
             raise ValueError('The reviewed flag must be a boolean')
+        if choice.get('reference_approval') is not None and not reference_approved(choice,buckets[key],spec):
+            raise ValueError('Reference approval is invalid or belongs to another final model/protein')
     notes=state.get('cases',{})
     allowed={m for b in buckets.values() for m in b['model_ids']}
     if not isinstance(notes,dict) or set(notes)-allowed:
@@ -44,6 +61,8 @@ def validate_choices(state, spec):
 
 
 def case_reason(model, primary, models):
+    if model.get('alignment_candidate'):
+        return 'Alternative CDS model included for alignment review; not an approved target or an additional physical copy.'
     a=model['assignment']; identity=model['copy_identity']
     if a['known_other_copy']:
         return 'Specific source label is '+identity['display_name']+'; it is not automatically renamed to '+model['target_gene']+'.'
@@ -111,11 +130,12 @@ def prepare(root,payload,models,references):
             complete=m['quality']['coding_status']=='complete_predicted' and str(m.get('window_edge')).lower()!='true'
             facts=['Copy label: '+identity['display_name']+' ('+identity['basis'].replace('_',' ')+').',
                 'Complete coding model.' if complete else 'Coding completeness or saved-window boundary needs review.']
+            if m.get('alignment_candidate'):facts.append('Preliminary CDS comparison candidate; inclusion is not target approval.')
             if target:facts.append('Best '+('supplied' if fallback else gene)+' query: '+target['accession']+'; identity '+format(target['identity'],'.1%')+', coverage model/reference '+format(target['coverage_model'],'.1%')+' / '+format(target['coverage_reference'],'.1%')+'.')
             else:facts.append('No comparable target-reference protein measurement.')
             agreement=m['quality']['source_agreement']
             facts.append({'exact_CDS_match':'Annotation and Tiberius have an identical CDS.',
-                          'different_CDS_models':'Annotation and Tiberius propose different CDS models; the STOP-2 selection is retained.',
+                          'different_CDS_models':'Annotation and Tiberius propose different CDS models; the Stage 2 selection is retained.',
                           'other_source_unavailable':'Only one source is available for this model.'}.get(agreement,agreement))
             if identity['status'] in {'homology_only','unresolved'}:facts.append('Specific copy identity is not established by the source label.')
             if payload.get('reviewed_pair_count',0)<2:facts.append('Confirmed synteny was not used to establish this copy identity.')
@@ -132,13 +152,15 @@ def prepare(root,payload,models,references):
         if best:
             ref=best['assignment']['best_target']
             reason='Suggested representative: '+ref['accession']+' gives '+format(ref['identity'],'.1%')+' protein identity with model/reference coverage '+format(ref['coverage_model'],'.1%')+' / '+format(ref['coverage_reference'],'.1%')+'. '
-            reason+=('Ranked first by coding completeness, then target-query identity × minimum coverage among the selected copies in this organism.' if len(candidates)>1 else 'Only STOP-2 selected copy in this organism.')
+            reason+=('Ranked first by coding completeness, then target-query identity × minimum coverage among the selected copies in this organism.' if len(candidates)>1 else 'Only Stage 2 selected copy in this organism.')
         else:reason='No primary target proposed: available copies have a different specific source label or lack target-reference comparison.'
         buckets.append(dict(key=key,group=group,gene=group_names[group],genome_id=genome,species=candidates[0]['species'],model_ids=[m['model_id'] for m in candidates]))
         choices[key]=dict(primary=best['model_id'] if best else '',reason=reason,reviewed=False)
     signature=[(m['group'],m['genome_id'],m['model_id'],m['cds_sha256']) for m in models]
     set_id=hashlib.sha256(json.dumps([payload['review_id'],sorted(signature)],sort_keys=True).encode()).hexdigest()
+    protein_records=read_fasta(root/'selected.proteins.faa')
     spec=dict(review_id=payload['review_id'],set_id=set_id,buckets=buckets,
+        protein_sha256={sid:hashlib.sha256(seq.encode()).hexdigest() for sid,seq in protein_records.items()},
         method='One proposed representative per comparison group/genome. Specific known non-target labels are kept separate. Complete models rank first, then target-query identity × minimum model/reference coverage. Source label and exact CDS agreement break ties. This is a proposal, not resolved orthology.')
     state=dict(schema=SCHEMA,review_id=payload['review_id'],set_id=set_id,choices=choices,cases={})
     path=root/'finalization.decisions.json'

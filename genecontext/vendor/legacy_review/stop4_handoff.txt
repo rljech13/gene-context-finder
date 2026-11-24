@@ -1,0 +1,121 @@
+// gcf-stop4-handoff-v1
+(()=>{
+const params=new URLSearchParams(location.search);
+if(!document.documentElement.classList.contains('gcf-synteny-stop'))return;
+const seed=JSON.parse(document.getElementById('interactiveReviewData').textContent);
+const source=seed.source_review_id, handoffKey='gcf-synteny-final-'+source, key='gcf-stop4-final-'+source;
+const token=params.get('review_token'), storage='gcf-realign-selection-'+seed.review_id;
+const node=(tag,text)=>{const el=document.createElement(tag);if(text)el.textContent=text;return el};
+const read=k=>JSON.parse(localStorage.getItem(k)||'null');
+const selected=d=>Object.entries(d?.models||{}).filter(([,m])=>m.decision==='inspect'&&['target','alignment_candidate'].includes(m.role)).map(([id])=>id);
+const ordered=o=>Object.fromEntries(Object.entries(o||{}).sort(([a],[b])=>a.localeCompare(b)));
+const selection=d=>JSON.stringify([d?.review_id,ordered(d?.regions),ordered(d?.models)]);
+const digest=async text=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))),b=>b.toString(16).padStart(2,'0')).join('');
+const section=node('section'), table=node('div'), status=node('p'), button=node('button','Download Stage 4 input');
+section.id='stop4Handoff';button.type='button';status.setAttribute('role','status');
+section.append(node('h2','Final models for Stage 4'),node('p','Record a decision for each model after reviewing synteny. Choose one main model per genome and comparison group. Keep additional copies as separate cases.'),table,button,status);
+const previous=document.getElementById('syntenyReferenceApproval');
+if(previous){previous.before(section);const legacy=node('details');legacy.append(node('summary','Earlier reference approvals'),previous);section.after(legacy);for(const el of previous.querySelectorAll('[data-action="send-alphafold"]'))el.hidden=true;
+ new MutationObserver(()=>{for(const el of previous.querySelectorAll('[data-action="send-alphafold"]'))el.hidden=true}).observe(previous,{childList:true,subtree:true});}
+else document.querySelector('main').append(section);
+function context(){
+ const h=read(handoffKey),d=exportState(), ids=selected(d), candidates=seed.sequences.filter(s=>!s.reference&&ids.includes(s.id));
+ if(h?.alignment_review_id!==seed.review_id||selection(h.decisions)!==selection(d)||!h.alignment_result_id||!h.tree_result_id)
+  throw Error('Confirm the current set in Stage 2 after reviewing its alignment and tree.');
+ if(!candidates.length||ids.length!==candidates.length)throw Error('The confirmed models do not match the prepared model catalogue.');
+ return {h,d,candidates,signature:JSON.stringify([h.alignment_result_id,h.tree_result_id,selection(d),ordered(d.pairs)])};
+}
+let visibleSignature;
+function render(){
+ table.replaceChildren();
+ try{
+  const c=context(), prior=read(key), roles=prior?.signature===c.signature?prior.roles:{};
+  visibleSignature=c.signature;
+  button.disabled=false;status.textContent='';
+  for(const s of c.candidates){
+   const row=node('div'), name=node('strong',s.label), role=node('select'), reason=node('input');
+   row.style='display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;padding:6px 0;border-bottom:1px solid #dbe4e7';
+   role.setAttribute('aria-label','Final role: '+s.label);reason.setAttribute('aria-label','Reason: '+s.label);reason.placeholder='Evidence or reason';
+   for(const [value,label] of [['','Choose…'],['primary_target','Main model'],['special_case','Separate case'],['unresolved','Unresolved'],['excluded','Exclude']]){
+    const choice=node('option',label);choice.value=value;role.append(choice);
+   }
+   role.value=roles[s.id]?.role||'';reason.value=roles[s.id]?.reason||'';
+   const save=()=>{roles[s.id]={role:role.value,reason:reason.value};localStorage.setItem(key,JSON.stringify({signature:c.signature,roles}));};
+   role.addEventListener('change',save);reason.addEventListener('input',save);row.append(name,role,reason);table.append(row);
+  }
+ }catch(e){visibleSignature=null;button.disabled=true;status.textContent=e.message}
+}
+async function checkpoint(id,group,phase){
+ if(token){
+  const url=new URL('/api/checkpoint',location.origin);url.searchParams.set('id',id);
+  const response=await fetch(url,{headers:{'X-Review-Token':token}});
+  if(!response.ok)throw Error(await response.text());return response.json();
+ }
+ const saved=read(storage+(phase==='tree'?'-result-':'-saved-alignment-')+group);
+ if(saved?.id!==id)throw Error('The confirmed '+phase+' is no longer available. Return to Stage 2.');
+ return saved;
+}
+button.addEventListener('click',async()=>{
+ button.disabled=true;
+ try{
+  const c=context(), saved=read(key);
+  if(saved?.signature!==c.signature)throw Error('Record the final decisions for this synteny review.');
+  const analyses={}, roles={}, seen=new Set(), physical=new Set();
+  for(const group of new Set(c.candidates.map(s=>s.group))){
+   const other=group===c.h.group?null:read(storage+'-confirmed-'+group);
+   const aID=other?.alignment_result_id||(group===c.h.group?c.h.alignment_result_id:null);
+   const tID=other?.tree_result_id||(group===c.h.group?c.h.tree_result_id:null);
+   if(!aID||!tID||other&&selection(other.decisions)!==selection(c.d))throw Error('Confirm alignment and tree for '+group+' in Stage 2.');
+   const alignment=await checkpoint(aID,group,'alignment'),tree=await checkpoint(tID,group,'tree');
+   if(alignment.id!==aID||tree.id!==tID||alignment.group!==group||tree.group!==group||tree.alignment_id!==aID)throw Error('Alignment and tree do not belong to the same review.');
+   analyses[group]={alignment,tree};
+  }
+  for(const s of c.candidates){
+   const v=saved.roles[s.id], a=analyses[s.group];
+   if(!v?.role||!v.reason?.trim())throw Error('Choose an outcome and explain it for '+s.label);
+   if(v.role==='primary_target'||v.role==='special_case'){
+    if(!a.alignment.ids.includes(s.id))throw Error('Include '+s.label+' in the saved alignment or mark it unresolved.');
+    if(v.role==='primary_target'&&!a.tree.ids.includes(s.id))throw Error('Include the main model '+s.label+' in the tree selection.');
+    const gate=c.d.models[s.id];
+    if(v.role==='primary_target'&&s.metadata.model_constraints?.target_warnings?.length&&!(gate.target_override===true&&gate.notes?.trim()))
+     throw Error('Resolve the target warning for '+s.label+' in Stage 2, or keep it as a separate case.');
+    const m=s.metadata, where=m.model_constraints?.physical_id||m.gene_group||m.region_id, locus=m.genome_id+'|'+where;
+    if(physical.has(locus))throw Error('Keep one final model per physical gene: '+s.label);
+    physical.add(locus);
+    if(v.role==='primary_target'){
+     const bucket=s.group+'|'+m.genome_id;if(seen.has(bucket))throw Error('Choose only one main model per genome and group: '+s.label);seen.add(bucket);
+    }
+   }
+   roles[s.id]={role:v.role,reason:v.reason.trim()};
+  }
+  const ids=new Set([...c.candidates.map(s=>s.id),...Object.values(analyses).flatMap(a=>a.alignment.ids)]);
+  const members=seed.sequences.filter(s=>ids.has(s.id));
+  if(members.length!==ids.size)throw Error('The saved alignment contains an unknown sequence.');
+  const retained=new Set(c.candidates.map(s=>s.metadata.region_id));
+  const contexts={regions:DATA.regions.filter(r=>retained.has(r.region_id)),
+   neighborhood:DATA.models.filter(m=>retained.has(m.region_id)).map(m=>({
+    model_id:m.model_id,region_id:m.region_id,physical_id:DATA.model_constraints?.[m.model_id]?.physical_id||m.gene_group,
+    name:m.annotation_name||m.original_gene,source:m.source,contig:m.contig,start:m.start,end:m.end,strand:m.strand})),
+   
+   reviewed_pairs:Object.fromEntries(Object.entries(c.d.pairs||{}).map(([id,pair])=>{
+    const proposal=DATA.neighbor_pairs.find(p=>p.kind==='neighbor_proposal'&&p.gene_a===pair.gene_a&&p.gene_b===pair.gene_b&&p.model_a===pair.model_a&&p.model_b===pair.model_b);
+    if(!proposal)throw Error('A reviewed neighbor match is missing from the prepared context.');return [id,proposal];
+   }))};
+  const payload=JSON.stringify({schema:'gcf_stop4_input_v1',source_review_id:source,alignment_review_id:seed.review_id,
+   legacy_provenance:JSON.parse(document.getElementById('legacyReviewData').textContent).provenance,stage2:c.h.decisions,notes:c.h.notes||'',stage3:{reviewed:true,decisions:roles,synteny:contexts},members,analyses});
+  const checksum=await digest(payload);
+  if(context().signature!==c.signature||JSON.stringify(read(key))!==JSON.stringify(saved))throw Error('Decisions changed during export. Try again.');
+  await window.GCFPortableSession?.flush();
+  const url=URL.createObjectURL(new Blob([JSON.stringify({sha256:checksum,payload})+'\n'],{type:'application/json'}));
+  const link=node('a');link.href=url;link.download='Stage4-input-'+checksum.slice(0,12)+'.json';link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);status.textContent='Stage 4 input downloaded.';
+ }catch(e){status.textContent=e.message}finally{button.disabled=false}
+});
+document.querySelector('#comparisonPanels').addEventListener('change',()=>{
+ queueMicrotask(()=>{
+  let signature;try{signature=context().signature}catch(e){signature=null}
+  if(signature!==visibleSignature)render();
+ });
+});
+render();
+})();

@@ -20,3 +20,97 @@ jobs:
           "$RUNNER_TEMP/gcf-install/bin/python" -m pip install --no-index --no-deps "$RUNNER_TEMP/gcf-wheel/"*.whl
           cd "$RUNNER_TEMP"
           "$RUNNER_TEMP/gcf-install/bin/gene-context" --help
+          "$RUNNER_TEMP/gcf-install/bin/gene-context" project --help
+          "$RUNNER_TEMP/gcf-install/bin/python" -c 'from importlib.metadata import version; from genecontext import __version__; assert version("gene-context-finder") == __version__'
+          "$RUNNER_TEMP/gcf-install/bin/gene-context" model-review --help
+          "$RUNNER_TEMP/gcf-install/bin/gene-context" stage4 --help
+          python -c 'import os,pathlib,zipfile; p=next((pathlib.Path(os.environ["RUNNER_TEMP"])/"gcf-wheel").glob("*.whl")); assert p.stat().st_size < 2_000_000; assert not any("/review-" in n and not n.endswith(".txt") for n in zipfile.ZipFile(p).namelist())'
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install sequence tools for small software controls
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ncbi-blast+ samtools mafft
+      - name: Install optional structure parser for AF3 ZIP controls
+        run: python -m pip install '.[structures]'
+      - run: python -m unittest discover -s tests -v
+  review-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+  portable-viewer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: portable-review/go.mod
+          cache: false
+      - run: go test ./...
+        working-directory: portable-review
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build the native optional launcher
+        run: python scripts/build_review.py --platform all --out "$RUNNER_TEMP/gcf-runtime"
+      - name: Retain the launcher and its source/binary hashes
+        uses: actions/upload-artifact@v4
+        with:
+          name: review-runtime-all-platforms
+          path: ${{ runner.temp }}/gcf-runtime
+  installed-reports:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: portable-review/go.mod
+          cache: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: go test ./...
+        working-directory: portable-review
+      - name: Build this platform's optional launcher
+        run: python scripts/build_review.py --out "${{ runner.temp }}/gcf-runtime"
+      - name: Generate and package reports from a clean wheel installation
+        run: python tests/installed_report_ci.py
+      - name: Install Linux browser dependencies and Chromium
+        if: runner.os == 'Linux'
+        run: npx playwright install --with-deps chromium
+      - name: Install Chromium
+        if: runner.os != 'Linux'
+        run: npx playwright install chromium
+      - name: Check the browser and restart the standalone app
+        run: node tests/report_portability_browser.cjs "${{ runner.temp }}/gcf-installed-report/proof"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: installed-report-${{ matrix.os }}
+          path: |
+            ${{ runner.temp }}/gcf-installed-report/proof/*verification.json
+            ${{ runner.temp }}/gcf-installed-report/proof/*.png
+            ${{ runner.temp }}/gcf-installed-report/proof/portable/review_app.zip
+            ${{ runner.temp }}/gcf-installed-report/wheels/*.whl

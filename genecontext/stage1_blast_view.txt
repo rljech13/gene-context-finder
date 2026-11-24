@@ -1,0 +1,27 @@
+// gcf-stop1-blast-alignment-20261119-v1
+function blastAlignment(l){
+ const box=el('div',undefined,'blast-alignment'),controls=el('div',undefined,'blast-controls'),query=el('select'),product=el('select'),content=el('div');
+ query.setAttribute('aria-label','BLAST query');product.setAttribute('aria-label','BLAST candidate product');
+ const qids=[...new Set(l.chains.map(c=>c.query))];
+ for(const id of qids){const o=el('option',queryName(id));o.value=id;query.append(o)}
+ query.value=qids.includes(l.best_query)?l.best_query:qids[0];
+ function trace(h){return h.alignment||DATA.blast_alignments?.[l.genome_id]?.[h.hsp_id]}
+ function show(){
+  content.replaceChildren();const c=l.chains.find(c=>c.chain_id===product.value);if(!c)return;
+  content.append(el('p',`${queryName(c.query)} → ${l.discovery_engine==='blastp'?productName(c):c.contig+' ('+c.strand+')'} · ${c.hsps.length} local HSP(s). Positions are 1-based, inclusive; gaps are alignment columns, not introns.`,'legend'));
+  for(const [i,h] of [...c.hsps].sort((a,b)=>a.qstart-b.qstart).entries()){
+   const panel=el('div',undefined,'blast-hsp'),a=trace(h);panel.append(el('strong',`HSP ${i+1} · ${h.bitscore} bits · E ${h.evalue} · identity ${percent(h.identity)} · ${h.alignment_length} columns`));
+   if(!a){panel.append(el('p','Alignment letters were not saved for this historical HSP. Its original coordinates and scores are available in Details; no replacement alignment is inferred.','notice'));content.append(panel);continue}
+   panel.append(el('p',a.provenance==='validated_blast_replay'?'BLAST replay validated against the saved HSP: exact coordinates, columns, identity, bit score and E-value.':'Original gapped strings saved by BLAST.','legend'));
+   const lines=el('div',undefined,'blast-lines');lines.setAttribute('aria-label',`BLAST HSP ${i+1} alignment`);
+   const qdir=a.query_end>=a.query_start?1:-1,sdir=a.subject_end>=a.subject_start?1:-1,step=a.subject_step||1;let qp=a.query_start,sp=a.subject_start;
+   // Short blocks fit a laptop and keep both sets of positions beside the letters.
+   const width=Math.max(12,Math.min(60,Math.floor(((box.clientWidth||760)-225)/7.3)));
+   function row(label,start,seq,end,other){const r=el('div',undefined,'blast-line');r.append(el('span',label),el('span',String(start),'blast-start'));const letters=el('span');for(let j=0;j<seq.length;j++){const cl=seq[j]==='-'?'blast-gap':seq[j]===other[j]?'blast-match':'blast-diff';letters.append(el('span',seq[j],'blast-residue '+cl))}r.append(letters,el('span',String(end)));return r}
+   for(let n=0;n<a.qseq.length;n+=width){const q=a.qseq.slice(n,n+width),s=a.sseq.slice(n,n+width),qn=q.replaceAll('-','').length,sn=s.replaceAll('-','').length,qend=qp+qdir*(qn-1),send=sp+sdir*(sn*step-1);lines.append(row('Query',qn?qp:'—',q,qn?qend:'—',s));const middle=el('div',undefined,'blast-line');middle.append(el('span',''),el('span',''),el('span',[...q].map((v,j)=>v===s[j]&&v!=='-'?'|':' ').join('')),el('span',''));lines.append(middle,row(l.discovery_engine==='blastp'?'Subject':'Genome',sn?sp:'—',s,sn?send:'—',q));qp+=qdir*qn;sp+=sdir*sn*step}
+   panel.append(lines);content.append(panel)
+  }
+ }
+ function products(){product.replaceChildren();for(const c of l.chains.filter(c=>c.query===query.value).sort(chainOrder)){const o=el('option',`${l.discovery_engine==='blastp'?productName(c):c.chain_id} · ${score(c.bitscore)} bits`);o.value=c.chain_id;product.append(o)}show()}
+ const qlabel=el('label','Query'),plabel=el('label','Candidate model / chain');qlabel.append(query);plabel.append(product);controls.append(qlabel,plabel);box.append(controls,el('p','Green: identical residues. Amber: substitution. Grey dash: alignment gap. Each HSP is shown separately; unaligned portions are not filled in.','legend'),content);query.addEventListener('change',products);product.addEventListener('change',show);products();return box
+}

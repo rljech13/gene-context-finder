@@ -1,6 +1,8 @@
-"""Small offline STOP-2 workbench: models and proposed neighbor correspondences."""
+"""Small offline Stage 2 workbench: models and proposed neighbor correspondences."""
 import json
 from pathlib import Path
+
+UI_VERSION = 'gcf-stop2-ui-20261119-v2'
 
 
 def source_pairs(root, data):
@@ -74,15 +76,28 @@ def write_report(root,data):
         data.get('selection',{}).get('omitted_unsaved_genomes',[])))
     decisions={p['genome_id']:p for p in draft.get('pairs',[])}
     omitted=set(data.get('selection',{}).get('omitted_unsaved_genomes',[]))
+    outside=set(data.get('selection',{}).get('omitted_other_group_genomes',[]))
+    analysis_group=data.get('selection',{}).get('analysis_group')
     payload['run_context']=dict(gene=' / '.join(dict.fromkeys(r.get('gene','target') for r in data['regions'])),
+        analysis_group=analysis_group,
         source_review_id=data['source_review_id'],genomes=[dict(genome_id=gid,
-            status='processed_selected_loci' if gid in available else 'stage1_review_pending' if gid in omitted or decisions.get(gid,{}).get('committed') is False else decisions.get(gid,{}).get('action') or 'not_in_this_run') for gid in all_ids])
+            status='processed_selected_loci' if gid in available else 'outside_analysis_group' if gid in outside else 'stage1_review_pending' if gid in omitted or decisions.get(gid,{}).get('committed') is False else decisions.get(gid,{}).get('action') or 'not_in_this_run') for gid in all_ids])
+    (root/'report.html').write_text(render_document(payload,root))
+
+
+def render_document(payload, root=None):
+    """Render an existing display payload without changing scientific evidence."""
     template=Path(__file__).with_name('stage2_review.txt').read_text()
     template=template.replace('__NEIGHBORHOOD__',Path(__file__).with_name('stage2_neighborhood.txt').read_text())
     template=template.replace('__CLUSTER__',Path(__file__).with_name('stage2_cluster.txt').read_text())
     template=template.replace('__REVIEW_QUEUE__',Path(__file__).with_name('stage2_review_queue.txt').read_text())
-    text=json.dumps(payload,ensure_ascii=True,separators=(',',':')).replace('<','\\u003c').replace('&','\\u0026')
-    (root/'report.html').write_text(template.replace('__DATA__',text))
+    template=template.replace('__MODEL_COMPARE__',Path(__file__).with_name('stage2_model_compare.txt').read_text())
+    text=json.dumps(payload,ensure_ascii=True,separators=(',',':')).replace('<',chr(92)+'u003c').replace('&',chr(92)+'u0026')
+    html='<!-- '+UI_VERSION+' -->\n'+template.replace('__DATA__',text)
+    if root is not None:
+        from .interactive_review import attach,stage2_dataset,write_dataset
+        interactive=stage2_dataset(root,payload);write_dataset(root,interactive);html=attach(html,interactive)
+    return html
 
 
 def refresh(args):
@@ -110,7 +125,7 @@ def refresh(args):
         dump(root/'annotation_quality.json',collect_annotation_quality(data,args.genomes,sha256(source/'evidence.json')))
     write_report(root,data)
     from . import __version__
-    dump(root/'presentation.json',dict(version=__version__,source=str(source),source_evidence_sha256=sha256(source/'evidence.json'),retained_review_id=data['review_id'],renderer_sha256={name:sha256(Path(__file__).with_name(name)) for name in ['stage2_report.py','stage2_quality.py','stage2_display.py','stage2_reconstruct.py','stage2_prior_context.py','stage2_choices.py','stage2_review.txt','stage2_neighborhood.txt','stage2_cluster.txt','stage2_review_queue.txt','gene_identity.py']},note='Presentation refresh only. Specific copy labels retain annotation and curated locus provenance separately from protein-database similarity. Scientific evidence, source identifiers, all-source review proposals and decisions are unchanged.'))
+    dump(root/'presentation.json',dict(version=__version__,source=str(source),source_evidence_sha256=sha256(source/'evidence.json'),retained_review_id=data['review_id'],renderer_sha256={name:sha256(Path(__file__).with_name(name)) for name in ['stage2_report.py','stage2_quality.py','stage2_display.py','stage2_reconstruct.py','stage2_prior_context.py','stage2_choices.py','stage2_review.txt','stage2_neighborhood.txt','stage2_cluster.txt','stage2_review_queue.txt','stage2_model_compare.txt','interactive_review.py','review_realign.txt','gene_identity.py']},note='Presentation refresh only. Specific copy labels retain annotation and curated locus provenance separately from protein-database similarity. Scientific evidence, source identifiers, all-source review proposals and decisions are unchanged.'))
     dump(root/'seal.json',{str(p.relative_to(root)):sha256(p) for p in root.rglob('*') if p.is_file() and p.name not in {'seal.json','models.decisions.tsv','regions.decisions.tsv','neighbors.decisions.tsv'}})
-    print('Updated STOP 2 report: '+str(root/'report.html'))
+    print('Updated Stage 2 report: '+str(root/'report.html'))
     return 0
