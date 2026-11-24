@@ -129,3 +129,9 @@ npm ci && npm test
 
 See [architecture](docs/ARCHITECTURE.md) for the boundaries between study state,
 scientific engines, review pages and optional runtimes.
+
+Automatic tree placement now uses one rule for each model, with no manual scoring
+leaf or split selection. Stage 3 retains sequences, mask and outgroup choices.
+Stage 4 confirms the exact tree and outgroup before proposed T enters the score;
+a configuration change clears confirmation. See [the method and portable review
+workflow](docs/AUTOMATIC_TREE_PLACEMENT.md).

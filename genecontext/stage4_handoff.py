@@ -269,6 +269,8 @@ def run(args):
             limitations=['Tree, sequence and structure evidence are recorded separately. Orthology and expression require biological interpretation.']))
     counts={'unresolved':sum(v['role']=='unresolved' for v in data['stage3']['decisions'].values()),
             'excluded':sum(v['role']=='excluded' for v in data['stage3']['decisions'].values())}
+    from .tree_placement import attach_stage4
+    attach_stage4(root, trees, rows, args)
     for name,role in [('primary_targets','primary_target'),('special_cases','special_case')]:
         part=[r for r in rows if r['classification']==role]
         counts[role]=len(part)
@@ -300,7 +302,7 @@ def run(args):
     (root/'START_HERE.html').write_text('<!doctype html><html lang="en"><meta charset="utf-8"><title>Stage 4</title><p><a href="report.html">Open Stage 4 candidate dossier</a></p></html>')
     dump(root/'manifest.json',dict(stage='stage4_prototype',status='completed',created=now(),
         source_review_id=data['source_review_id'],alignment_review_id=data['alignment_review_id'],
-        source_code_sha256={n:sha256(Path(__file__).with_name(n)) for n in ('stage4_handoff.py','stage4_report.txt','stage4_structure.py','stage4_similarity.py','stage4_viewer.py','tree_views.py')},
+        source_code_sha256={n:sha256(Path(__file__).with_name(n)) for n in ('stage4_handoff.py','tree_placement.py','stage4_report.txt','stage4_structure.py','stage4_similarity.py','stage4_viewer.py','tree_views.py')},
         biological_approval_asserted=False,source_handoff_sha256=sha256(args.handoff),counts=counts,commands=runner.commands))
     dump(root/'seal.json',{str(p.relative_to(root)):sha256(p) for p in root.rglob('*') if p.is_file()})
     print(json.dumps(dict(report=str(root/'report.html'),counts=counts)))

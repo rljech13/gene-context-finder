@@ -224,6 +224,8 @@ def run(args):
             possible.append(dict(reference_id=other,reference_label=next(t for t in trees if t['group']==r['group']).get('sequence_roles',{}).get(other,'reference'),
                 tm_model=p['tm_score_'+side],tm_reference=p['tm_score_'+refside],coverage_model=p['coverage_full_'+side],coverage_reference=p['coverage_full_'+refside],rmsd_angstrom=p['rmsd_angstrom'],output_file=p['output_file']))
         r['structure_match']=max(possible,key=lambda v:min(v['tm_model'],v['tm_reference']),default=None)
+    from .tree_placement import attach_stage4
+    attach_stage4(root, trees, rows, args)
     flat=[]
     for r in rows:
         v={k:v for k,v in r.items() if not isinstance(v,(dict,list))}
@@ -267,7 +269,7 @@ def run(args):
         extra_reference_panel_sha256=sha256(args.reference_panel) if args.reference_panel else None,
         structures_catalogue_sha256=sha256(args.structures) if args.structures else None,
         counts=payload['counts'],elapsed_seconds=time.perf_counter()-started,commands=runner.commands,
-        source_code_sha256={n:sha256(Path(__file__).with_name(n)) if n.endswith('.txt') else sha256(Path(importlib.import_module('genecontext.'+n[:-3]).__file__)) for n in ['stage4.py','structure_approval.py','alphafold_db.py','af3_requests.py','stage4_phylogeny.py','stage4_structure.py','stage4_report.txt','stage4_viewer.py','stage4_viewer.txt','stage4_similarity.py','stage3_finalization.py','sequence.py','tools.py','cli.py']},
+        source_code_sha256={n:sha256(Path(__file__).with_name(n)) if n.endswith('.txt') else sha256(Path(importlib.import_module('genecontext.'+n[:-3]).__file__)) for n in ['stage4.py','structure_approval.py','alphafold_db.py','af3_requests.py','stage4_phylogeny.py','tree_placement.py','stage4_structure.py','stage4_report.txt','stage4_viewer.py','stage4_viewer.txt','stage4_similarity.py','stage3_finalization.py','sequence.py','tools.py','cli.py']},
         parameters=dict(tree=args.tree,bootstrap=args.bootstrap,occupancy=args.occupancy,threads=args.threads,
             seed=42,structure_plddt_threshold=70,structure_provider=getattr(args,'structure_provider',None) or 'none',
             structure_limit=getattr(args,'structure_limit',3)),limitations=payload['limitations']))

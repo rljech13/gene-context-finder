@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gene Context Finder · Tree review</title>
+<style>
+:root{color-scheme:light;--ink:#183b3c;--line:#cbd8d8;--accent:#156b70;--muted:#556969}*{box-sizing:border-box}body{font:15px/1.5 system-ui,sans-serif;margin:0;background:#f5f8f7;color:var(--ink)}main{max-width:1450px;margin:auto;padding:24px}h1{font-size:25px;margin:0 0 6px}h2{font-size:20px}h3{font-size:16px}p{max-width:100ch}header,.card{background:white;border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:16px}header p{margin:6px 0;color:var(--muted)}label{display:block;margin:10px 0}select,input,textarea,button{font:inherit}select,input[type=number],textarea{border:1px solid #9cb2b2;border-radius:5px;padding:6px;background:white;max-width:100%}textarea{width:100%;min-height:64px}button{border:1px solid var(--accent);background:var(--accent);color:white;border-radius:5px;padding:7px 14px;cursor:pointer}button:disabled{opacity:.45;cursor:wait}button.secondary{background:white;color:var(--accent)}.row{display:flex;flex-wrap:wrap;gap:18px;align-items:center}.row label{margin:4px 0}.grid{display:grid;grid-template-columns:minmax(230px,340px) 1fr;gap:22px}.selection{max-height:260px;overflow:auto;border:1px solid var(--line);padding:8px}.selection label{margin:5px 0;overflow-wrap:anywhere}select[multiple]{width:100%;min-height:120px}.status{padding:10px;border-radius:6px;background:#e9f0f0}.warning{color:#80511c;background:#fff3de}.error{color:#922e24;background:#ffefeb}small,.muted{color:var(--muted)}.tree-wrap{overflow:auto;border:1px solid var(--line);background:white;min-height:240px}svg{display:block;min-width:700px}table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;vertical-align:top;border-bottom:1px solid var(--line);padding:8px}th{background:#eef4f3}.table-wrap{overflow:auto}code{font-size:12px;overflow-wrap:anywhere}.approval{padding:14px;background:#edf4ed;border:1px solid #9bb59b;border-radius:7px}.approval input{width:18px;height:18px;vertical-align:middle}.footer{position:sticky;bottom:0;background:white;border:1px solid var(--line);padding:12px;box-shadow:0 -3px 9px #0001}.hidden{display:none}@media(max-width:800px){main{padding:10px}.grid{display:block}h1{font-size:21px}header,.card{padding:12px}.tree-wrap{margin-top:15px}}
+</style></head><body><main>
+<header><h1>Tree review</h1><p>Gene Context Finder · automatic placement against an independent species scaffold</p>
+<p>Proposed T is calculated for every exact model. Only your review of this exact tree and outgroup allows T to enter the score.</p>
+<div class="row"><label>Panel <select id="panel"></select></label><label>Group <select id="group"></select></label><span id="saved" class="muted"></span></div></header>
+<div id="notice" class="status" role="status">Connecting to the local review server…</div>
+<section class="card"><h2>Stage 3 · sequences and tree</h2>
+<details id="stage3"><summary>Inspect or change sequence membership, mask, outgroup, and tree construction</summary>
+<div class="grid"><div><h3>Aligned sequences</h3><div id="members" class="selection"></div>
+<label>Tree-input mask <select id="mask"><option value="all">All alignment columns</option><option value="occupancy_50">At least 50% canonical occupancy</option><option value="exact">Saved exact column mask</option></select></label>
+<label>Tree source <select id="source"></select></label></div>
+<div><label>Outgroup <select multiple id="buildOutgroup"></select></label><label>Basis for outgroup <textarea id="buildBasis"></textarea></label>
+<div class="row"><label>Model <select id="model"><option>MFP</option><option>LG</option><option>WAG</option><option>JTT</option></select></label>
+<label>UFBoot <input id="bootstrap" type="number" min="1000" max="5000" value="1000"></label>
+<label>Seed <input id="seed" type="number" min="0" value="42"></label><label>Threads <input id="threads" type="number" min="1" max="8" value="2"></label></div>
+<label><input type="checkbox" id="download"> Allow a pinned, checksum-verified IQ-TREE download if no suitable local engine is installed</label>
+<button id="rebuild">Rebuild tree with IQ-TREE</button><p class="muted">Opening this page starts no tree calculation. A changed sequence set or mask requires a matching rebuilt tree. A rebuild is saved inside this package and clears review confirmation.</p></div></div></details></section>
+<section class="card"><h2>Stage 4 · inspect and confirm</h2>
+<div class="grid"><div><label>Review outgroup <select multiple id="reviewOutgroup"></select></label><button class="secondary" id="unrooted">Keep explicitly unrooted</button><label>Basis for outgroup <textarea id="reviewBasis"></textarea></label>
+<p id="orientation" class="status"></p><p class="muted">Choose no outgroup to review the tree explicitly as unrooted. A non-monophyletic outgroup is rejected rather than forced into a clade. Root orientation does not change proposed quartet T.</p>
+<label>Review comment <textarea id="comment"></textarea></label></div>
+<div><div class="row"><label>Zoom <input type="range" id="zoom" min="70" max="200" value="100"></label><label><input id="lengths" type="checkbox" checked> Branch lengths</label></div>
+<div class="tree-wrap" id="tree"></div></div></div>
+<p id="limitation" class="muted"></p>
+<label class="approval"><input type="checkbox" id="approved" disabled> I have checked this exact tree, its sequence/mask configuration and the displayed outgroup (or explicit unrooted orientation).</label>
+<p id="gate" class="status"></p><details><summary>Exact review signature and provenance</summary><code id="signature"></code><pre id="provenance"></pre></details>
+<h3>Automatic model placement</h3><div class="table-wrap"><table><thead><tr><th>Model</th><th>Proposed T / 15</th><th>T included</th><th>Quartet coverage</th><th>Concordant / discordant</th><th>Status / reason</th></tr></thead><tbody id="models"></tbody></table></div>
+</section>
+<div class="footer row"><button id="save">Save review</button><button id="export" class="secondary">Save and export review JSON</button><label>Import v2 review JSON <input type="file" id="import" accept=".json,application/json"></label><span id="activity"></span></div>
+</main><script src="tree_review_view.js"></script></body></html>

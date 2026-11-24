@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gene-context-finder"
-version = "0.12.2"
+version = "0.13.0"
 description = "Find genes and their genomic surroundings from DNA or protein queries"
 requires-python = ">=3.10"
 dependencies = []
@@ -19,4 +19,4 @@ gene-context = "genecontext.cli:main"
 packages = ["genecontext"]
 
 [tool.setuptools.package-data]
-genecontext = ["*.txt", "vendor/*.js", "vendor/*.txt", "vendor/*.json", "vendor/review/*.txt", "vendor/legacy_review/*"]
+genecontext = ["*.txt", "*.tsv", "*.html", "*.js", "vendor/*.js", "vendor/*.txt", "vendor/*.json", "vendor/review/*.txt", "vendor/legacy_review/*"]

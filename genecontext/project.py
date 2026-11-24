@@ -21,7 +21,7 @@ SCHEMA = 'gene_context_project_v1'
 STAGES = ('stage1', 'stage2', 'stage3', 'stage4')
 PATH_OPTIONS = {'datasets', 'source_datasets', 'neighbor_cache', 'protein_db',
                 'predictor_cache', 'prediction_models', 'tiberius_python',
-                'reference_panel', 'structures', 'structure_cache', 'iqtree', 'usalign'}
+                'species_tree', 'species_lineages', 'reference_panel', 'structures', 'structure_cache', 'iqtree', 'usalign'}
 RESERVED = {'command', 'results', 'out', 'decisions', 'selection', 'draft',
             'validate_only', 'resume', 'gene', 'query', 'query_type', 'genomes', 'handoff',
             'query_metadata', 'help', 'version'}

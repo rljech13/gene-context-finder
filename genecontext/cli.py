@@ -169,6 +169,28 @@ def parser():
     models.add_argument('--out', required=True)
     models.add_argument('--title', default='Candidate models')
     models.add_argument('--prepared-models', '--legacy-stage2', action='store_true', help='Compatibility flag: prepared models are always required')
+    placement = commands.add_parser('tree-assess', help='Automatically assess every model on a gene tree against one independent species scaffold; no leaf/branch choice')
+    placement.add_argument('--tree', dest='tree_file', required=True, help='Gene-tree Newick')
+    placement.add_argument('--models', required=True, help='JSON list: model_id, tree_id, taxon; optional primary and protein_sha256')
+    placement.add_argument('--out', required=True, help='New output directory')
+    placement.add_argument('--support-kind', default='reported_branch_support')
+    placement.add_argument('--support-field', type=nonnegative, help='Zero-based field only when Newick contains multiple support values; no guessing')
+    placement.add_argument('--details', action='store_true', help='Export all assessed sampled quartets')
+    expected = placement.add_mutually_exclusive_group()
+    expected.add_argument('--species-tree', help='Independent species Newick, with taxon labels')
+    expected.add_argument('--species-lineages', help='TSV: taxon (or species), lineage; default is the bundled study classification scaffold')
+    tree_review = commands.add_parser('tree-review', help='Review a computed tree/outgroup and confirm automatic per-model T; no scoring leaf/branch choice')
+    tree_review.add_argument('--results', required=True, help='Stage4 dossier or prepared tree review package')
+    tree_review.add_argument('--out', help='Prepare an independent review copy from a sealed native Stage4 dossier')
+    tree_review.add_argument('--port', type=nonnegative, default=0)
+    tree_review.add_argument('--no-browser', action='store_true')
+    ref_review = tree_review.add_mutually_exclusive_group()
+    ref_review.add_argument('--species-tree')
+    ref_review.add_argument('--species-lineages')
+    apply_tree = commands.add_parser('tree-review-apply', help='Validate an exported tree confirmation and create a new Stage4 dossier; originals unchanged')
+    apply_tree.add_argument('--results', required=True)
+    apply_tree.add_argument('--reviews', required=True)
+    apply_tree.add_argument('--out', required=True)
     doctor = commands.add_parser("doctor", help="Check sequence tools and the selected predictor")
     predictor_options(doctor)
     setup = commands.add_parser("setup-predictor", help="Install the pinned Tiberius CPU runtime and prepare shared model weights")
@@ -384,6 +406,9 @@ def parser():
     s4.add_argument('--bootstrap',type=positive,default=1000,help='UFBoot replicates (minimum 1000)')
     s4.add_argument('--occupancy',type=fraction,default=.5,help='Minimum canonical-residue column occupancy after full-sequence deduplication')
     s4.add_argument('--reference-panel',help='Optional named target/paralog/outgroup reference JSON')
+    reference4=s4.add_mutually_exclusive_group()
+    reference4.add_argument('--species-tree',help='Independent species Newick for automatic per-model placement')
+    reference4.add_argument('--species-lineages',help='Independent taxon/lineage TSV for automatic placement; default bundled scaffold')
     structures=s4.add_mutually_exclusive_group()
     structures.add_argument('--structures',help='Optional hash-verified exact-sequence PDB catalogue JSON')
     structures.add_argument('--structure-provider',choices=['none','afdb','alphafold-server','af3-prepare'],help='Opt-in AFDB retrieval or AlphaFold Server job preparation; no automatic paid jobs')
@@ -427,6 +452,27 @@ def parser():
 
 def main(argv=None):
     args = parser().parse_args(argv)
+    if args.command in {'tree-review','tree-review-apply'}:
+        from . import tree_review_apply
+        try:
+            if args.command=='tree-review-apply':
+                root=tree_review_apply.apply(args)
+                print(json.dumps(dict(report=str(root/'report.html'),tree_review_applied=True)))
+            else:
+                from .tree_review_service import serve
+                root=tree_review_apply.prepare(args) if args.out else args.results
+                serve(root,port=args.port,no_browser=args.no_browser)
+            return 0
+        except (OSError,ValueError,RuntimeError,KeyError) as error:
+            print(f'ERROR: {error}',file=sys.stderr)
+            return 2
+    if args.command == 'tree-assess':
+        from .tree_placement import run_cli
+        try:
+            return run_cli(args)
+        except (OSError,ValueError,RuntimeError,KeyError) as error:
+            print(f'ERROR: {error}',file=sys.stderr)
+            return 2
     if args.command == 'af3-approval':
         from .structure_approval import issue
         try:
